@@ -1,0 +1,31 @@
+@startuml Context
+
+skinparam backgroundColor white
+
+!include  https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+!include  https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Cloud Scraper Context
+
+Boundary(cloud_data_sources, "Cloud Data Sources") {
+    System_Ext(google, "Google") {
+        Component_Ext(google_drive, "Google Drive")
+        Component_Ext(google_docs, "Google Docs")
+        Component_Ext(google_keep, "Google Keep")
+        Component_Ext(google_sheets, "Google Sheets")
+        Component_Ext(google_slides, "Google Slides")
+    }
+}
+
+Boundary(your_server, "Your Server") {
+    System(cloud_scraper, "Cloud Scraper")
+    SystemDb(cloud_scraper_db, "Your Data")
+}
+
+Person(you, "You")
+
+Rel(you, cloud_scraper, "Configuration", "Via CLI")
+Rel(google_keep, cloud_scraper, "Scraped content", "Via API")
+Rel(cloud_scraper, cloud_scraper_db, "Saves")
+
+@enduml
