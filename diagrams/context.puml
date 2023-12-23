@@ -22,6 +22,12 @@ Boundary(your_server, "Your Server") {
     SystemDb(cloud_scraper_db, "Your Data")
 }
 
+skinparam NoteTextAlignment left
+note right
+    Your server can be a
+    Raspberry Pi, an old laptop, your current laptop, a VPS, etc.
+end note
+
 Person(you, "You")
 
 Rel(you, cloud_scraper, "Configuration", "Via CLI")
