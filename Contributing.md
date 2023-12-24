@@ -47,4 +47,3 @@ Compliant Rust formatting can be added to Intellij using the [`rustfmt` instruct
 [intellijrustfmt]: https://github.com/rust-lang/rustfmt/blob/master/intellij.md
 
 [rustfmt]: https://github.com/rust-lang/rustfmt
-

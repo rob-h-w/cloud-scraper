@@ -43,7 +43,7 @@ flow applies to any cloud service.
 
 ![Cloud Scraper context diagram](./diagrams/Context-Cloud_Scraper_Context.svg "Cloud Scraper")
 
-*Figure 1 - Cloud Scraper context*
+###### Figure 1 - Cloud Scraper context
 
 ### Extensibility
 
