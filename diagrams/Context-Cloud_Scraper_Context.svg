@@ -1,1 +1,310 @@
-<?xml version="1.0" encoding="us-ascii" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" contentStyleType="text/css" height="354.6px" preserveAspectRatio="none" style="width:503px;height:354px;background:#FFFFFF;" version="1.1" viewBox="0 0 503 354" width="503.4px" zoomAndPan="magnify"><defs/><g><text fill="#000000" font-family="sans-serif" font-size="8.4" font-weight="bold" lengthAdjust="spacing" textLength="107.4" x="193.8" y="13.7971">Cloud Scraper Context</text><!--cluster cloud_data_sources--><g id="cluster_cloud_data_sources"><rect fill="none" height="238.8" rx="1.5" ry="1.5" style="stroke:#444444;stroke-width:0.6;stroke-dasharray:7.0,7.0;" width="374.4" x="125.4" y="26.5781"/><text fill="#444444" font-family="sans-serif" font-size="9.6" font-weight="bold" lengthAdjust="spacing" textLength="106.2" x="259.5" y="42.6891">Cloud Data Sources</text></g><!--cluster google--><g id="cluster_google"><rect fill="#999999" height="191.4" rx="1.5" ry="1.5" style="stroke:#8A8A8A;stroke-width:0.6;" width="345.6" x="139.8" y="59.5781"/><text fill="#FFFFFF" font-family="sans-serif" font-size="7.2" font-style="italic" lengthAdjust="spacing" textLength="67.2" x="279" y="67.4613">&#171;external_system&#187;</text><text fill="#FFFFFF" font-family="sans-serif" font-size="9.6" font-weight="bold" lengthAdjust="spacing" textLength="37.2" x="294" y="78.0703">Google</text></g><!--cluster your_server--><g id="cluster_your_server"><rect fill="none" height="170.1" rx="1.5" ry="1.5" style="stroke:#444444;stroke-width:0.6;stroke-dasharray:7.0,7.0;" width="106.8" x="4.2" y="181.3781"/><text fill="#444444" font-family="sans-serif" font-size="9.6" font-weight="bold" lengthAdjust="spacing" textLength="64.8" x="25.2" y="197.4891">Your Server</text></g><!--entity google_drive--><g id="elem_google_drive"><rect fill="#CCCCCC" height="31.5563" rx="1.5" ry="1.5" style="stroke:#BFBFBF;stroke-width:0.3;" width="94.8" x="265.2" y="90.1781"/><text fill="#000000" font-family="sans-serif" font-size="7.2" font-style="italic" lengthAdjust="spacing" textLength="82.8" x="271.2" y="102.8613">&#171;external_component&#187;</text><text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold" lengthAdjust="spacing" textLength="37.2" x="278.1" y="113.4703">Google</text><text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold" lengthAdjust="spacing" textLength="3.6" x="315.3" y="113.4703">&#160;</text><text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold" lengthAdjust="spacing" textLength="28.2" x="318.9" y="113.4703">Drive</text></g><!--entity google_docs--><g id="elem_google_docs"><rect fill="#CCCCCC" height="31.5563" rx="1.5" ry="1.5" style="stroke:#BFBFBF;stroke-width:0.3;" width="94.8" x="381" y="90.1781"/><text fill="#000000" font-family="sans-serif" font-size="7.2" font-style="italic" lengthAdjust="spacing" textLength="82.8" x="387" y="102.8613">&#171;external_component&#187;</text><text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold" lengthAdjust="spacing" textLength="37.2" x="395.1" y="113.4703">Google</text><text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold" lengthAdjust="spacing" textLength="3.6" x="432.3" y="113.4703">&#160;</text><text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold" lengthAdjust="spacing" textLength="25.8" x="435.9" y="113.4703">Docs</text></g><!--entity google_keep--><g id="elem_google_keep"><rect fill="#CCCCCC" height="31.5563" rx="1.5" ry="1.5" style="stroke:#BFBFBF;stroke-width:0.3;" width="94.8" x="149.4" y="90.1781"/><text fill="#000000" font-family="sans-serif" font-size="7.2" font-style="italic" lengthAdjust="spacing" textLength="82.8" x="155.4" y="102.8613">&#171;external_component&#187;</text><text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold" lengthAdjust="spacing" textLength="37.2" x="162.9" y="113.4703">Google</text><text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold" lengthAdjust="spacing" textLength="3.6" x="200.1" y="113.4703">&#160;</text><text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold" lengthAdjust="spacing" textLength="27" x="203.7" y="113.4703">Keep</text></g><!--entity google_sheets--><g id="elem_google_sheets"><rect fill="#CCCCCC" height="31.5563" rx="1.5" ry="1.5" style="stroke:#BFBFBF;stroke-width:0.3;" width="94.8" x="265.2" y="209.5781"/><text fill="#000000" font-family="sans-serif" font-size="7.2" font-style="italic" lengthAdjust="spacing" textLength="82.8" x="271.2" y="222.2613">&#171;external_component&#187;</text><text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold" lengthAdjust="spacing" textLength="37.2" x="273.3" y="232.8703">Google</text><text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold" lengthAdjust="spacing" textLength="3.6" x="310.5" y="232.8703">&#160;</text><text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold" lengthAdjust="spacing" textLength="37.8" x="314.1" y="232.8703">Sheets</text></g><!--entity google_slides--><g id="elem_google_slides"><rect fill="#CCCCCC" height="31.5563" rx="1.5" ry="1.5" style="stroke:#BFBFBF;stroke-width:0.3;" width="94.8" x="381" y="209.5781"/><text fill="#000000" font-family="sans-serif" font-size="7.2" font-style="italic" lengthAdjust="spacing" textLength="82.8" x="387" y="222.2613">&#171;external_component&#187;</text><text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold" lengthAdjust="spacing" textLength="37.2" x="391.8" y="232.8703">Google</text><text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold" lengthAdjust="spacing" textLength="3.6" x="429" y="232.8703">&#160;</text><text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold" lengthAdjust="spacing" textLength="32.4" x="432.6" y="232.8703">Slides</text></g><!--entity cloud_scraper--><g id="elem_cloud_scraper"><rect fill="#1168BD" height="31.5563" rx="1.5" ry="1.5" style="stroke:#3C7FC0;stroke-width:0.3;" width="87.6" x="13.8" y="209.5781"/><text fill="#FFFFFF" font-family="sans-serif" font-size="7.2" font-style="italic" lengthAdjust="spacing" textLength="34.2" x="40.5" y="222.2613">&#171;system&#187;</text><text fill="#FFFFFF" font-family="sans-serif" font-size="9.6" font-weight="bold" lengthAdjust="spacing" textLength="30" x="19.8" y="232.8703">Cloud</text><text fill="#FFFFFF" font-family="sans-serif" font-size="9.6" font-weight="bold" lengthAdjust="spacing" textLength="3.6" x="49.8" y="232.8703">&#160;</text><text fill="#FFFFFF" font-family="sans-serif" font-size="9.6" font-weight="bold" lengthAdjust="spacing" textLength="42" x="53.4" y="232.8703">Scraper</text></g><!--entity cloud_scraper_db--><g id="elem_cloud_scraper_db"><path d="M30.3,310.6781 C30.3,304.6781 63.6,304.6781 63.6,304.6781 C63.6,304.6781 96.9,304.6781 96.9,310.6781 L96.9,335.6344 C96.9,341.6344 63.6,341.6344 63.6,341.6344 C63.6,341.6344 30.3,341.6344 30.3,335.6344 L30.3,310.6781 " fill="#1168BD" style="stroke:#3C7FC0;stroke-width:0.3;"/><path d="M30.3,310.6781 C30.3,316.6781 63.6,316.6781 63.6,316.6781 C63.6,316.6781 96.9,316.6781 96.9,310.6781 " fill="none" style="stroke:#3C7FC0;stroke-width:0.3;"/><text fill="#FFFFFF" font-family="sans-serif" font-size="7.2" font-style="italic" lengthAdjust="spacing" textLength="34.2" x="46.5" y="325.7613">&#171;system&#187;</text><text fill="#FFFFFF" font-family="sans-serif" font-size="9.6" font-weight="bold" lengthAdjust="spacing" textLength="25.2" x="36.3" y="336.3703">Your</text><text fill="#FFFFFF" font-family="sans-serif" font-size="9.6" font-weight="bold" lengthAdjust="spacing" textLength="3.6" x="61.5" y="336.3703">&#160;</text><text fill="#FFFFFF" font-family="sans-serif" font-size="9.6" font-weight="bold" lengthAdjust="spacing" textLength="25.8" x="65.1" y="336.3703">Data</text></g><g id="elem_GMN12"><path d="M120.6,301.9781 L120.6,320.8781 L96.966,323.2781 L120.6,325.6781 L120.6,344.2969 A0,0 0 0 0 120.6,344.2969 L240.6,344.2969 A0,0 0 0 0 240.6,344.2969 L240.6,307.9781 L234.6,301.9781 L120.6,301.9781 A0,0 0 0 0 120.6,301.9781 " fill="#FEFFDD" style="stroke:#181818;stroke-width:0.3;"/><path d="M234.6,301.9781 L234.6,307.9781 L240.6,307.9781 L234.6,301.9781 " fill="#FEFFDD" style="stroke:#181818;stroke-width:0.3;"/><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="17.4" x="124.2" y="312.2183">Your</text><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="2.4" x="141.6" y="312.2183">&#160;</text><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="24.6" x="144" y="312.2183">server</text><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="2.4" x="168.6" y="312.2183">&#160;</text><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="13.8" x="171" y="312.2183">can</text><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="2.4" x="184.8" y="312.2183">&#160;</text><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="9.6" x="187.2" y="312.2183">be</text><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="2.4" x="196.8" y="312.2183">&#160;</text><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="4.8" x="199.2" y="312.2183">a</text><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="39.6" x="124.2" y="321.2979">Raspberry</text><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="2.4" x="163.8" y="321.2979">&#160;</text><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="9.6" x="166.2" y="321.2979">Pi,</text><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="2.4" x="175.8" y="321.2979">&#160;</text><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="9.6" x="178.2" y="321.2979">an</text><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="2.4" x="187.8" y="321.2979">&#160;</text><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="12" x="190.2" y="321.2979">old</text><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="2.4" x="202.2" y="321.2979">&#160;</text><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="27" x="204.6" y="321.2979">laptop,</text><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="17.4" x="124.2" y="330.3776">your</text><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="2.4" x="141.6" y="330.3776">&#160;</text><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="27.6" x="144" y="330.3776">current</text><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="2.4" x="171.6" y="330.3776">&#160;</text><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="27" x="174" y="330.3776">laptop,</text><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="2.4" x="201" y="330.3776">&#160;</text><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="4.8" x="203.4" y="330.3776">a</text><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="2.4" x="208.2" y="330.3776">&#160;</text><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="17.4" x="210.6" y="330.3776">VPS,</text><text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing" textLength="14.4" x="124.2" y="339.4573">etc.</text></g><!--entity you--><g id="elem_you"><rect fill="#08427B" height="60.3562" rx="1.5" ry="1.5" style="stroke:#073B6F;stroke-width:0.3;" width="45" x="35.1" y="75.7781"/><text fill="#FFFFFF" font-family="sans-serif" font-size="7.2" font-style="italic" lengthAdjust="spacing" textLength="33" x="41.1" y="88.4613">&#171;person&#187;</text><image height="28.8" width="28.8" x="43.2" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAACMElEQVR4Xu2YvUrFQBCFb+kj+Ai+gq3Y2PgA+gCCtZ2V2AhqaSNiqY1gYWMjaCvXykoEKy21sLCNfELgMscksz8mWfDAB3Kuye7sTmYnmcwtbU9KRozSECOVla3T6uTqvrqZPlcPT68/XNw+VtvH19XC+sGe/f9UxIhl8/Cy+vj8qrpEYIsbR1N7fSxihDK/urvMKoeKHbH3ikGMEJi8Z9WbtH92lxyEGCHErLwVqWfvG4IYXkiBXGIn7f29iOGBAe0kUkTVsmN4EcMD255bdgwvYnigFOYW54cdx4MYHlIqT5Niy6oYHuzgORRbUsXwYAfPoV4DeHl7t+MnK/Y8EMMDzVlu9foQ5y6jFAU7hhcxvOSsRLH5D2J4KbqVqMlxoK3tnEevPogRAiuXUpFiD69ZxIghZidSV75GjFiYkGc3KMEpOW8RIxXed0kNJsrOAO0ypTfnxGvEKA0xSkMMD3zfIedJFQ4hCPlUwrX1daQWbURseonRBhNue1D5rc53JkVQwN9c21Wt+D20JxLjN7hpztahSwTi3RExLDlbhhCxm55PkWLMkrvrDBW73rUTYtSQu/aGQ4h0snNzBdD1wPWptrZDDBjL6tfiebBzbA2AUjg2NT3QYkBbrR9KTS/9YoC9eAxqeu0UI/eH21yiu7VzLSqApnIqxn8Af6TiA3A/A9Bn5+lV0xcMMWDoJs6qrakTo4a6OwZxqLa97YkxC1HzMkMzNQRtE3cFUAJilMY3OGTNL0NDLqIAAAAASUVORK5CYII=" y="90.1594"/><text fill="#FFFFFF" font-family="sans-serif" font-size="9.6" font-weight="bold" lengthAdjust="spacing" textLength="20.4" x="47.4" y="127.8703">You</text></g><!--link you to cloud_scraper--><g id="link_you_cloud_scraper"><path d="M57.6,136.5041 C57.6,159.7601 57.6,186.2981 57.6,204.7301 " fill="none" id="you-to-cloud_scraper" style="stroke:#666666;stroke-width:0.6;"/><polygon fill="#666666" points="57.6,209.5301,59.4,204.7301,55.8,204.7301,57.6,209.5301" style="stroke:#666666;stroke-width:0.6;"/><text fill="#666666" font-family="sans-serif" font-size="7.2" font-weight="bold" lengthAdjust="spacing" textLength="56.4" x="58.2" y="161.6613">Configuration</text><text fill="#666666" font-family="sans-serif" font-size="7.2" font-style="italic" lengthAdjust="spacing" textLength="13.8" x="71.1" y="170.0426">[Via</text><text fill="#666666" font-family="sans-serif" font-size="7.2" font-style="italic" lengthAdjust="spacing" textLength="2.4" x="84.9" y="170.0426">&#160;</text><text fill="#666666" font-family="sans-serif" font-size="7.2" font-style="italic" lengthAdjust="spacing" textLength="14.4" x="87.3" y="170.0426">CLI]</text></g><!--link google_keep to cloud_scraper--><g id="link_google_keep_cloud_scraper"><path d="M178.602,122.1281 C151.926,144.7841 106.1386,183.6589 79.4626,206.3149 " fill="none" id="google_keep-to-cloud_scraper" style="stroke:#666666;stroke-width:0.6;"/><polygon fill="#666666" points="75.804,209.4221,80.6278,207.6869,78.2974,204.9429,75.804,209.4221" style="stroke:#666666;stroke-width:0.6;"/><text fill="#666666" font-family="sans-serif" font-size="7.2" font-weight="bold" lengthAdjust="spacing" textLength="33.6" x="139.8" y="161.6613">Scraped</text><text fill="#666666" font-family="sans-serif" font-size="7.2" font-weight="bold" lengthAdjust="spacing" textLength="2.4" x="173.4" y="161.6613">&#160;</text><text fill="#666666" font-family="sans-serif" font-size="7.2" font-weight="bold" lengthAdjust="spacing" textLength="31.8" x="175.8" y="161.6613">content</text><text fill="#666666" font-family="sans-serif" font-size="7.2" font-style="italic" lengthAdjust="spacing" textLength="13.8" x="158.4" y="170.0426">[Via</text><text fill="#666666" font-family="sans-serif" font-size="7.2" font-style="italic" lengthAdjust="spacing" textLength="2.4" x="172.2" y="170.0426">&#160;</text><text fill="#666666" font-family="sans-serif" font-size="7.2" font-style="italic" lengthAdjust="spacing" textLength="14.4" x="174.6" y="170.0426">API]</text></g><!--link cloud_scraper to cloud_scraper_db--><g id="link_cloud_scraper_cloud_scraper_db"><path d="M58.548,241.3841 C59.616,258.5681 61.0534,281.6353 62.1814,299.8573 " fill="none" id="cloud_scraper-to-cloud_scraper_db" style="stroke:#666666;stroke-width:0.6;"/><polygon fill="#666666" points="62.478,304.6481,63.978,299.7461,60.3849,299.9685,62.478,304.6481" style="stroke:#666666;stroke-width:0.6;"/><text fill="#666666" font-family="sans-serif" font-size="7.2" font-weight="bold" lengthAdjust="spacing" textLength="24" x="61.2" y="282.2613">Saves</text></g><!--SRC=[jPF1Rjim38RlUWekfnP8uyjEktNEC0ph1gFU2knao19h2v4bGwBJ1aFVVPJjf6us8AVvP5B_HrByxRWphfT1Tb1BjMk27vpElVK1dbf3ACGxuvGTD0AqH7tya6L1FcqQG-rG3n63yexGqKRvBkkjT3HqzYQIjgREylStHKhz_7QNTJ8I1avLUIAUQTEpyh-Kxthl4ZCs46J88kJM3nfA5MIF0UOHXFYOxYl3uKgbyqfBabNqGr0Orx2Qe2qdePoIgsluBO2Vyi3zkkhJCrqrtZSMMVvvV3b9qdCQPg6iT33xLpriKxYwli1u5HS8HvU87MB_Idpbw18HMqHQT2d7-29bZSObDSOpzI9U5ai-y18hDdMFWVM_E89oZCxMEhiH9xTEHipkpQKdwRP-AwvqVIoTV6Cj3n1F7_btJ_Y3dR-rfd4TtmGiFf9md8PWcfR6qYC-pGbAEgWHv7XmBsDVOmW7ACmQ-CHR3LRsv7dLwNQWXX36idDImaDHhW59RGGw3QcJ40M6w5tQnpGiZodkqKw9loxltQDfXY39UBVYn8EHaDzzOIWnR-m-PwULQPX_eoDzMnpfC-0VkopbVhJp3m00]--></g></svg>
+<?xml version="1.0" encoding="us-ascii" standalone="no"?>
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg"
+     contentStyleType="text/css" height="354.6px" preserveAspectRatio="none"
+     style="width:503px;height:354px;background:#FFFFFF;" version="1.1" viewBox="0 0 503 354"
+     width="503.4px" zoomAndPan="magnify">
+    <defs/>
+    <g>
+        <text fill="#000000" font-family="sans-serif" font-size="8.4" font-weight="bold"
+              lengthAdjust="spacing" textLength="107.4" x="193.8" y="13.7971">Cloud Scraper Context
+        </text><!--cluster cloud_data_sources-->
+        <g id="cluster_cloud_data_sources">
+            <rect fill="none" height="238.8" rx="1.5" ry="1.5"
+                  style="stroke:#444444;stroke-width:0.6;stroke-dasharray:7.0,7.0;" width="374.4"
+                  x="125.4" y="26.5781"/>
+            <text fill="#444444" font-family="sans-serif" font-size="9.6" font-weight="bold"
+                  lengthAdjust="spacing" textLength="106.2" x="259.5" y="42.6891">Cloud Data Sources
+            </text>
+        </g><!--cluster google-->
+        <g id="cluster_google">
+            <rect fill="#999999" height="191.4" rx="1.5" ry="1.5"
+                  style="stroke:#8A8A8A;stroke-width:0.6;" width="345.6" x="139.8" y="59.5781"/>
+            <text fill="#FFFFFF" font-family="sans-serif" font-size="7.2" font-style="italic"
+                  lengthAdjust="spacing" textLength="67.2" x="279" y="67.4613">&#171;external_system&#187;
+            </text>
+            <text fill="#FFFFFF" font-family="sans-serif" font-size="9.6" font-weight="bold"
+                  lengthAdjust="spacing" textLength="37.2" x="294" y="78.0703">Google
+            </text>
+        </g><!--cluster your_server-->
+        <g id="cluster_your_server">
+            <rect fill="none" height="170.1" rx="1.5" ry="1.5"
+                  style="stroke:#444444;stroke-width:0.6;stroke-dasharray:7.0,7.0;" width="106.8"
+                  x="4.2" y="181.3781"/>
+            <text fill="#444444" font-family="sans-serif" font-size="9.6" font-weight="bold"
+                  lengthAdjust="spacing" textLength="64.8" x="25.2" y="197.4891">Your Server
+            </text>
+        </g><!--entity google_drive-->
+        <g id="elem_google_drive">
+            <rect fill="#CCCCCC" height="31.5563" rx="1.5" ry="1.5"
+                  style="stroke:#BFBFBF;stroke-width:0.3;" width="94.8" x="265.2" y="90.1781"/>
+            <text fill="#000000" font-family="sans-serif" font-size="7.2" font-style="italic"
+                  lengthAdjust="spacing" textLength="82.8" x="271.2" y="102.8613">&#171;external_component&#187;
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold"
+                  lengthAdjust="spacing" textLength="37.2" x="278.1" y="113.4703">Google
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold"
+                  lengthAdjust="spacing" textLength="3.6" x="315.3" y="113.4703">&#160;
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold"
+                  lengthAdjust="spacing" textLength="28.2" x="318.9" y="113.4703">Drive
+            </text>
+        </g><!--entity google_docs-->
+        <g id="elem_google_docs">
+            <rect fill="#CCCCCC" height="31.5563" rx="1.5" ry="1.5"
+                  style="stroke:#BFBFBF;stroke-width:0.3;" width="94.8" x="381" y="90.1781"/>
+            <text fill="#000000" font-family="sans-serif" font-size="7.2" font-style="italic"
+                  lengthAdjust="spacing" textLength="82.8" x="387" y="102.8613">&#171;external_component&#187;
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold"
+                  lengthAdjust="spacing" textLength="37.2" x="395.1" y="113.4703">Google
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold"
+                  lengthAdjust="spacing" textLength="3.6" x="432.3" y="113.4703">&#160;
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold"
+                  lengthAdjust="spacing" textLength="25.8" x="435.9" y="113.4703">Docs
+            </text>
+        </g><!--entity google_keep-->
+        <g id="elem_google_keep">
+            <rect fill="#CCCCCC" height="31.5563" rx="1.5" ry="1.5"
+                  style="stroke:#BFBFBF;stroke-width:0.3;" width="94.8" x="149.4" y="90.1781"/>
+            <text fill="#000000" font-family="sans-serif" font-size="7.2" font-style="italic"
+                  lengthAdjust="spacing" textLength="82.8" x="155.4" y="102.8613">&#171;external_component&#187;
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold"
+                  lengthAdjust="spacing" textLength="37.2" x="162.9" y="113.4703">Google
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold"
+                  lengthAdjust="spacing" textLength="3.6" x="200.1" y="113.4703">&#160;
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold"
+                  lengthAdjust="spacing" textLength="27" x="203.7" y="113.4703">Keep
+            </text>
+        </g><!--entity google_sheets-->
+        <g id="elem_google_sheets">
+            <rect fill="#CCCCCC" height="31.5563" rx="1.5" ry="1.5"
+                  style="stroke:#BFBFBF;stroke-width:0.3;" width="94.8" x="265.2" y="209.5781"/>
+            <text fill="#000000" font-family="sans-serif" font-size="7.2" font-style="italic"
+                  lengthAdjust="spacing" textLength="82.8" x="271.2" y="222.2613">&#171;external_component&#187;
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold"
+                  lengthAdjust="spacing" textLength="37.2" x="273.3" y="232.8703">Google
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold"
+                  lengthAdjust="spacing" textLength="3.6" x="310.5" y="232.8703">&#160;
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold"
+                  lengthAdjust="spacing" textLength="37.8" x="314.1" y="232.8703">Sheets
+            </text>
+        </g><!--entity google_slides-->
+        <g id="elem_google_slides">
+            <rect fill="#CCCCCC" height="31.5563" rx="1.5" ry="1.5"
+                  style="stroke:#BFBFBF;stroke-width:0.3;" width="94.8" x="381" y="209.5781"/>
+            <text fill="#000000" font-family="sans-serif" font-size="7.2" font-style="italic"
+                  lengthAdjust="spacing" textLength="82.8" x="387" y="222.2613">&#171;external_component&#187;
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold"
+                  lengthAdjust="spacing" textLength="37.2" x="391.8" y="232.8703">Google
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold"
+                  lengthAdjust="spacing" textLength="3.6" x="429" y="232.8703">&#160;
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="9.6" font-weight="bold"
+                  lengthAdjust="spacing" textLength="32.4" x="432.6" y="232.8703">Slides
+            </text>
+        </g><!--entity cloud_scraper-->
+        <g id="elem_cloud_scraper">
+            <rect fill="#1168BD" height="31.5563" rx="1.5" ry="1.5"
+                  style="stroke:#3C7FC0;stroke-width:0.3;" width="87.6" x="13.8" y="209.5781"/>
+            <text fill="#FFFFFF" font-family="sans-serif" font-size="7.2" font-style="italic"
+                  lengthAdjust="spacing" textLength="34.2" x="40.5" y="222.2613">&#171;system&#187;
+            </text>
+            <text fill="#FFFFFF" font-family="sans-serif" font-size="9.6" font-weight="bold"
+                  lengthAdjust="spacing" textLength="30" x="19.8" y="232.8703">Cloud
+            </text>
+            <text fill="#FFFFFF" font-family="sans-serif" font-size="9.6" font-weight="bold"
+                  lengthAdjust="spacing" textLength="3.6" x="49.8" y="232.8703">&#160;
+            </text>
+            <text fill="#FFFFFF" font-family="sans-serif" font-size="9.6" font-weight="bold"
+                  lengthAdjust="spacing" textLength="42" x="53.4" y="232.8703">Scraper
+            </text>
+        </g><!--entity cloud_scraper_db-->
+        <g id="elem_cloud_scraper_db">
+            <path d="M30.3,310.6781 C30.3,304.6781 63.6,304.6781 63.6,304.6781 C63.6,304.6781 96.9,304.6781 96.9,310.6781 L96.9,335.6344 C96.9,341.6344 63.6,341.6344 63.6,341.6344 C63.6,341.6344 30.3,341.6344 30.3,335.6344 L30.3,310.6781 "
+                  fill="#1168BD" style="stroke:#3C7FC0;stroke-width:0.3;"/>
+            <path d="M30.3,310.6781 C30.3,316.6781 63.6,316.6781 63.6,316.6781 C63.6,316.6781 96.9,316.6781 96.9,310.6781 "
+                  fill="none" style="stroke:#3C7FC0;stroke-width:0.3;"/>
+            <text fill="#FFFFFF" font-family="sans-serif" font-size="7.2" font-style="italic"
+                  lengthAdjust="spacing" textLength="34.2" x="46.5" y="325.7613">&#171;system&#187;
+            </text>
+            <text fill="#FFFFFF" font-family="sans-serif" font-size="9.6" font-weight="bold"
+                  lengthAdjust="spacing" textLength="25.2" x="36.3" y="336.3703">Your
+            </text>
+            <text fill="#FFFFFF" font-family="sans-serif" font-size="9.6" font-weight="bold"
+                  lengthAdjust="spacing" textLength="3.6" x="61.5" y="336.3703">&#160;
+            </text>
+            <text fill="#FFFFFF" font-family="sans-serif" font-size="9.6" font-weight="bold"
+                  lengthAdjust="spacing" textLength="25.8" x="65.1" y="336.3703">Data
+            </text>
+        </g>
+        <g id="elem_GMN12">
+            <path d="M120.6,301.9781 L120.6,320.8781 L96.966,323.2781 L120.6,325.6781 L120.6,344.2969 A0,0 0 0 0 120.6,344.2969 L240.6,344.2969 A0,0 0 0 0 240.6,344.2969 L240.6,307.9781 L234.6,301.9781 L120.6,301.9781 A0,0 0 0 0 120.6,301.9781 "
+                  fill="#FEFFDD" style="stroke:#181818;stroke-width:0.3;"/>
+            <path d="M234.6,301.9781 L234.6,307.9781 L240.6,307.9781 L234.6,301.9781 "
+                  fill="#FEFFDD" style="stroke:#181818;stroke-width:0.3;"/>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="17.4" x="124.2" y="312.2183">Your
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="2.4" x="141.6" y="312.2183">&#160;
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="24.6" x="144" y="312.2183">server
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="2.4" x="168.6" y="312.2183">&#160;
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="13.8" x="171" y="312.2183">can
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="2.4" x="184.8" y="312.2183">&#160;
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="9.6" x="187.2" y="312.2183">be
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="2.4" x="196.8" y="312.2183">&#160;
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="4.8" x="199.2" y="312.2183">a
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="39.6" x="124.2" y="321.2979">Raspberry
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="2.4" x="163.8" y="321.2979">&#160;
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="9.6" x="166.2" y="321.2979">Pi,
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="2.4" x="175.8" y="321.2979">&#160;
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="9.6" x="178.2" y="321.2979">an
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="2.4" x="187.8" y="321.2979">&#160;
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="12" x="190.2" y="321.2979">old
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="2.4" x="202.2" y="321.2979">&#160;
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="27" x="204.6" y="321.2979">laptop,
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="17.4" x="124.2" y="330.3776">your
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="2.4" x="141.6" y="330.3776">&#160;
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="27.6" x="144" y="330.3776">current
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="2.4" x="171.6" y="330.3776">&#160;
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="27" x="174" y="330.3776">laptop,
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="2.4" x="201" y="330.3776">&#160;
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="4.8" x="203.4" y="330.3776">a
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="2.4" x="208.2" y="330.3776">&#160;
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="17.4" x="210.6" y="330.3776">VPS,
+            </text>
+            <text fill="#000000" font-family="sans-serif" font-size="7.8" lengthAdjust="spacing"
+                  textLength="14.4" x="124.2" y="339.4573">etc.
+            </text>
+        </g><!--entity you-->
+        <g id="elem_you">
+            <rect fill="#08427B" height="60.3562" rx="1.5" ry="1.5"
+                  style="stroke:#073B6F;stroke-width:0.3;" width="45" x="35.1" y="75.7781"/>
+            <text fill="#FFFFFF" font-family="sans-serif" font-size="7.2" font-style="italic"
+                  lengthAdjust="spacing" textLength="33" x="41.1" y="88.4613">&#171;person&#187;
+            </text>
+            <image height="28.8" width="28.8" x="43.2"
+                   xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAACMElEQVR4Xu2YvUrFQBCFb+kj+Ai+gq3Y2PgA+gCCtZ2V2AhqaSNiqY1gYWMjaCvXykoEKy21sLCNfELgMscksz8mWfDAB3Kuye7sTmYnmcwtbU9KRozSECOVla3T6uTqvrqZPlcPT68/XNw+VtvH19XC+sGe/f9UxIhl8/Cy+vj8qrpEYIsbR1N7fSxihDK/urvMKoeKHbH3ikGMEJi8Z9WbtH92lxyEGCHErLwVqWfvG4IYXkiBXGIn7f29iOGBAe0kUkTVsmN4EcMD255bdgwvYnigFOYW54cdx4MYHlIqT5Niy6oYHuzgORRbUsXwYAfPoV4DeHl7t+MnK/Y8EMMDzVlu9foQ5y6jFAU7hhcxvOSsRLH5D2J4KbqVqMlxoK3tnEevPogRAiuXUpFiD69ZxIghZidSV75GjFiYkGc3KMEpOW8RIxXed0kNJsrOAO0ypTfnxGvEKA0xSkMMD3zfIedJFQ4hCPlUwrX1daQWbURseonRBhNue1D5rc53JkVQwN9c21Wt+D20JxLjN7hpztahSwTi3RExLDlbhhCxm55PkWLMkrvrDBW73rUTYtSQu/aGQ4h0snNzBdD1wPWptrZDDBjL6tfiebBzbA2AUjg2NT3QYkBbrR9KTS/9YoC9eAxqeu0UI/eH21yiu7VzLSqApnIqxn8Af6TiA3A/A9Bn5+lV0xcMMWDoJs6qrakTo4a6OwZxqLa97YkxC1HzMkMzNQRtE3cFUAJilMY3OGTNL0NDLqIAAAAASUVORK5CYII="
+                   y="90.1594"/>
+            <text fill="#FFFFFF" font-family="sans-serif" font-size="9.6" font-weight="bold"
+                  lengthAdjust="spacing" textLength="20.4" x="47.4" y="127.8703">You
+            </text>
+        </g><!--link you to cloud_scraper-->
+        <g id="link_you_cloud_scraper">
+            <path d="M57.6,136.5041 C57.6,159.7601 57.6,186.2981 57.6,204.7301 " fill="none"
+                  id="you-to-cloud_scraper" style="stroke:#666666;stroke-width:0.6;"/>
+            <polygon fill="#666666" points="57.6,209.5301,59.4,204.7301,55.8,204.7301,57.6,209.5301"
+                     style="stroke:#666666;stroke-width:0.6;"/>
+            <text fill="#666666" font-family="sans-serif" font-size="7.2" font-weight="bold"
+                  lengthAdjust="spacing" textLength="56.4" x="58.2" y="161.6613">Configuration
+            </text>
+            <text fill="#666666" font-family="sans-serif" font-size="7.2" font-style="italic"
+                  lengthAdjust="spacing" textLength="13.8" x="71.1" y="170.0426">[Via
+            </text>
+            <text fill="#666666" font-family="sans-serif" font-size="7.2" font-style="italic"
+                  lengthAdjust="spacing" textLength="2.4" x="84.9" y="170.0426">&#160;
+            </text>
+            <text fill="#666666" font-family="sans-serif" font-size="7.2" font-style="italic"
+                  lengthAdjust="spacing" textLength="14.4" x="87.3" y="170.0426">CLI]
+            </text>
+        </g><!--link google_keep to cloud_scraper-->
+        <g id="link_google_keep_cloud_scraper">
+            <path d="M178.602,122.1281 C151.926,144.7841 106.1386,183.6589 79.4626,206.3149 "
+                  fill="none" id="google_keep-to-cloud_scraper"
+                  style="stroke:#666666;stroke-width:0.6;"/>
+            <polygon fill="#666666"
+                     points="75.804,209.4221,80.6278,207.6869,78.2974,204.9429,75.804,209.4221"
+                     style="stroke:#666666;stroke-width:0.6;"/>
+            <text fill="#666666" font-family="sans-serif" font-size="7.2" font-weight="bold"
+                  lengthAdjust="spacing" textLength="33.6" x="139.8" y="161.6613">Scraped
+            </text>
+            <text fill="#666666" font-family="sans-serif" font-size="7.2" font-weight="bold"
+                  lengthAdjust="spacing" textLength="2.4" x="173.4" y="161.6613">&#160;
+            </text>
+            <text fill="#666666" font-family="sans-serif" font-size="7.2" font-weight="bold"
+                  lengthAdjust="spacing" textLength="31.8" x="175.8" y="161.6613">content
+            </text>
+            <text fill="#666666" font-family="sans-serif" font-size="7.2" font-style="italic"
+                  lengthAdjust="spacing" textLength="13.8" x="158.4" y="170.0426">[Via
+            </text>
+            <text fill="#666666" font-family="sans-serif" font-size="7.2" font-style="italic"
+                  lengthAdjust="spacing" textLength="2.4" x="172.2" y="170.0426">&#160;
+            </text>
+            <text fill="#666666" font-family="sans-serif" font-size="7.2" font-style="italic"
+                  lengthAdjust="spacing" textLength="14.4" x="174.6" y="170.0426">API]
+            </text>
+        </g><!--link cloud_scraper to cloud_scraper_db-->
+        <g id="link_cloud_scraper_cloud_scraper_db">
+            <path d="M58.548,241.3841 C59.616,258.5681 61.0534,281.6353 62.1814,299.8573 "
+                  fill="none" id="cloud_scraper-to-cloud_scraper_db"
+                  style="stroke:#666666;stroke-width:0.6;"/>
+            <polygon fill="#666666"
+                     points="62.478,304.6481,63.978,299.7461,60.3849,299.9685,62.478,304.6481"
+                     style="stroke:#666666;stroke-width:0.6;"/>
+            <text fill="#666666" font-family="sans-serif" font-size="7.2" font-weight="bold"
+                  lengthAdjust="spacing" textLength="24" x="61.2" y="282.2613">Saves
+            </text>
+        </g><!--SRC=[jPF1Rjim38RlUWekfnP8uyjEktNEC0ph1gFU2knao19h2v4bGwBJ1aFVVPJjf6us8AVvP5B_HrByxRWphfT1Tb1BjMk27vpElVK1dbf3ACGxuvGTD0AqH7tya6L1FcqQG-rG3n63yexGqKRvBkkjT3HqzYQIjgREylStHKhz_7QNTJ8I1avLUIAUQTEpyh-Kxthl4ZCs46J88kJM3nfA5MIF0UOHXFYOxYl3uKgbyqfBabNqGr0Orx2Qe2qdePoIgsluBO2Vyi3zkkhJCrqrtZSMMVvvV3b9qdCQPg6iT33xLpriKxYwli1u5HS8HvU87MB_Idpbw18HMqHQT2d7-29bZSObDSOpzI9U5ai-y18hDdMFWVM_E89oZCxMEhiH9xTEHipkpQKdwRP-AwvqVIoTV6Cj3n1F7_btJ_Y3dR-rfd4TtmGiFf9md8PWcfR6qYC-pGbAEgWHv7XmBsDVOmW7ACmQ-CHR3LRsv7dLwNQWXX36idDImaDHhW59RGGw3QcJ40M6w5tQnpGiZodkqKw9loxltQDfXY39UBVYn8EHaDzzOIWnR-m-PwULQPX_eoDzMnpfC-0VkopbVhJp3m00]-->
+    </g>
+</svg>
