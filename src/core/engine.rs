@@ -1,14 +1,13 @@
 use std::error::Error;
 
-pub(crate) struct EngineImpl {
-}
+pub(crate) struct EngineImpl {}
 
 pub(crate) trait Engine {
-    fn start(&self) -> Result<(), Box<dyn Error>>;
+    fn start(&mut self) -> Result<(), Box<dyn Error>>;
 }
 
 impl Engine for EngineImpl {
-    fn start(&self) -> Result<(), Box<dyn Error>> {
+    fn start(&mut self) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
 }
@@ -19,6 +18,6 @@ mod tests {
 
     #[test]
     fn test_engine_start() {
-        EngineImpl {}.start()?;
+        EngineImpl {}.start().unwrap();
     }
 }
