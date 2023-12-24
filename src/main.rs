@@ -22,7 +22,9 @@ mod tests {
 
     impl EngineTestImpl {
         fn new() -> EngineTestImpl {
-            EngineTestImpl { start_called: false }
+            EngineTestImpl {
+                start_called: false,
+            }
         }
     }
 
