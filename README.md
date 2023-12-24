@@ -52,4 +52,5 @@ data store. This will allow the user to choose which cloud service they want to 
 store they want to use.
 
 I intend to implement Google Keep initially because this is the service I think is the biggest risk
-for me. By risk, I mean the combination of probability and impact.
+for me. By risk, I mean the combination of probability and impact for me of my Keep notes
+becoming unavailable.
