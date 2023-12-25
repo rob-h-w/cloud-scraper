@@ -3,6 +3,7 @@ use std::error::Error;
 use crate::core::engine::{Engine, EngineImpl};
 
 mod core;
+mod domain;
 
 fn main() -> Result<(), Box<dyn Error>> {
     main_impl(&mut EngineImpl {})
