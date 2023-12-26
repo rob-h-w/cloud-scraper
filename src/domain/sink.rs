@@ -4,7 +4,7 @@ use std::error::Error;
 
 pub(crate) trait Sink<T> {
     fn sink_identifier(&self) -> &SinkIdentifier;
-    fn put(&self, entities: Vec<Entity<T>>) -> Result<(), Box<dyn Error>>;
+    fn put(&mut self, entities: Vec<Entity<T>>) -> Result<(), Box<dyn Error>>;
 }
 
 #[cfg(test)]
@@ -33,7 +33,7 @@ pub(crate) mod tests {
             &self.sink_identifier
         }
 
-        fn put(&self, entities: Vec<Entity<String>>) -> Result<(), Box<dyn Error>> {
+        fn put(&mut self, entities: Vec<Entity<String>>) -> Result<(), Box<dyn Error>> {
             println!("putting entities: {:?}", entities);
             Ok(())
         }
@@ -43,7 +43,7 @@ pub(crate) mod tests {
     fn test_dev_usability() {
         let source = TestSource::new("test");
         let sink_name = "test";
-        let sink = TestSink::new(sink_name);
+        let mut sink = TestSink::new(sink_name);
         assert_eq!(sink.sink_identifier(), &SinkIdentifier::new(sink_name));
 
         let entities = vec![
