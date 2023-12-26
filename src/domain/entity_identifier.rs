@@ -17,6 +17,14 @@ impl EntityIdentifier {
             source_identifier: source.source_identifier().clone(),
         }
     }
+
+    pub(crate) fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub(crate) fn source_identifier(&self) -> &SourceIdentifier {
+        &self.source_identifier
+    }
 }
 
 #[cfg(test)]
@@ -51,12 +59,13 @@ mod tests {
             hasher.finish()
         }
 
-        let source_1 = TestSource::new("test 1");
+        let mut source_1 = TestSource::new("test 1");
         let source_2 = TestSource::new("test 2");
         let [hash_1, hash_2] = source_1
             .get(&Utc::now())
+            .unwrap()
             .iter()
-            .map(|entity| hash(&entity.id))
+            .map(|entity| hash(&entity.id()))
             .collect::<Vec<u64>>()[..]
         else {
             panic!("Expected 2 entities");
@@ -68,5 +77,22 @@ mod tests {
 
         let hash_4 = hash(&EntityIdentifier::new("1", &source_2));
         assert_ne!(hash_1, hash_4);
+    }
+
+    #[test]
+    fn test_entity_identifier_name() {
+        let source = TestSource::new("test");
+        let entity_identifier = EntityIdentifier::new("test", &source);
+        assert_eq!(entity_identifier.name(), "test");
+    }
+
+    #[test]
+    fn test_entity_identifier_source_identifier() {
+        let source = TestSource::new("test");
+        let entity_identifier = EntityIdentifier::new("test", &source);
+        assert_eq!(
+            entity_identifier.source_identifier(),
+            source.source_identifier()
+        );
     }
 }

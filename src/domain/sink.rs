@@ -10,7 +10,6 @@ pub(crate) trait Sink<T> {
 #[cfg(test)]
 pub(crate) mod tests {
     use crate::domain::entity::Entity;
-    use crate::domain::entity_identifier::EntityIdentifier;
     use crate::domain::sink::Sink;
     use crate::domain::sink_identifier::SinkIdentifier;
     use crate::domain::source::tests::TestSource;
@@ -24,9 +23,7 @@ pub(crate) mod tests {
     impl TestSink {
         pub(crate) fn new(unique_name: &str) -> Self {
             Self {
-                sink_identifier: SinkIdentifier {
-                    unique_name: unique_name.to_string(),
-                },
+                sink_identifier: SinkIdentifier::new(unique_name),
             }
         }
     }
@@ -47,26 +44,11 @@ pub(crate) mod tests {
         let source = TestSource::new("test");
         let sink_name = "test";
         let sink = TestSink::new(sink_name);
-        assert_eq!(
-            sink.sink_identifier(),
-            &SinkIdentifier {
-                unique_name: sink_name.to_string(),
-            }
-        );
+        assert_eq!(sink.sink_identifier(), &SinkIdentifier::new(sink_name));
 
         let entities = vec![
-            Entity {
-                id: EntityIdentifier::new("1", &source),
-                created_at: chrono::Utc::now(),
-                updated_at: chrono::Utc::now(),
-                data: "data 1".to_string(),
-            },
-            Entity {
-                id: EntityIdentifier::new("2", &source),
-                created_at: chrono::Utc::now(),
-                updated_at: chrono::Utc::now(),
-                data: "data 2".to_string(),
-            },
+            Entity::new_now(Box::new("data 1".to_string()), "1", &source),
+            Entity::new_now(Box::new("data 2".to_string()), "2", &source),
         ];
         sink.put(entities).unwrap();
     }

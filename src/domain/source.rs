@@ -6,12 +6,11 @@ use chrono::{DateTime, Utc};
 
 pub(crate) trait Source<T>: Debug {
     fn source_identifier(&self) -> &SourceIdentifier;
-    fn get(&self, since: &DateTime<Utc>) -> Vec<Entity<T>>;
+    fn get(&mut self, since: &DateTime<Utc>) -> Result<Vec<Entity<T>>, Box<dyn std::error::Error>>;
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use crate::domain::entity_identifier::EntityIdentifier;
     use chrono::{DateTime, Utc};
 
     use crate::domain::source::Source;
@@ -26,9 +25,7 @@ pub(crate) mod tests {
     impl TestSource {
         pub(crate) fn new(unique_name: &str) -> Self {
             Self {
-                source_identifier: SourceIdentifier {
-                    unique_name: unique_name.to_string(),
-                },
+                source_identifier: SourceIdentifier::new(unique_name),
             }
         }
     }
@@ -38,22 +35,14 @@ pub(crate) mod tests {
             &self.source_identifier
         }
 
-        fn get(&self, _since: &DateTime<Utc>) -> Vec<Entity<String>> {
-            let now = Utc::now();
-            vec![
-                Entity {
-                    id: EntityIdentifier::new("1", self),
-                    created_at: now,
-                    updated_at: now,
-                    data: "data 1".parse().unwrap(),
-                },
-                Entity {
-                    id: EntityIdentifier::new("2", self),
-                    created_at: now,
-                    updated_at: now,
-                    data: "data 2".parse().unwrap(),
-                },
-            ]
+        fn get(
+            &mut self,
+            _since: &DateTime<Utc>,
+        ) -> Result<Vec<Entity<String>>, Box<dyn std::error::Error>> {
+            Ok(vec![
+                Entity::new_now(Box::new("data 1".to_string()), "1", self),
+                Entity::new_now(Box::new("data 2".to_string()), "2", self),
+            ])
         }
     }
 }
