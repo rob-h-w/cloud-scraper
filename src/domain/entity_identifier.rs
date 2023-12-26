@@ -1,3 +1,4 @@
+use crate::domain::source::Source;
 use std::hash::Hash;
 
 use crate::domain::source_identifier::SourceIdentifier;
@@ -9,10 +10,10 @@ pub(crate) struct EntityIdentifier {
 }
 
 impl EntityIdentifier {
-    pub(crate) fn new(name: &str, source_identifier: &SourceIdentifier) -> Self {
+    pub(crate) fn new<T>(name: &str, source: &dyn Source<T>) -> Self {
         Self {
             name: name.to_string(),
-            source_identifier: source_identifier.clone(),
+            source_identifier: source.source_identifier().clone(),
         }
     }
 }
@@ -31,7 +32,7 @@ mod tests {
     #[test]
     fn test_entity_identifier_new() {
         let source = TestSource::new("test");
-        let entity_identifier = EntityIdentifier::new("test", source.source_identifier());
+        let entity_identifier = EntityIdentifier::new("test", &source);
         assert_eq!(
             entity_identifier,
             EntityIdentifier {
@@ -61,10 +62,10 @@ mod tests {
         };
         assert_ne!(hash_1, hash_2);
 
-        let hash_3 = hash(&EntityIdentifier::new("1", source_1.source_identifier()));
+        let hash_3 = hash(&EntityIdentifier::new("1", &source_1));
         assert_eq!(hash_1, hash_3);
 
-        let hash_4 = hash(&EntityIdentifier::new("1", source_2.source_identifier()));
+        let hash_4 = hash(&EntityIdentifier::new("1", &source_2));
         assert_ne!(hash_1, hash_4);
     }
 }

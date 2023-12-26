@@ -42,13 +42,13 @@ pub(crate) mod tests {
             let now = Utc::now();
             vec![
                 Entity {
-                    id: EntityIdentifier::new("1", self.source_identifier()),
+                    id: EntityIdentifier::new("1", self),
                     created_at: now,
                     updated_at: now,
                     data: "data 1".parse().unwrap(),
                 },
                 Entity {
-                    id: EntityIdentifier::new("2", self.source_identifier()),
+                    id: EntityIdentifier::new("2", self),
                     created_at: now,
                     updated_at: now,
                     data: "data 2".parse().unwrap(),

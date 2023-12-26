@@ -14,7 +14,6 @@ pub(crate) mod tests {
     use crate::domain::sink::Sink;
     use crate::domain::sink_identifier::SinkIdentifier;
     use crate::domain::source::tests::TestSource;
-    use crate::domain::source::Source;
     use std::error::Error;
 
     #[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Hash)]
@@ -57,13 +56,13 @@ pub(crate) mod tests {
 
         let entities = vec![
             Entity {
-                id: EntityIdentifier::new("1", source.source_identifier()),
+                id: EntityIdentifier::new("1", &source),
                 created_at: chrono::Utc::now(),
                 updated_at: chrono::Utc::now(),
                 data: "data 1".to_string(),
             },
             Entity {
-                id: EntityIdentifier::new("2", source.source_identifier()),
+                id: EntityIdentifier::new("2", &source),
                 created_at: chrono::Utc::now(),
                 updated_at: chrono::Utc::now(),
                 data: "data 2".to_string(),
