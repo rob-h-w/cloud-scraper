@@ -4,6 +4,7 @@ use crate::core::engine::{Engine, EngineImpl};
 
 mod core;
 mod domain;
+mod integration;
 
 fn main() -> Result<(), Box<dyn Error>> {
     main_impl(&mut EngineImpl {})
