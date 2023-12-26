@@ -1,9 +1,10 @@
 use crate::domain::source::Source;
+use serde::{Deserialize, Serialize};
 use std::hash::Hash;
 
 use crate::domain::source_identifier::SourceIdentifier;
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub(crate) struct EntityIdentifier {
     name: String,
     source_identifier: SourceIdentifier,
