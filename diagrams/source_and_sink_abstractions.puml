@@ -1,0 +1,75 @@
+@startuml Source and Sink Code Diagram
+
+skinparam backgroundColor white
+allowmixing
+
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Source and Sink Code Diagram
+
+
+Container_Boundary( app, "Cloud Scraper" ) {
+    Component( core, "Core" ) {
+        class core_engine as "CoreEngine"
+    }
+
+    Component( domain, "Domain" ) {
+        interface entity_user as "EntityUser"
+        entity_user : supported_entities() : List[Class<? extends Entity>]
+
+        interface source as "Source"
+        source : get(since: DateTime<UTC>) : List[Entity]
+        source : SourceIdentifier source_identifier()
+        source : List[TranslatorSupporter] translator_supporters()
+
+        abstract entity as "Entity"
+
+        abstract entity_translator as "EntityTranslator"
+        entity_translator : input_entity() : Class<? extends Entity>
+        entity_translator : output_entity() : Class<? extends Entity>
+        entity_translator : translate(entity: Class<? extends Entity>) : Class<? extends Entity>
+
+        interface sink as "Sink"
+        sink : SinkIdentifier sink_identifier()
+        sink : put(entities: List[Entity])
+
+        Component(entity_lib, "Entity Library") {
+            class concrete_entity_1 as "ConcreteEntity1"
+            class concrete_entity_2 as "ConcreteEntity2"
+        }
+    }
+
+    Component(concrete_1, "Concrete Implementation 1") {
+        class concrete_source as "ConcreteSource"
+    }
+
+    Component(concrete_2, "Concrete Implementation 2") {
+        class concrete_entity_translator as "ConcreteEntityTranslator"
+        concrete_entity_translator : translate(entity: ConcreteEntity1) : ConcreteEntity2
+
+    }
+
+    Component(concrete_3, "Concrete Implementation 3") {
+        class concrete_sink as "ConcreteSink"
+    }
+}
+
+entity_user ^... source
+entity_user ^... sink
+source ^... concrete_source
+entity ^... concrete_entity_1
+entity ^... concrete_entity_2
+entity_translator ^... concrete_entity_translator
+sink ^... concrete_sink
+
+core_engine *.. source
+core_engine *.. entity
+core_engine *.. sink
+core_engine *.. entity_translator
+
+source o.. entity
+
+sink o.. entity
+
+@enduml
