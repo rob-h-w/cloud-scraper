@@ -3,16 +3,17 @@
 skinparam backgroundColor white
 
 !include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
 
-title Cloud Scraper Component Diagram
+title Cloud Scraper High Level Component Diagram
 
 Container_Boundary(cloud_scraper, "Cloud Scraper") {
-    Container(scraper, "Scraper Binary", "Scrapes cloud providers for data")
-    ContainerDb(state, "Scraping State", "Stores the state of the scraping process")
+    Component(scraper, "Scraper Binary", "Scrapes cloud providers for data")
+    ComponentDb(state, "Scraping State", "Stores the state of the scraping process")
     Container(config, "Scraper Config", "Stores the configuration for the scraper") {
-        Container(general_config, "General Config")
-        Container(source_config, "Source Config", "Stores the configuration for a cloud provider")
-        Container(sink_config, "Sink Config", "Stores the configuration for a sink")
+        Component(general_config, "General Config")
+        Component(source_config, "Source Config", "Stores the configuration for a cloud provider")
+        Component(sink_config, "Sink Config", "Stores the configuration for a sink")
     }
 }
 
