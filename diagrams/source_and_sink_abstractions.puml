@@ -33,11 +33,11 @@ Container_Boundary( app, "Cloud Scraper" ) {
         interface sink as "Sink"
         sink : SinkIdentifier sink_identifier()
         sink : put(entities: List[Entity])
+    }
 
-        Component(entity_lib, "Entity Library") {
-            class concrete_entity_1 as "ConcreteEntity1"
-            class concrete_entity_2 as "ConcreteEntity2"
-        }
+    Component(entity_lib, "Entity") {
+        class concrete_entity_1 as "ConcreteEntity1"
+        class concrete_entity_2 as "ConcreteEntity2"
     }
 
     Component(concrete_1, "Concrete Implementation 1") {
