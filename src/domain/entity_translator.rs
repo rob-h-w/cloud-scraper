@@ -23,14 +23,14 @@ pub(crate) trait EntityTranslator<T: 'static, U: 'static> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use uuid::Uuid;
 
     use crate::integration::stub::source::StubSource;
 
     use super::*;
 
-    struct TestTranslator;
+    pub(crate) struct TestTranslator;
 
     impl EntityTranslator<Uuid, String> for TestTranslator {
         fn new(_: impl Config) -> Self {
