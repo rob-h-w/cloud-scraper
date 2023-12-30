@@ -1,0 +1,68 @@
+@startuml Source and Sink Code Diagram
+
+skinparam backgroundColor white
+allowmixing
+
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Source and Sink Code Diagram
+
+
+Container_Boundary( app, "Cloud Scraper" ) {
+    Component( core, "Core" ) {
+        class core_engine as "CoreEngine"
+    }
+
+    Component( domain, "Domain" ) {
+        interface entity_user as "EntityUser"
+        entity_user : supported_entity_data() : List[TypeId]
+
+        interface source as "Source"
+        source : get(since: DateTime<UTC>) : List[Entity]
+        source : SourceIdentifier source_identifier()
+        source : List[TranslatorSupporter] translator_supporters()
+
+        class entity as "Entity"
+
+        abstract entity_translator as "EntityTranslator"
+        entity_translator : input_entity() : TypeId of T
+        entity_translator : output_entity() : TypeId of U
+        entity_translator : translate<T, U>(entity: Entity<T>) : Entity<U>
+
+        interface sink as "Sink"
+        sink : SinkIdentifier sink_identifier()
+        sink : put(entities: List[Entity])
+    }
+
+    Component(concrete_1, "Concrete Implementation") {
+        class concrete_source as "ConcreteSource"
+    }
+
+    Component(concrete_2, "Concrete Implementation 2") {
+        class concrete_entity_translator as "ConcreteEntityTranslator"
+        concrete_entity_translator : translate(entity: ConcreteEntity1) : ConcreteEntity2
+
+    }
+
+    Component(concrete_3, "Concrete Implementation 3") {
+        class concrete_sink as "ConcreteSink"
+    }
+}
+
+entity_user ^... source
+entity_user ^... sink
+source ^... concrete_source
+entity_translator ^... concrete_entity_translator
+sink ^... concrete_sink
+
+core_engine *.. source
+core_engine *.. entity
+core_engine *.. sink
+core_engine *.. entity_translator
+
+source o.. entity
+
+sink o.. entity
+
+@enduml
