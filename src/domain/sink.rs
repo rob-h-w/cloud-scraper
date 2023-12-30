@@ -62,4 +62,17 @@ pub(crate) mod tests {
         ];
         sink.put(entities).unwrap();
     }
+
+    #[test]
+    fn test_sink_identifier() {
+        let sink_name = "test";
+        let sink = TestSink::new(sink_name);
+        assert_eq!(sink.sink_identifier(), &SinkIdentifier::new(sink_name));
+    }
+
+    #[test]
+    fn test_supported_entity_data() {
+        let sink = TestSink::new("test");
+        assert_eq!(sink.supported_entity_data(), vec![TypeId::of::<String>()]);
+    }
 }

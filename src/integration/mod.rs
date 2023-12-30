@@ -1,2 +1,2 @@
 mod log;
-mod stub;
+pub(crate) mod stub;

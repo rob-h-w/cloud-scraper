@@ -45,7 +45,16 @@ impl<T> Entity<T> {
     }
 
     pub(crate) fn data(&self) -> &T {
-        &self.data
+        &self.data.as_ref()
+    }
+
+    pub(crate) fn with_data<U>(&self, data: U) -> Entity<U> {
+        Entity {
+            created_at: self.created_at.clone(),
+            data: Box::new(data),
+            id: self.id.clone(),
+            updated_at: self.updated_at.clone(),
+        }
     }
 }
 

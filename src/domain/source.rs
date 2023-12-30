@@ -53,4 +53,27 @@ pub(crate) mod tests {
             ])
         }
     }
+
+    #[test]
+    fn test_dev_usability() {
+        let source_name = "test";
+        let mut source = TestSource::new(source_name);
+        assert_eq!(
+            source.source_identifier(),
+            &SourceIdentifier::new(source_name)
+        );
+
+        let since = Utc::now();
+        let entities = source.get(&since).unwrap();
+        assert_eq!(entities.len(), 2);
+        assert_eq!(entities[0].data(), &"data 1".to_string());
+        assert_eq!(entities[1].data(), &"data 2".to_string());
+    }
+
+    #[test]
+    fn test_entity_user() {
+        let source = TestSource::new("test");
+
+        assert_eq!(source.supported_entity_data(), vec![TypeId::of::<String>()]);
+    }
 }
