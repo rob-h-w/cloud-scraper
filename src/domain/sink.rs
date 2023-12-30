@@ -1,19 +1,23 @@
-use crate::domain::entity::Entity;
-use crate::domain::sink_identifier::SinkIdentifier;
 use std::error::Error;
+use std::fmt::Debug;
 
-pub(crate) trait Sink<T> {
+use crate::domain::entity::Entity;
+use crate::domain::entity_user::EntityUser;
+use crate::domain::sink_identifier::SinkIdentifier;
+
+pub(crate) trait Sink<T>: Debug + EntityUser {
     fn sink_identifier(&self) -> &SinkIdentifier;
     fn put(&mut self, entities: Vec<Entity<T>>) -> Result<(), Box<dyn Error>>;
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use crate::domain::entity::Entity;
+    use std::any::TypeId;
+
     use crate::domain::sink::Sink;
-    use crate::domain::sink_identifier::SinkIdentifier;
     use crate::domain::source::tests::TestSource;
-    use std::error::Error;
+
+    use super::*;
 
     #[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Hash)]
     pub(crate) struct TestSink {
@@ -25,6 +29,12 @@ pub(crate) mod tests {
             Self {
                 sink_identifier: SinkIdentifier::new(unique_name),
             }
+        }
+    }
+
+    impl EntityUser for TestSink {
+        fn supported_entity_data(&self) -> Vec<TypeId> {
+            vec![TypeId::of::<String>()]
         }
     }
 

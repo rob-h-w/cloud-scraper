@@ -1,10 +1,11 @@
 use std::fmt::Debug;
 
 use crate::domain::entity::Entity;
+use crate::domain::entity_user::EntityUser;
 use crate::domain::source_identifier::SourceIdentifier;
 use chrono::{DateTime, Utc};
 
-pub(crate) trait Source<T>: Debug {
+pub(crate) trait Source<T>: Debug + EntityUser {
     fn source_identifier(&self) -> &SourceIdentifier;
     fn get(&mut self, since: &DateTime<Utc>) -> Result<Vec<Entity<T>>, Box<dyn std::error::Error>>;
 }
@@ -12,6 +13,7 @@ pub(crate) trait Source<T>: Debug {
 #[cfg(test)]
 pub(crate) mod tests {
     use chrono::{DateTime, Utc};
+    use std::any::TypeId;
 
     use crate::domain::source::Source;
 
@@ -27,6 +29,12 @@ pub(crate) mod tests {
             Self {
                 source_identifier: SourceIdentifier::new(unique_name),
             }
+        }
+    }
+
+    impl EntityUser for TestSource {
+        fn supported_entity_data(&self) -> Vec<TypeId> {
+            vec![TypeId::of::<String>()]
         }
     }
 

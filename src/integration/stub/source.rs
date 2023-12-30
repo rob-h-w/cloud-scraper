@@ -1,3 +1,4 @@
+use std::any::TypeId;
 use std::cmp::min;
 use std::error::Error;
 use std::fmt::Debug;
@@ -6,6 +7,7 @@ use chrono::{DateTime, Duration, Utc};
 use uuid::Uuid;
 
 use crate::domain::entity::Entity;
+use crate::domain::entity_user::EntityUser;
 use crate::domain::source::Source;
 use crate::domain::source_identifier::SourceIdentifier;
 
@@ -19,6 +21,12 @@ impl StubSource {
         Self {
             source_identifier: SourceIdentifier::new("stub"),
         }
+    }
+}
+
+impl EntityUser for StubSource {
+    fn supported_entity_data(&self) -> Vec<TypeId> {
+        vec![TypeId::of::<Uuid>()]
     }
 }
 
