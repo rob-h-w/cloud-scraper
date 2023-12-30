@@ -35,16 +35,16 @@ where
 
 impl<T> EntityUser for LogSink<T>
 where
-    T: Debug,
+    T: Debug + 'static,
 {
     fn supported_entity_data(&self) -> Vec<TypeId> {
-        vec![self.type_id]
+        vec![TypeId::of::<T>()]
     }
 }
 
 impl<T> Sink<T> for LogSink<T>
 where
-    T: Debug + Serialize,
+    T: Debug + Serialize + 'static,
 {
     fn sink_identifier(&self) -> &SinkIdentifier {
         &self.sink_identifier
