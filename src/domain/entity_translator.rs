@@ -1,6 +1,6 @@
-use crate::domain::config::Config;
-use std::any::{Any, TypeId};
+use std::any::TypeId;
 
+use crate::domain::config::Config;
 use crate::domain::entity::Entity;
 
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -9,55 +9,36 @@ pub(crate) struct TranslationDescription {
     pub(crate) to: TypeId,
 }
 
-pub(crate) trait EntityTranslator {
-    fn new(config: impl Config) -> Self
-    where
-        Self: Sized;
-    fn translation_description(&self) -> TranslationDescription;
+pub(crate) trait EntityTranslator<T: 'static, U: 'static> {
+    fn new(config: impl Config) -> Self;
 
-    fn do_translate(&self, entity: &dyn Any) -> Box<dyn Any>;
-}
+    fn translation_description(&self) -> TranslationDescription {
+        TranslationDescription {
+            from: TypeId::of::<T>(),
+            to: TypeId::of::<U>(),
+        }
+    }
 
-fn translate<T, U>(translator: &impl EntityTranslator, entity: &Entity<T>) -> Entity<U>
-where
-    T: Clone + 'static,
-    U: Clone + 'static,
-{
-    entity.with_data(
-        translator
-            .do_translate(entity.data())
-            .downcast_ref::<U>()
-            .unwrap(),
-    )
+    fn translate(&self, entity: &Entity<T>) -> Entity<U>;
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::integration::stub::source::StubSource;
     use uuid::Uuid;
+
+    use crate::integration::stub::source::StubSource;
 
     use super::*;
 
     struct TestTranslator;
 
-    impl EntityTranslator for TestTranslator {
-        fn new(config: impl Config) -> Self
-        where
-            Self: Sized,
-        {
-            TestTranslator
+    impl EntityTranslator<Uuid, String> for TestTranslator {
+        fn new(_: impl Config) -> Self {
+            Self
         }
 
-        fn translation_description(&self) -> TranslationDescription {
-            TranslationDescription {
-                from: TypeId::of::<Uuid>(),
-                to: TypeId::of::<String>(),
-            }
-        }
-
-        fn do_translate(&self, entity: &dyn Any) -> Box<dyn Any> {
-            let from = entity.downcast_ref::<Uuid>().unwrap();
-            Box::new(from.to_string())
+        fn translate(&self, entity: &Entity<Uuid>) -> Entity<String> {
+            entity.with_data(&entity.data().to_string())
         }
     }
 
@@ -68,7 +49,7 @@ mod tests {
         let uuid = Uuid::new_v4();
         let entity = Entity::new_now(Box::new(uuid), "1", &source);
 
-        let translated_entity: Entity<String> = translate(&translator, &entity);
+        let translated_entity: Entity<String> = translator.translate(&entity);
 
         assert_eq!(translated_entity.created_at(), entity.created_at());
         assert_eq!(translated_entity.data(), uuid.to_string().as_str());
