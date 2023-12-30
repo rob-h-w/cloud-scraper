@@ -7,7 +7,7 @@ use crate::domain::sink_identifier::SinkIdentifier;
 
 pub(crate) trait Sink<T>: Debug + EntityUser {
     fn sink_identifier(&self) -> &SinkIdentifier;
-    fn put(&mut self, entities: Vec<Entity<T>>) -> Result<(), Box<dyn Error>>;
+    fn put(&mut self, entities: &Vec<Entity<T>>) -> Result<(), Box<dyn Error>>;
 }
 
 #[cfg(test)]
@@ -43,7 +43,7 @@ pub(crate) mod tests {
             &self.sink_identifier
         }
 
-        fn put(&mut self, entities: Vec<Entity<String>>) -> Result<(), Box<dyn Error>> {
+        fn put(&mut self, entities: &Vec<Entity<String>>) -> Result<(), Box<dyn Error>> {
             println!("putting entities: {:?}", entities);
             Ok(())
         }
@@ -60,7 +60,7 @@ pub(crate) mod tests {
             Entity::new_now(Box::new("data 1".to_string()), "1", &source),
             Entity::new_now(Box::new("data 2".to_string()), "2", &source),
         ];
-        sink.put(entities).unwrap();
+        sink.put(&entities).unwrap();
     }
 
     #[test]

@@ -1,6 +1,7 @@
 use std::any::TypeId;
 use std::error::Error;
 use std::fmt::Debug;
+use std::marker::PhantomData;
 
 use log::info;
 use serde::Serialize;
@@ -16,8 +17,7 @@ where
     T: Debug,
 {
     sink_identifier: SinkIdentifier,
-    type_id: TypeId,
-    _type_option: Option<T>,
+    phantom: PhantomData<T>,
 }
 
 impl<T> LogSink<T>
@@ -27,8 +27,7 @@ where
     pub(crate) fn new() -> Self {
         Self {
             sink_identifier: SinkIdentifier::new("log"),
-            type_id: TypeId::of::<T>(),
-            _type_option: None,
+            phantom: Default::default(),
         }
     }
 }
@@ -50,7 +49,7 @@ where
         &self.sink_identifier
     }
 
-    fn put(&mut self, entities: Vec<Entity<T>>) -> Result<(), Box<dyn Error>> {
+    fn put(&mut self, entities: &Vec<Entity<T>>) -> Result<(), Box<dyn Error>> {
         entities.iter().for_each(|entity| {
             info!("{}", serde_yaml::to_string(&entity).unwrap());
         });
@@ -81,7 +80,7 @@ mod tests {
             ];
 
             assert_eq!(logger.log_entries().len(), 0);
-            sink.put(entities).unwrap();
+            sink.put(&entities).unwrap();
 
             let log_entries = logger.log_entries();
 
