@@ -68,7 +68,7 @@ mod tests {
     #[test]
     fn test_dev_usability() {
         let mut source = StubSource::new();
-        let translator = TestTranslator::new(Config {});
+        let translator = TestTranslator::new(Config::new());
         let mut sink = TestSink::new("test");
         let mut pipeline = Pipeline::new(&mut source, &translator, &mut sink);
         let count = pipeline
