@@ -54,11 +54,11 @@ mod tests {
             LogEntry::new(args, log::Level::Debug)
         }
 
-        fn args(&self) -> &str {
+        pub(crate) fn args(&self) -> &str {
             &self.args
         }
 
-        fn level(&self) -> log::Level {
+        pub(crate) fn level(&self) -> log::Level {
             self.level
         }
     }
@@ -100,7 +100,7 @@ mod tests {
             log_use(Logger::get());
         }
 
-        fn new() -> Self {
+        pub(crate) fn new() -> Self {
             Self {
                 records: Arc::new(ReentrantMutex::from(RefCell::new(Vec::new()))),
             }
