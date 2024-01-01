@@ -8,36 +8,41 @@ use crate::domain::entity_translator::EntityTranslator;
 use crate::domain::sink::Sink;
 use crate::domain::source::Source;
 
-struct Pipeline<'a, T, U, V, W, X>
+struct Pipeline<'a, FromType, ToType, SourceType, TranslatorType, SinkType>
 where
-    T: Debug + 'static,
-    U: Debug + 'static,
-    V: Source<T>,
-    W: EntityTranslator<T, U>,
-    X: Sink<U>,
+    FromType: Debug + 'static,
+    ToType: Debug + 'static,
+    SourceType: Source<FromType>,
+    TranslatorType: EntityTranslator<FromType, ToType>,
+    SinkType: Sink<ToType>,
 {
-    source: &'a mut V,
-    translator: &'a W,
-    sink: &'a mut X,
-    phantom_t: std::marker::PhantomData<T>,
-    phantom_u: std::marker::PhantomData<U>,
+    source: &'a mut SourceType,
+    translator: &'a TranslatorType,
+    sink: &'a mut SinkType,
+    phantom_from: std::marker::PhantomData<FromType>,
+    phantom_to: std::marker::PhantomData<ToType>,
 }
 
-impl<'a, T, U, V, W, X> Pipeline<'a, T, U, V, W, X>
+impl<'a, FromType, ToType, SourceType, TranslatorType, SinkType>
+    Pipeline<'a, FromType, ToType, SourceType, TranslatorType, SinkType>
 where
-    T: Debug + 'static,
-    U: Debug + 'static,
-    V: Source<T>,
-    W: EntityTranslator<T, U>,
-    X: Sink<U>,
+    FromType: Debug + 'static,
+    ToType: Debug + 'static,
+    SourceType: Source<FromType>,
+    TranslatorType: EntityTranslator<FromType, ToType>,
+    SinkType: Sink<ToType>,
 {
-    fn new(source: &'a mut V, translator: &'a W, sink: &'a mut X) -> Box<Self> {
+    fn new(
+        source: &'a mut SourceType,
+        translator: &'a TranslatorType,
+        sink: &'a mut SinkType,
+    ) -> Box<Self> {
         Box::new(Self {
             source,
             translator,
             sink,
-            phantom_t: Default::default(),
-            phantom_u: Default::default(),
+            phantom_from: Default::default(),
+            phantom_to: Default::default(),
         })
     }
 
@@ -45,7 +50,7 @@ where
         let entities = self
             .source
             .get(&(if let Some(s) = since { s } else { Utc::now() }))?;
-        let translated_entities: Vec<Entity<U>> = entities
+        let translated_entities: Vec<Entity<ToType>> = entities
             .iter()
             .map(|entity| self.translator.translate(&entity))
             .collect();
@@ -70,7 +75,7 @@ mod tests {
         let mut source = StubSource::new();
         let translator = TestTranslator::new(Config::new());
         let mut sink = TestSink::new("test");
-        let mut pipeline = Pipeline::new(&mut source, &translator, &mut sink);
+        let mut pipeline = Pipeline::new(&mut source, translator.as_ref(), &mut sink);
         let count = pipeline
             .run(Some(Utc::now() - Duration::seconds(1)))
             .unwrap();

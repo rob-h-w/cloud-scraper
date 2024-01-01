@@ -1,4 +1,5 @@
 use std::any::TypeId;
+use std::rc::Rc;
 
 use crate::domain::config::Config;
 use crate::domain::entity::Entity;
@@ -10,7 +11,7 @@ pub(crate) struct TranslationDescription {
 }
 
 pub(crate) trait EntityTranslator<T: 'static, U: 'static> {
-    fn new(config: impl Config) -> Self;
+    fn new(config: Rc<impl Config>) -> Box<Self>;
 
     fn translation_description(&self) -> TranslationDescription {
         TranslationDescription {
@@ -33,8 +34,8 @@ pub(crate) mod tests {
     pub(crate) struct TestTranslator;
 
     impl EntityTranslator<Uuid, String> for TestTranslator {
-        fn new(_: impl Config) -> Self {
-            Self
+        fn new(_: Rc<impl Config>) -> Box<Self> {
+            Box::new(Self)
         }
 
         fn translate(&self, entity: &Entity<Uuid>) -> Entity<String> {

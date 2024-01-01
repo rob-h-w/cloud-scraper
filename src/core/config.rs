@@ -4,6 +4,7 @@ use crate::domain::source::Source;
 use serde::Deserialize;
 use serde_yaml::Value;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct Config {
@@ -13,12 +14,12 @@ pub(crate) struct Config {
 }
 
 impl Config {
-    pub(crate) fn new() -> Self {
-        Self {
+    pub(crate) fn new() -> Rc<Self> {
+        Rc::new(Self {
             sinks: Default::default(),
             sources: Default::default(),
             pipelines: vec![],
-        }
+        })
     }
 }
 
