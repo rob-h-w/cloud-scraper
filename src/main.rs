@@ -15,7 +15,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     main_impl(env_logger::init, Config::new, EngineImpl::new)
 }
 
-fn main_impl<'a, ConfigType, EngineType, LogInitializer, ConfigGetter, EngineConstructor>(
+fn main_impl<ConfigType, EngineType, LogInitializer, ConfigGetter, EngineConstructor>(
     log_initializer: LogInitializer,
     config_getter: ConfigGetter,
     engine_constructor: EngineConstructor,
@@ -23,7 +23,7 @@ fn main_impl<'a, ConfigType, EngineType, LogInitializer, ConfigGetter, EngineCon
 where
     ConfigType: DomainConfig,
     EngineType: Engine<ConfigType>,
-    LogInitializer: FnOnce() -> (),
+    LogInitializer: FnOnce(),
     ConfigGetter: FnOnce() -> Rc<ConfigType>,
     EngineConstructor: FnOnce(Rc<ConfigType>) -> Box<EngineType>,
 {
