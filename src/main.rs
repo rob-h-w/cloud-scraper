@@ -1,23 +1,43 @@
 use std::error::Error;
+use std::rc::Rc;
 
 use log::debug;
 
+use crate::core::config::Config;
 use crate::core::engine::{Engine, EngineImpl};
+use crate::domain::config::Config as DomainConfig;
 
 mod core;
 mod domain;
 mod integration;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    main_impl(&mut EngineImpl {}, env_logger::init)
+    main_impl(env_logger::init, Config::new, EngineImpl::new)
 }
 
-fn main_impl<T>(engine: &mut impl Engine, log_initializer: T) -> Result<(), Box<dyn Error>>
+fn main_impl<'a, ConfigType, EngineType, LogInitializer, ConfigGetter, EngineConstructor>(
+    log_initializer: LogInitializer,
+    config_getter: ConfigGetter,
+    engine_constructor: EngineConstructor,
+) -> Result<(), Box<dyn Error>>
 where
-    T: FnOnce() -> (),
+    ConfigType: DomainConfig,
+    EngineType: Engine<ConfigType>,
+    LogInitializer: FnOnce() -> (),
+    ConfigGetter: FnOnce() -> Rc<ConfigType>,
+    EngineConstructor: FnOnce(Rc<ConfigType>) -> Box<EngineType>,
 {
     // Make sure we never initialize the env_logger in unit tests.
     log_initializer();
+
+    debug!("Reading config...");
+    let config = config_getter();
+
+    debug!("Checking config...");
+    config.sanity_check()?;
+
+    debug!("Constructing engine...");
+    let mut engine = engine_constructor(config);
 
     debug!("Starting engine");
     engine.start()
@@ -26,11 +46,18 @@ where
 #[cfg(test)]
 mod tests {
     use std::cell::RefCell;
+    use std::rc::Rc;
     use std::sync::Once;
     use std::sync::{Arc, Mutex};
 
+    use crate::domain::config::PipelineConfig;
     use log::{Log, Metadata, Record};
     use parking_lot::ReentrantMutex;
+    use serde_yaml::Value;
+
+    use crate::domain::config::tests::TestConfig;
+    use crate::domain::sink::Sink;
+    use crate::domain::source::Source;
 
     use super::*;
 
@@ -147,55 +174,121 @@ mod tests {
     }
 
     struct EngineTestImpl {
-        start_called: bool,
+        pub(crate) start_called: Arc<Mutex<bool>>,
     }
 
-    impl EngineTestImpl {
-        fn new() -> EngineTestImpl {
-            EngineTestImpl {
-                start_called: false,
-            }
+    impl<ConfigType> Engine<ConfigType> for EngineTestImpl
+    where
+        ConfigType: DomainConfig,
+    {
+        fn new(_: Rc<ConfigType>) -> Box<Self> {
+            Box::new(EngineTestImpl {
+                start_called: Arc::new(Mutex::new(false)),
+            })
+        }
+
+        fn start(&mut self) -> Result<(), Box<dyn Error>> {
+            *self.start_called.lock().unwrap() = true;
+            Ok(())
         }
     }
 
-    impl Engine for EngineTestImpl {
-        fn start(&mut self) -> Result<(), Box<dyn Error>> {
-            self.start_called = true;
-            Ok(())
+    struct InsaneConfig {
+        pipelines: Vec<PipelineConfig>,
+    }
+
+    impl DomainConfig for InsaneConfig {
+        fn sink<T>(&self, _sink: &impl Sink<T>) -> Option<&Value> {
+            None
+        }
+
+        fn source<T>(&self, _source: &impl Source<T>) -> Option<&Value> {
+            None
+        }
+
+        fn pipelines(&self) -> &Vec<PipelineConfig> {
+            &self.pipelines
+        }
+
+        fn sink_configured(&self, _name: &str) -> bool {
+            false
+        }
+
+        fn source_configured(&self, _name: &str) -> bool {
+            false
+        }
+
+        fn sanity_check(&self) -> Result<(), String> {
+            Err("Insane config".to_string())
         }
     }
 
     #[test]
     fn test_main_impl() {
-        let mut e = EngineTestImpl::new();
+        let config = Rc::new(TestConfig::new(None));
+        let mut started: Option<Arc<Mutex<bool>>> = None;
         let log_initializer = || -> () {};
-        main_impl(&mut e, log_initializer).unwrap();
+        let config_getter = || -> Rc<TestConfig> { config };
+        let engine_constructor = |config: Rc<TestConfig>| -> Box<EngineTestImpl> {
+            let engine = EngineTestImpl::new(config);
+            started = Some(engine.start_called.clone());
+            engine
+        };
+        main_impl(log_initializer, config_getter, engine_constructor).unwrap();
 
-        assert_eq!(e.start_called, true);
+        assert_eq!(*started.unwrap().lock().unwrap(), true);
     }
 
     #[test]
     fn test_main_impl_calls_log_initializer() {
-        let mut e = EngineTestImpl::new();
+        let config = Rc::new(TestConfig::new(None));
+        let mut started: Option<Arc<Mutex<bool>>> = None;
         let mut log_initializer_called = false;
         let log_initializer = || -> () {
             log_initializer_called = true;
         };
-        main_impl(&mut e, log_initializer).unwrap();
+        let mut config_getter_called = false;
+        let config_getter = || -> Rc<TestConfig> {
+            config_getter_called = true;
+            config
+        };
+        let mut engine_constructor_called = false;
+        let engine_constructor = |config: Rc<TestConfig>| -> Box<EngineTestImpl> {
+            engine_constructor_called = true;
+            let engine = EngineTestImpl::new(config);
+            started = Some(engine.start_called.clone());
+            engine
+        };
+        main_impl(log_initializer, config_getter, engine_constructor).unwrap();
 
         assert_eq!(log_initializer_called, true);
+        assert_eq!(config_getter_called, true);
+        assert_eq!(engine_constructor_called, true);
+
+        assert_eq!(*started.unwrap().lock().unwrap(), true);
     }
 
     #[test]
     fn test_main_impl_logs() {
-        let mut e = EngineTestImpl::new();
+        let config = Rc::new(TestConfig::new(None));
+        let config_getter = || -> Rc<TestConfig> { config };
 
         Logger::use_in(|logger| {
-            main_impl(&mut e, Logger::init).unwrap();
+            main_impl(Logger::init, config_getter, EngineTestImpl::new).unwrap();
             assert_eq!(
                 logger.log_entry_exists(&LogEntry::debug("Starting engine")),
                 true
             );
         });
+    }
+
+    #[test]
+    fn test_barfs_insane_config() {
+        let config = Rc::new(InsaneConfig { pipelines: vec![] });
+        let config_getter = || -> Rc<InsaneConfig> { config };
+
+        let result = main_impl(Logger::init, config_getter, EngineTestImpl::new);
+
+        assert!(result.is_err());
     }
 }

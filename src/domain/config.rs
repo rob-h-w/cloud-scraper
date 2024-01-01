@@ -1,7 +1,10 @@
-use crate::domain::sink::Sink;
-use crate::domain::source::Source;
+use std::vec;
+
 use serde::Deserialize;
 use serde_yaml::Value;
+
+use crate::domain::sink::Sink;
+use crate::domain::source::Source;
 
 pub(crate) trait Config {
     fn sink<T>(&self, sink: &impl Sink<T>) -> Option<&Value>;
@@ -43,13 +46,15 @@ struct TranslatorConfig {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
+pub(crate) mod tests {
+    use log::info;
+    use serde_yaml::Mapping;
+
     use crate::domain::sink::tests::TestSink;
     use crate::domain::source::tests::TestSource;
     use crate::tests::Logger;
-    use log::info;
-    use serde_yaml::Mapping;
+
+    use super::*;
 
     #[test]
     fn test_config_sink() {
@@ -122,13 +127,13 @@ mod tests {
         assert!(bad_config.sanity_check().is_err());
     }
 
-    struct TestConfig {
+    pub(crate) struct TestConfig {
         value: Value,
         pipelines: Vec<PipelineConfig>,
     }
 
     impl TestConfig {
-        fn new(pipeline_config: Option<PipelineConfig>) -> Self {
+        pub(crate) fn new(pipeline_config: Option<PipelineConfig>) -> Self {
             Self {
                 pipelines: vec![if let Some(pipeline_config) = pipeline_config {
                     pipeline_config
