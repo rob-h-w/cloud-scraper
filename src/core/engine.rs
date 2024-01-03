@@ -1,6 +1,7 @@
-use crate::domain::config::Config;
 use std::error::Error;
 use std::rc::Rc;
+
+use crate::domain::config::Config;
 
 pub(crate) struct EngineImpl<T>
 where
@@ -32,8 +33,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::domain::config::tests::TestConfig;
+
+    use super::*;
 
     #[test]
     fn test_engine_start() {

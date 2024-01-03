@@ -10,6 +10,7 @@ use crate::domain::config::Config as DomainConfig;
 mod core;
 mod domain;
 mod integration;
+mod static_init;
 
 fn main() -> Result<(), Box<dyn Error>> {
     main_impl(env_logger::init, Config::new, EngineImpl::new)
@@ -50,14 +51,14 @@ mod tests {
     use std::sync::Once;
     use std::sync::{Arc, Mutex};
 
-    use crate::domain::config::PipelineConfig;
     use log::{Log, Metadata, Record};
     use parking_lot::ReentrantMutex;
     use serde_yaml::Value;
 
     use crate::domain::config::tests::TestConfig;
-    use crate::domain::sink::Sink;
-    use crate::domain::source::Source;
+    use crate::domain::config::PipelineConfig;
+    use crate::domain::sink_identifier::SinkIdentifier;
+    use crate::domain::source_identifier::SourceIdentifier;
 
     use super::*;
 
@@ -198,11 +199,11 @@ mod tests {
     }
 
     impl DomainConfig for InsaneConfig {
-        fn sink<T>(&self, _sink: &impl Sink<T>) -> Option<&Value> {
+        fn sink(&self, _sink_identifier: &SinkIdentifier) -> Option<&Value> {
             None
         }
 
-        fn source<T>(&self, _source: &impl Source<T>) -> Option<&Value> {
+        fn source(&self, _source_identifier: &SourceIdentifier) -> Option<&Value> {
             None
         }
 

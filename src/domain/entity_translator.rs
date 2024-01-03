@@ -1,4 +1,5 @@
 use std::any::TypeId;
+use std::fmt::Debug;
 use std::rc::Rc;
 
 use crate::domain::config::Config;
@@ -10,17 +11,21 @@ pub(crate) struct TranslationDescription {
     pub(crate) to: TypeId,
 }
 
-pub(crate) trait EntityTranslator<T: 'static, U: 'static> {
+pub(crate) trait EntityTranslator<FromDataType, ToDataType>
+where
+    FromDataType: 'static + Debug,
+    ToDataType: 'static + Debug,
+{
     fn new(config: Rc<impl Config>) -> Box<Self>;
 
     fn translation_description(&self) -> TranslationDescription {
         TranslationDescription {
-            from: TypeId::of::<T>(),
-            to: TypeId::of::<U>(),
+            from: TypeId::of::<FromDataType>(),
+            to: TypeId::of::<ToDataType>(),
         }
     }
 
-    fn translate(&self, entity: &Entity<T>) -> Entity<U>;
+    fn translate(&self, entity: &Entity<FromDataType>) -> Entity<ToDataType>;
 }
 
 #[cfg(test)]
@@ -46,9 +51,8 @@ pub(crate) mod tests {
     #[test]
     fn test_translate() {
         let translator = TestTranslator;
-        let source = StubSource::new();
         let uuid = Uuid::new_v4();
-        let entity = Entity::new_now(Box::new(uuid), "1", &source);
+        let entity = Entity::new_now::<StubSource>(Box::new(uuid), "1");
 
         let translated_entity: Entity<String> = translator.translate(&entity);
 
