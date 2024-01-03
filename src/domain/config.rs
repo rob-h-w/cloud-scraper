@@ -3,12 +3,12 @@ use std::vec;
 use serde::Deserialize;
 use serde_yaml::Value;
 
-use crate::domain::sink::Sink;
-use crate::domain::source::Source;
+use crate::domain::sink_identifier::SinkIdentifier;
+use crate::domain::source_identifier::SourceIdentifier;
 
 pub(crate) trait Config {
-    fn sink<T>(&self, sink: &impl Sink<T>) -> Option<&Value>;
-    fn source<T>(&self, source: &impl Source<T>) -> Option<&Value>;
+    fn sink(&self, sink_identifier: &SinkIdentifier) -> Option<&Value>;
+    fn source(&self, source_identifier: &SourceIdentifier) -> Option<&Value>;
     fn pipelines(&self) -> &Vec<PipelineConfig>;
 
     fn sink_configured(&self, name: &str) -> bool;
@@ -47,11 +47,13 @@ struct TranslatorConfig {
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use crate::domain::sink::Sink;
     use log::info;
     use serde_yaml::Mapping;
 
     use crate::domain::sink::tests::TestSink;
     use crate::domain::source::tests::TestSource;
+    use crate::domain::source::Source;
     use crate::tests::Logger;
 
     use super::*;
@@ -62,8 +64,7 @@ pub(crate) mod tests {
         Logger::use_in(|logger| {
             logger.reset();
             let config = TestConfig::new(None);
-            let sink = TestSink::new("test");
-            let sink_config = config.sink(&sink).unwrap();
+            let sink_config = config.sink(TestSink::identifier()).unwrap();
             assert_eq!(sink_config, &Value::Mapping(Mapping::new()));
 
             let log_entries = logger.log_entries();
@@ -83,8 +84,7 @@ pub(crate) mod tests {
         Logger::use_in(|logger| {
             logger.reset();
             let config = TestConfig::new(None);
-            let source = TestSource::new("test");
-            let source_config = config.source(&source).unwrap();
+            let source_config = config.source(TestSource::identifier()).unwrap();
             assert_eq!(source_config, &Value::Mapping(Mapping::new()));
 
             let log_entries = logger.log_entries();
@@ -153,13 +153,13 @@ pub(crate) mod tests {
     }
 
     impl Config for TestConfig {
-        fn sink<T>(&self, sink: &impl Sink<T>) -> Option<&Value> {
-            info!("sink ID: {:?}", sink.sink_identifier());
+        fn sink(&self, sink_identifier: &SinkIdentifier) -> Option<&Value> {
+            info!("sink ID: {:?}", sink_identifier);
             Some(&self.value)
         }
 
-        fn source<T>(&self, source: &impl Source<T>) -> Option<&Value> {
-            info!("source ID: {:?}", source.source_identifier());
+        fn source(&self, source_identifier: &SourceIdentifier) -> Option<&Value> {
+            info!("source ID: {:?}", source_identifier);
             Some(&self.value)
         }
 

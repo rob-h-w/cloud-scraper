@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -5,31 +7,42 @@ use crate::domain::entity_identifier::EntityIdentifier;
 use crate::domain::source::Source;
 
 #[derive(Debug, Deserialize, Hash, PartialEq, PartialOrd, Serialize)]
-pub(crate) struct Entity<T> {
+pub(crate) struct Entity<T>
+where
+    T: Debug,
+{
     created_at: DateTime<Utc>,
     data: Box<T>,
     id: EntityIdentifier,
     updated_at: DateTime<Utc>,
 }
 
-impl<T> Entity<T> {
-    pub(crate) fn new(
+impl<DataType> Entity<DataType>
+where
+    DataType: Debug + 'static,
+{
+    pub(crate) fn new<SourceType>(
         created_at: &DateTime<Utc>,
-        data: Box<T>,
+        data: Box<DataType>,
         id: &str,
-        source: &dyn Source<T>,
         updated_at: &DateTime<Utc>,
-    ) -> Self {
+    ) -> Self
+    where
+        SourceType: Source<DataType>,
+    {
         Self {
-            id: EntityIdentifier::new(id, source),
+            id: EntityIdentifier::new::<SourceType, DataType>(id),
             created_at: created_at.clone(),
             updated_at: updated_at.clone(),
             data,
         }
     }
 
-    pub(crate) fn new_now(data: Box<T>, id: &str, source: &dyn Source<T>) -> Self {
-        Self::new(&Utc::now(), data, id, source, &Utc::now())
+    pub(crate) fn new_now<SourceType>(data: Box<DataType>, id: &str) -> Self
+    where
+        SourceType: Source<DataType>,
+    {
+        Self::new::<SourceType>(&Utc::now(), data, id, &Utc::now())
     }
 
     pub(crate) fn id(&self) -> &EntityIdentifier {
@@ -44,11 +57,14 @@ impl<T> Entity<T> {
         &self.updated_at
     }
 
-    pub(crate) fn data(&self) -> &T {
+    pub(crate) fn data(&self) -> &DataType {
         self.data.as_ref()
     }
 
-    pub(crate) fn with_data<U: Clone>(&self, data: &U) -> Entity<U> {
+    pub(crate) fn with_data<NewDataType>(&self, data: &NewDataType) -> Entity<NewDataType>
+    where
+        NewDataType: Debug + Clone,
+    {
         Entity {
             created_at: self.created_at.clone(),
             data: Box::new(data.clone()),
@@ -72,22 +88,16 @@ mod tests {
 
     #[test]
     fn test_entity_new() {
-        let source = TestSource::new("test");
         let created_at = Utc::now() - chrono::Duration::days(1);
         let updated_at = Utc::now();
-        let entity = Entity::new(
-            &created_at,
-            Box::new("data".to_string()),
-            "1",
-            &source,
-            &updated_at,
-        );
+        let entity =
+            Entity::new::<TestSource>(&created_at, Box::new("data".to_string()), "1", &updated_at);
         assert_eq!(
             entity,
             Entity {
                 created_at,
                 data: Box::new("data".to_string()),
-                id: EntityIdentifier::new("1", &source),
+                id: EntityIdentifier::new::<TestSource, String>("1"),
                 updated_at,
             }
         );
@@ -95,13 +105,11 @@ mod tests {
 
     #[test]
     fn test_entity_new_now() {
-        let source = TestSource::new("test");
-        let entity = Entity::new_now(Box::new("data".to_string()), "1", &source);
-        let expected_entity = Entity::new(
+        let entity = Entity::new_now::<TestSource>(Box::new("data".to_string()), "1");
+        let expected_entity = Entity::new::<TestSource>(
             &entity.created_at,
             Box::new("data".to_string()),
             "1",
-            &source,
             &entity.updated_at,
         );
         assert_eq!(entity, expected_entity);
@@ -112,29 +120,28 @@ mod tests {
 
     #[test]
     fn test_entity_id() {
-        let source = TestSource::new("test");
-        let entity = Entity::new_now(Box::new("data".to_string()), "1", &source);
-        assert_eq!(entity.id(), &EntityIdentifier::new("1", &source));
+        let entity = Entity::new_now::<TestSource>(Box::new("data".to_string()), "1");
+        assert_eq!(
+            entity.id(),
+            &EntityIdentifier::new::<TestSource, String>("1")
+        );
     }
 
     #[test]
     fn test_entity_created_at() {
-        let source = TestSource::new("test");
-        let entity = Entity::new_now(Box::new("data".to_string()), "1", &source);
+        let entity = Entity::new_now::<TestSource>(Box::new("data".to_string()), "1");
         assert_right_about_now(entity.created_at());
     }
 
     #[test]
     fn test_entity_updated_at() {
-        let source = TestSource::new("test");
-        let entity = Entity::new_now(Box::new("data".to_string()), "1", &source);
+        let entity = Entity::new_now::<TestSource>(Box::new("data".to_string()), "1");
         assert_right_about_now(entity.updated_at());
     }
 
     #[test]
     fn test_entity_data() {
-        let source = TestSource::new("test");
-        let entity = Entity::new_now(Box::new("data".to_string()), "1", &source);
+        let entity = Entity::new_now::<TestSource>(Box::new("data".to_string()), "1");
         assert_eq!(entity.data(), &"data".to_string());
     }
 }

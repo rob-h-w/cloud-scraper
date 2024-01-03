@@ -1,1 +1,1 @@
-mod sink;
+pub(crate) mod sink;

@@ -1,10 +1,12 @@
-use crate::domain::config::{Config as DomainConfig, PipelineConfig};
-use crate::domain::sink::Sink;
-use crate::domain::source::Source;
-use serde::Deserialize;
-use serde_yaml::Value;
 use std::collections::HashMap;
 use std::rc::Rc;
+
+use serde::Deserialize;
+use serde_yaml::Value;
+
+use crate::domain::config::{Config as DomainConfig, PipelineConfig};
+use crate::domain::sink_identifier::SinkIdentifier;
+use crate::domain::source_identifier::SourceIdentifier;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct Config {
@@ -15,21 +17,27 @@ pub(crate) struct Config {
 
 impl Config {
     pub(crate) fn new() -> Rc<Self> {
+        let mut sources = HashMap::new();
+        sources.insert("stub".to_string(), Value::Null);
+
+        let mut sinks = HashMap::new();
+        sinks.insert("log".to_string(), Value::Null);
+
         Rc::new(Self {
-            sinks: Default::default(),
-            sources: Default::default(),
+            sinks,
+            sources,
             pipelines: vec![],
         })
     }
 }
 
 impl DomainConfig for Config {
-    fn sink<T>(&self, sink: &impl Sink<T>) -> Option<&Value> {
-        self.sinks.get(sink.sink_identifier().unique_name())
+    fn sink(&self, sink: &SinkIdentifier) -> Option<&Value> {
+        self.sinks.get(sink.unique_name())
     }
 
-    fn source<T>(&self, source: &impl Source<T>) -> Option<&Value> {
-        self.sources.get(source.source_identifier().unique_name())
+    fn source(&self, source_identifier: &SourceIdentifier) -> Option<&Value> {
+        self.sources.get(source_identifier.unique_name())
     }
 
     fn pipelines(&self) -> &Vec<PipelineConfig> {
@@ -47,9 +55,12 @@ impl DomainConfig for Config {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::domain::sink::tests::TestSink;
+    use crate::domain::sink::Sink;
     use crate::domain::source::tests::TestSource;
+    use crate::domain::source::Source;
+
+    use super::*;
 
     #[test]
     fn test_instantiate() {
@@ -59,8 +70,8 @@ mod tests {
             pipelines: vec![],
         };
 
-        assert_eq!(config.sink(&TestSink::new("test")), None);
-        assert_eq!(config.source(&TestSource::new("test")), None);
+        assert_eq!(config.sink(TestSink::identifier()), None);
+        assert_eq!(config.source(TestSource::identifier()), None);
         assert!(config.pipelines().is_empty());
         assert!(config.sanity_check().is_ok());
     }
