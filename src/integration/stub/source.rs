@@ -22,8 +22,8 @@ impl StubSource {
 }
 
 impl EntityUser for StubSource {
-    fn supported_entity_data() -> TypeId {
-        TypeId::of::<Uuid>()
+    fn supported_entity_data() -> Vec<TypeId> {
+        vec![TypeId::of::<Uuid>()]
     }
 }
 

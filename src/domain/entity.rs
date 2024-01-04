@@ -3,23 +3,24 @@ use std::fmt::Debug;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::domain::entity_data::EntityData;
 use crate::domain::entity_identifier::EntityIdentifier;
 use crate::domain::source::Source;
 
 #[derive(Debug, Deserialize, Hash, PartialEq, PartialOrd, Serialize)]
-pub(crate) struct Entity<T>
+pub(crate) struct Entity<DataType>
 where
-    T: Debug,
+    DataType: EntityData,
 {
     created_at: DateTime<Utc>,
-    data: Box<T>,
+    data: Box<DataType>,
     id: EntityIdentifier,
     updated_at: DateTime<Utc>,
 }
 
 impl<DataType> Entity<DataType>
 where
-    DataType: Debug + 'static,
+    DataType: EntityData,
 {
     pub(crate) fn new<SourceType>(
         created_at: &DateTime<Utc>,
@@ -63,7 +64,7 @@ where
 
     pub(crate) fn with_data<NewDataType>(&self, data: &NewDataType) -> Entity<NewDataType>
     where
-        NewDataType: Debug + Clone,
+        NewDataType: EntityData,
     {
         Entity {
             created_at: self.created_at.clone(),

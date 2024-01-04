@@ -3,6 +3,7 @@ use std::hash::Hash;
 
 use serde::{Deserialize, Serialize};
 
+use crate::domain::entity_data::EntityData;
 use crate::domain::source::Source;
 use crate::domain::source_identifier::SourceIdentifier;
 
@@ -16,7 +17,7 @@ impl EntityIdentifier {
     pub(crate) fn new<SourceType, DataType>(name: &str) -> Self
     where
         SourceType: Source<DataType>,
-        DataType: 'static + Debug,
+        DataType: EntityData,
     {
         Self {
             name: name.to_string(),
@@ -54,11 +55,11 @@ mod tests {
     struct TestSource2;
 
     impl EntityUser for TestSource2 {
-        fn supported_entity_data() -> TypeId
+        fn supported_entity_data() -> Vec<TypeId>
         where
             Self: Sized,
         {
-            TypeId::of::<Uuid>()
+            vec![TypeId::of::<Uuid>()]
         }
     }
 

@@ -1,14 +1,13 @@
-use std::fmt::Debug;
-
 use chrono::{DateTime, Utc};
 
 use crate::domain::entity::Entity;
+use crate::domain::entity_data::EntityData;
 use crate::domain::entity_user::EntityUser;
 use crate::domain::source_identifier::SourceIdentifier;
 
-pub(crate) trait Source<DataType>: Debug + EntityUser
+pub(crate) trait Source<DataType>: EntityUser
 where
-    DataType: Debug,
+    DataType: EntityData,
 {
     fn identifier() -> &'static SourceIdentifier
     where
@@ -40,8 +39,8 @@ pub(crate) mod tests {
     }
 
     impl EntityUser for TestSource {
-        fn supported_entity_data() -> TypeId {
-            TypeId::of::<String>()
+        fn supported_entity_data() -> Vec<std::any::TypeId> {
+            vec![TypeId::of::<String>()]
         }
     }
 
@@ -81,6 +80,9 @@ pub(crate) mod tests {
 
     #[test]
     fn test_entity_user() {
-        assert_eq!(TestSource::supported_entity_data(), TypeId::of::<String>());
+        assert_eq!(
+            TestSource::supported_entity_data(),
+            vec!(TypeId::of::<String>())
+        );
     }
 }

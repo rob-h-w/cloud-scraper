@@ -1,10 +1,9 @@
 use std::error::Error;
-use std::fmt::Debug;
 
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 
 use crate::domain::entity::Entity;
+use crate::domain::entity_data::EntityData;
 use crate::domain::entity_translator::EntityTranslator;
 use crate::domain::sink::Sink;
 use crate::domain::source::Source;
@@ -15,11 +14,11 @@ pub(crate) trait ExecutablePipeline {
 
 struct Pipeline<'a, FromType, ToType, SourceType, TranslatorType, SinkType>
 where
-    FromType: Debug + 'static,
-    ToType: Debug + 'static,
+    FromType: EntityData,
+    ToType: EntityData,
     SourceType: Source<FromType>,
     TranslatorType: EntityTranslator<FromType, ToType>,
-    SinkType: Sink,
+    SinkType: Sink<ToType>,
 {
     source: &'a mut SourceType,
     translator: &'a TranslatorType,
@@ -31,11 +30,11 @@ where
 impl<'a, FromType, ToType, SourceType, TranslatorType, SinkType> ExecutablePipeline
     for Pipeline<'a, FromType, ToType, SourceType, TranslatorType, SinkType>
 where
-    FromType: Debug + 'static,
-    ToType: Debug + Serialize + 'static,
+    FromType: EntityData,
+    ToType: EntityData,
     SourceType: Source<FromType>,
     TranslatorType: EntityTranslator<FromType, ToType>,
-    SinkType: Sink,
+    SinkType: Sink<ToType>,
 {
     fn run(&mut self, since: Option<DateTime<Utc>>) -> Result<usize, Box<dyn Error>> {
         let entities = self
@@ -53,11 +52,11 @@ where
 impl<'a, FromType, ToType, SourceType, TranslatorType, SinkType>
     Pipeline<'a, FromType, ToType, SourceType, TranslatorType, SinkType>
 where
-    FromType: Debug + 'static,
-    ToType: Debug + 'static,
+    FromType: EntityData,
+    ToType: EntityData,
     SourceType: Source<FromType>,
     TranslatorType: EntityTranslator<FromType, ToType>,
-    SinkType: Sink,
+    SinkType: Sink<ToType>,
 {
     fn new(
         source: &'a mut SourceType,
