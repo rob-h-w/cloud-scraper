@@ -4,7 +4,7 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
 use crate::domain::config::Config;
-use crate::domain::sink::Sink;
+use crate::domain::identifiable_sink::IdentifiableSink;
 use crate::domain::sink_identifier::SinkIdentifier;
 use crate::integration::log::sink::LogSink;
 

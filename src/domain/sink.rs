@@ -1,26 +1,25 @@
-use std::error::Error;
-use std::fmt::Debug;
+use crate::domain::entity_consumer::EntityConsumer;
+use crate::domain::entity_data::EntityData;
+use crate::domain::identifiable_sink::IdentifiableSink;
 
-use serde::Serialize;
-
-use crate::domain::entity::Entity;
-use crate::domain::sink_identifier::SinkIdentifier;
-
-pub(crate) trait Sink: Debug {
-    fn identifier() -> &'static SinkIdentifier;
-    fn put<DataType>(&mut self, entities: &Vec<Entity<DataType>>) -> Result<(), Box<dyn Error>>
-    where
-        DataType: Debug + Serialize;
+pub(crate) trait Sink<DataType>: IdentifiableSink + EntityConsumer<DataType>
+where
+    DataType: EntityData,
+{
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use crate::domain::entity_user::EntityUser;
     use std::any::TypeId;
+    use std::error::Error;
 
+    use crate::domain::entity::Entity;
     use once_cell::sync::Lazy;
 
-    use crate::domain::sink::Sink;
+    use crate::domain::entity_consumer::EntityConsumer;
+    use crate::domain::entity_user::EntityUser;
+    use crate::domain::identifiable_sink::IdentifiableSink;
+    use crate::domain::sink_identifier::SinkIdentifier;
     use crate::domain::source::tests::TestSource;
 
     use super::*;
@@ -38,23 +37,24 @@ pub(crate) mod tests {
         }
     }
 
+    impl Sink<String> for TestSink {}
+
     impl EntityUser for TestSink {
-        fn supported_entity_data() -> TypeId {
-            TypeId::of::<String>()
+        fn supported_entity_data() -> Vec<TypeId> {
+            vec![TypeId::of::<String>()]
         }
     }
 
-    impl Sink for TestSink {
+    impl IdentifiableSink for TestSink {
         fn identifier() -> &'static SinkIdentifier {
             static SINK_IDENTIFIER: Lazy<SinkIdentifier> =
                 Lazy::new(|| SinkIdentifier::new("test"));
             &SINK_IDENTIFIER
         }
+    }
 
-        fn put<String: std::fmt::Debug>(
-            &mut self,
-            entities: &Vec<Entity<String>>,
-        ) -> Result<(), Box<dyn Error>> {
+    impl EntityConsumer<String> for TestSink {
+        fn put(&mut self, entities: &[Entity<String>]) -> Result<(), Box<dyn Error>> {
             println!("putting entities: {:?}", entities);
             Ok(())
         }
@@ -80,6 +80,9 @@ pub(crate) mod tests {
 
     #[test]
     fn test_supported_entity_data() {
-        assert_eq!(TestSink::supported_entity_data(), TypeId::of::<String>());
+        assert_eq!(
+            TestSink::supported_entity_data(),
+            vec!(TypeId::of::<String>())
+        );
     }
 }

@@ -47,10 +47,10 @@ struct TranslatorConfig {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use crate::domain::sink::Sink;
     use log::info;
     use serde_yaml::Mapping;
 
+    use crate::domain::identifiable_sink::IdentifiableSink;
     use crate::domain::sink::tests::TestSink;
     use crate::domain::source::tests::TestSource;
     use crate::domain::source::Source;

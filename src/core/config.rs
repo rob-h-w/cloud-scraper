@@ -55,8 +55,8 @@ impl DomainConfig for Config {
 
 #[cfg(test)]
 mod tests {
+    use crate::domain::identifiable_sink::IdentifiableSink;
     use crate::domain::sink::tests::TestSink;
-    use crate::domain::sink::Sink;
     use crate::domain::source::tests::TestSource;
     use crate::domain::source::Source;
 

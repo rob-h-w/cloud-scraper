@@ -1,11 +1,16 @@
+use std::any::TypeId;
 use std::error::Error;
 use std::fmt::Debug;
 
 use log::info;
 use once_cell::sync::Lazy;
-use serde::Serialize;
+use uuid::Uuid;
 
 use crate::domain::entity::Entity;
+use crate::domain::entity_consumer::EntityConsumer;
+use crate::domain::entity_data::EntityData;
+use crate::domain::entity_user::EntityUser;
+use crate::domain::identifiable_sink::IdentifiableSink;
 use crate::domain::sink::Sink;
 use crate::domain::sink_identifier::SinkIdentifier;
 
@@ -18,21 +23,50 @@ impl LogSink {
     }
 }
 
-impl Sink for LogSink {
+impl EntityUser for LogSink {
+    fn supported_entity_data() -> Vec<TypeId>
+    where
+        Self: Sized,
+    {
+        vec![TypeId::of::<String>(), TypeId::of::<Uuid>()]
+    }
+}
+
+impl IdentifiableSink for LogSink {
     fn identifier() -> &'static SinkIdentifier {
         static SINK_IDENTIFIER: Lazy<SinkIdentifier> = Lazy::new(|| SinkIdentifier::new("log"));
         &SINK_IDENTIFIER
     }
+}
 
-    fn put<DataType>(&mut self, entities: &Vec<Entity<DataType>>) -> Result<(), Box<dyn Error>>
-    where
-        DataType: Debug + Serialize,
-    {
-        entities.iter().for_each(|entity| {
-            info!("{}", serde_yaml::to_string(&entity).unwrap());
-        });
-        Ok(())
+impl Sink<String> for LogSink {}
+
+impl EntityData for String {}
+
+impl EntityConsumer<String> for LogSink {
+    fn put(&mut self, entities: &[Entity<String>]) -> Result<(), Box<dyn Error>> {
+        put(entities)
     }
+}
+
+impl Sink<Uuid> for LogSink {}
+
+impl EntityData for Uuid {}
+
+impl EntityConsumer<Uuid> for LogSink {
+    fn put(&mut self, entities: &[Entity<Uuid>]) -> Result<(), Box<dyn Error>> {
+        put(entities)
+    }
+}
+
+fn put<T>(entities: &[Entity<T>]) -> Result<(), Box<dyn Error>>
+where
+    T: EntityData,
+{
+    entities.iter().for_each(|entity| {
+        info!("{}", serde_yaml::to_string(&entity).unwrap());
+    });
+    Ok(())
 }
 
 #[cfg(test)]

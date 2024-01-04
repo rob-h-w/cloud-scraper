@@ -4,6 +4,7 @@ use std::rc::Rc;
 
 use crate::domain::config::Config;
 use crate::domain::entity::Entity;
+use crate::domain::entity_data::EntityData;
 
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) struct TranslationDescription {
@@ -13,8 +14,8 @@ pub(crate) struct TranslationDescription {
 
 pub(crate) trait EntityTranslator<FromDataType, ToDataType>
 where
-    FromDataType: 'static + Debug,
-    ToDataType: 'static + Debug,
+    FromDataType: EntityData,
+    ToDataType: EntityData,
 {
     fn new(config: Rc<impl Config>) -> Box<Self>;
 
