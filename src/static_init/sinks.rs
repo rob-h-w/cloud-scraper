@@ -13,14 +13,22 @@ pub(crate) enum Sinks {
     Log(Option<LogSink>),
 }
 
-pub(crate) fn create_sinks<ConfigType>(config: &ConfigType) -> Result<Vec<Sinks>, Box<dyn Error>>
+impl Sinks {
+    pub(crate) fn identifier(&self) -> &SinkIdentifier {
+        match self {
+            Sinks::Log(instance) => instance.as_ref().unwrap().this_identifier(),
+        }
+    }
+}
+
+pub(crate) fn create_sinks<ConfigType>(config: &ConfigType) -> Vec<Sinks>
 where
     ConfigType: Config,
 {
     Sinks::iter()
         .flat_map(|sink_type| match sink_type {
             Sinks::Log(_instance) => optional_init(config, LogSink::identifier(), || {
-                Some(Ok(Sinks::Log(Some(LogSink::new()))))
+                Ok(Sinks::Log(Some(LogSink::new())))
             }),
         })
         .collect()
@@ -30,15 +38,23 @@ fn optional_init<ConfigType, Closure>(
     config: &ConfigType,
     sink_identifier: &SinkIdentifier,
     initializer: Closure,
-) -> Option<Result<Sinks, Box<dyn Error>>>
+) -> Option<Sinks>
 where
     ConfigType: Config,
-    Closure: Fn() -> Option<Result<Sinks, Box<dyn Error>>>,
+    Closure: Fn() -> Result<Sinks, Box<dyn Error>>,
 {
     if !config.sink_configured(sink_identifier.unique_name()) {
         None
     } else {
-        initializer()
+        Some(
+            initializer().expect(
+                format!(
+                    "Failed to initialize sink {src}",
+                    src = sink_identifier.unique_name()
+                )
+                .as_str(),
+            ),
+        )
     }
 }
 
@@ -52,14 +68,14 @@ mod tests {
     #[test]
     fn test_create_sinks_with_empty_config() {
         let config = TestConfig::new(None);
-        let sinks = create_sinks(&config).unwrap();
+        let sinks = create_sinks(&config);
         assert_eq!(sinks.len(), 0);
     }
 
     #[test]
     fn test_create_sinks_with_log_config() {
         let config = CoreConfig::new();
-        let sinks = create_sinks(config.as_ref()).unwrap();
+        let sinks = create_sinks(config.as_ref());
         assert!(sinks.len() > 0);
         assert!(sinks.iter().any(|sink| match sink {
             Sinks::Log(_) => true,

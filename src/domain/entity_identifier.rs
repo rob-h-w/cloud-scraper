@@ -71,7 +71,7 @@ mod tests {
         }
 
         fn get(
-            &mut self,
+            &self,
             _since: &DateTime<Utc>,
         ) -> Result<Vec<Entity<Uuid>>, Box<dyn std::error::Error>> {
             Ok(vec![
@@ -101,7 +101,7 @@ mod tests {
             hasher.finish()
         }
 
-        let mut source_1 = TestSource::new();
+        let source_1 = TestSource::new();
         let [hash_1, hash_2] = source_1
             .get(&Utc::now())
             .unwrap()

@@ -7,22 +7,23 @@ use crate::domain::entity_data::EntityData;
 use crate::domain::entity_translator::EntityTranslator;
 use crate::domain::sink::Sink;
 use crate::domain::source::Source;
+use crate::integration::no_op_translator::NoOpTranslator;
 
 pub(crate) trait ExecutablePipeline {
-    fn run(&mut self, since: Option<DateTime<Utc>>) -> Result<usize, Box<dyn Error>>;
+    fn run(&self, since: Option<DateTime<Utc>>) -> Result<usize, Box<dyn Error>>;
 }
 
-struct Pipeline<'a, FromType, ToType, SourceType, TranslatorType, SinkType>
+pub(crate) struct Pipeline<'a, FromType, ToType, SourceType, TranslatorType, SinkType>
 where
     FromType: EntityData,
-    ToType: EntityData,
-    SourceType: Source<FromType>,
-    TranslatorType: EntityTranslator<FromType, ToType>,
     SinkType: Sink<ToType>,
+    SourceType: Source<FromType>,
+    ToType: EntityData,
+    TranslatorType: EntityTranslator<FromType, ToType>,
 {
-    source: &'a mut SourceType,
-    translator: &'a TranslatorType,
-    sink: &'a mut SinkType,
+    source: &'a SourceType,
+    translator: TranslatorType,
+    sink: &'a SinkType,
     phantom_from: std::marker::PhantomData<FromType>,
     phantom_to: std::marker::PhantomData<ToType>,
 }
@@ -36,7 +37,7 @@ where
     TranslatorType: EntityTranslator<FromType, ToType>,
     SinkType: Sink<ToType>,
 {
-    fn run(&mut self, since: Option<DateTime<Utc>>) -> Result<usize, Box<dyn Error>> {
+    fn run(&self, since: Option<DateTime<Utc>>) -> Result<usize, Box<dyn Error>> {
         let entities = self
             .source
             .get(&(if let Some(s) = since { s } else { Utc::now() }))?;
@@ -49,19 +50,37 @@ where
     }
 }
 
+impl<'a, DataType, SourceType, SinkType>
+    Pipeline<'a, DataType, DataType, SourceType, NoOpTranslator, SinkType>
+where
+    DataType: EntityData,
+    SourceType: Source<DataType>,
+    SinkType: Sink<DataType>,
+{
+    pub(crate) fn new_no_op(source: &'a SourceType, sink: &'a SinkType) -> Box<Self> {
+        Box::new(Self {
+            source,
+            sink,
+            phantom_from: Default::default(),
+            phantom_to: Default::default(),
+            translator: NoOpTranslator::new(source),
+        })
+    }
+}
+
 impl<'a, FromType, ToType, SourceType, TranslatorType, SinkType>
     Pipeline<'a, FromType, ToType, SourceType, TranslatorType, SinkType>
 where
     FromType: EntityData,
-    ToType: EntityData,
-    SourceType: Source<FromType>,
-    TranslatorType: EntityTranslator<FromType, ToType>,
     SinkType: Sink<ToType>,
+    SourceType: Source<FromType>,
+    ToType: EntityData,
+    TranslatorType: EntityTranslator<FromType, ToType>,
 {
-    fn new(
-        source: &'a mut SourceType,
-        translator: &'a TranslatorType,
-        sink: &'a mut SinkType,
+    pub(crate) fn new(
+        source: &'a SourceType,
+        translator: TranslatorType,
+        sink: &'a SinkType,
     ) -> Box<Self> {
         Box::new(Self {
             source,
@@ -87,10 +106,10 @@ mod tests {
 
     #[test]
     fn test_dev_usability() {
-        let mut source = StubSource::new();
+        let source = StubSource::new();
         let translator = TestTranslator::new(Config::new());
-        let mut sink = TestSink::new("test");
-        let mut pipeline = Pipeline::new(&mut source, translator.as_ref(), &mut sink);
+        let sink = TestSink::new("test");
+        let pipeline = Pipeline::new(&source, translator, &sink);
         let count = pipeline
             .run(Some(Utc::now() - Duration::seconds(1)))
             .unwrap();

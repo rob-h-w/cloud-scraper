@@ -13,16 +13,22 @@ pub(crate) enum Sources {
     Stub(Option<StubSource>),
 }
 
-pub(crate) fn create_sources<ConfigType>(
-    config: &ConfigType,
-) -> Result<Vec<Sources>, Box<dyn Error>>
+impl Sources {
+    pub(crate) fn identifier(&self) -> &SourceIdentifier {
+        match self {
+            Sources::Stub(instance) => instance.as_ref().unwrap().this_identifier(),
+        }
+    }
+}
+
+pub(crate) fn create_sources<ConfigType>(config: &ConfigType) -> Vec<Sources>
 where
     ConfigType: Config,
 {
     Sources::iter()
         .flat_map(|source_type| match source_type {
             Sources::Stub(_instance) => optional_init(config, StubSource::identifier(), || {
-                Some(Ok(Sources::Stub(Some(StubSource::new()))))
+                Ok(Sources::Stub(Some(StubSource::new())))
             }),
         })
         .collect()
@@ -32,15 +38,23 @@ fn optional_init<ConfigType, Closure>(
     config: &ConfigType,
     source_identifier: &SourceIdentifier,
     initializer: Closure,
-) -> Option<Result<Sources, Box<dyn Error>>>
+) -> Option<Sources>
 where
     ConfigType: Config,
-    Closure: Fn() -> Option<Result<Sources, Box<dyn Error>>>,
+    Closure: Fn() -> Result<Sources, Box<dyn Error>>,
 {
     if !config.source_configured(source_identifier.unique_name()) {
         None
     } else {
-        initializer()
+        Some(
+            initializer().expect(
+                format!(
+                    "Failed to initialize source {src}",
+                    src = source_identifier.unique_name()
+                )
+                .as_str(),
+            ),
+        )
     }
 }
 
@@ -59,10 +73,7 @@ mod tests {
     fn test_create_sources_with_empty_config() {
         let config = Rc::new(TestConfig::new(None));
 
-        let sources_result = create_sources(config.as_ref());
-        assert!(sources_result.is_ok());
-
-        let sources = sources_result.unwrap();
+        let sources = create_sources(config.as_ref());
 
         assert_eq!(sources.len(), 0);
     }
@@ -71,10 +82,7 @@ mod tests {
     fn test_create_sources_with_stub_config() {
         let config = CoreConfig::new();
 
-        let sources_result = create_sources(config.as_ref());
-        assert!(sources_result.is_ok());
-
-        let sources = sources_result.unwrap();
+        let sources = create_sources(config.as_ref());
 
         assert!(sources.len() > 0);
 

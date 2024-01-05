@@ -7,5 +7,5 @@ pub(crate) trait EntityConsumer<DataType>
 where
     DataType: EntityData,
 {
-    fn put(&mut self, entities: &[Entity<DataType>]) -> Result<(), Box<dyn Error>>;
+    fn put(&self, entities: &[Entity<DataType>]) -> Result<(), Box<dyn Error>>;
 }

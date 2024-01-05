@@ -13,9 +13,9 @@ pub(crate) mod tests {
     use std::any::TypeId;
     use std::error::Error;
 
-    use crate::domain::entity::Entity;
     use once_cell::sync::Lazy;
 
+    use crate::domain::entity::Entity;
     use crate::domain::entity_consumer::EntityConsumer;
     use crate::domain::entity_user::EntityUser;
     use crate::domain::identifiable_sink::IdentifiableSink;
@@ -54,7 +54,7 @@ pub(crate) mod tests {
     }
 
     impl EntityConsumer<String> for TestSink {
-        fn put(&mut self, entities: &[Entity<String>]) -> Result<(), Box<dyn Error>> {
+        fn put(&self, entities: &[Entity<String>]) -> Result<(), Box<dyn Error>> {
             println!("putting entities: {:?}", entities);
             Ok(())
         }
@@ -63,7 +63,7 @@ pub(crate) mod tests {
     #[test]
     fn test_dev_usability() {
         let sink_name = "test";
-        let mut sink = TestSink::new(sink_name);
+        let sink = TestSink::new(sink_name);
         assert_eq!(TestSink::identifier(), &SinkIdentifier::new(sink_name));
 
         let entities = vec![
