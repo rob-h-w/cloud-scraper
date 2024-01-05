@@ -34,7 +34,7 @@ impl Source<Uuid> for StubSource {
         &SOURCE_IDENTIFIER
     }
 
-    fn get(&mut self, since: &DateTime<Utc>) -> Result<Vec<Entity<Uuid>>, Box<dyn Error>> {
+    fn get(&self, since: &DateTime<Utc>) -> Result<Vec<Entity<Uuid>>, Box<dyn Error>> {
         let now = Utc::now();
         let diff = now - *since;
 
@@ -77,7 +77,7 @@ mod tests {
 
     #[test]
     fn test_stub_source_get() {
-        let mut source = StubSource::new();
+        let source = StubSource::new();
         let now = Utc::now();
         let since = now - Duration::seconds(1);
         let entities = source.get(&since).unwrap();
@@ -98,7 +98,7 @@ mod tests {
 
     #[test]
     fn test_stub_source_get_empty() {
-        let mut source = StubSource::new();
+        let source = StubSource::new();
         let since = Utc::now();
         let entities = source.get(&since).unwrap();
         assert_eq!(entities.len(), 0);

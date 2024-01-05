@@ -12,14 +12,16 @@ pub(crate) struct TranslationDescription {
     pub(crate) to: TypeId,
 }
 
-pub(crate) trait EntityTranslator<FromDataType, ToDataType>
+pub(crate) trait EntityTranslator<FromDataType, ToDataType>: Clone
 where
     FromDataType: EntityData,
     ToDataType: EntityData,
 {
-    fn new(config: Rc<impl Config>) -> Box<Self>;
+    fn new(config: Rc<impl Config>) -> Self
+    where
+        Self: Sized;
 
-    fn translation_description(&self) -> TranslationDescription {
+    fn translation_description() -> TranslationDescription {
         TranslationDescription {
             from: TypeId::of::<FromDataType>(),
             to: TypeId::of::<ToDataType>(),
@@ -37,11 +39,15 @@ pub(crate) mod tests {
 
     use super::*;
 
+    #[derive(Clone)]
     pub(crate) struct TestTranslator;
 
     impl EntityTranslator<Uuid, String> for TestTranslator {
-        fn new(_: Rc<impl Config>) -> Box<Self> {
-            Box::new(Self)
+        fn new(_: Rc<impl Config>) -> Self
+        where
+            Self: Sized,
+        {
+            Self
         }
 
         fn translate(&self, entity: &Entity<Uuid>) -> Entity<String> {
@@ -65,9 +71,8 @@ pub(crate) mod tests {
 
     #[test]
     fn test_translation_description() {
-        let translator = TestTranslator;
         assert_eq!(
-            translator.translation_description(),
+            TestTranslator::translation_description(),
             TranslationDescription {
                 from: TypeId::of::<Uuid>(),
                 to: TypeId::of::<String>(),

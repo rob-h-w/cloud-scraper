@@ -13,9 +13,15 @@ where
     where
         Self: Sized;
     fn get(
-        &mut self,
+        &self,
         since: &DateTime<Utc>,
     ) -> Result<Vec<Entity<DataType>>, Box<dyn std::error::Error>>;
+    fn this_identifier(&self) -> &'static SourceIdentifier
+    where
+        Self: Sized,
+    {
+        Self::identifier()
+    }
 }
 
 #[cfg(test)]
@@ -39,7 +45,7 @@ pub(crate) mod tests {
     }
 
     impl EntityUser for TestSource {
-        fn supported_entity_data() -> Vec<std::any::TypeId> {
+        fn supported_entity_data() -> Vec<TypeId> {
             vec![TypeId::of::<String>()]
         }
     }
@@ -52,7 +58,7 @@ pub(crate) mod tests {
         }
 
         fn get(
-            &mut self,
+            &self,
             _since: &DateTime<Utc>,
         ) -> Result<Vec<Entity<String>>, Box<dyn std::error::Error>> {
             Ok(vec![
@@ -65,7 +71,7 @@ pub(crate) mod tests {
     #[test]
     fn test_dev_usability() {
         let source_name = "test";
-        let mut source = TestSource::new();
+        let source = TestSource::new();
         assert_eq!(
             TestSource::identifier(),
             &SourceIdentifier::new(source_name)

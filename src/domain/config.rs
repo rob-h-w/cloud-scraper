@@ -34,15 +34,63 @@ pub(crate) trait Config {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct PipelineConfig {
-    source: String,
     sink: String,
+    source: String,
     translator: Option<TranslatorConfig>,
 }
 
-#[derive(Debug, Deserialize)]
-struct TranslatorConfig {
+impl PipelineConfig {
+    pub(crate) fn new(sink: &str, source: &str, translator: Option<TranslatorConfig>) -> Self {
+        Self {
+            sink: sink.to_string(),
+            source: source.to_string(),
+            translator,
+        }
+    }
+    pub(crate) fn source(&self) -> &str {
+        &self.source
+    }
+
+    pub(crate) fn sink(&self) -> &str {
+        &self.sink
+    }
+
+    pub(crate) fn translator(&self) -> Option<&TranslatorConfig> {
+        self.translator.as_ref()
+    }
+}
+
+impl Clone for PipelineConfig {
+    fn clone(&self) -> Self {
+        PipelineConfig {
+            sink: self.sink.clone(),
+            source: self.source.clone(),
+            translator: self.translator.clone(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct TranslatorConfig {
     from: String,
     to: String,
+}
+
+impl TranslatorConfig {
+    pub(crate) fn new(from: &str, to: &str) -> Self {
+        Self {
+            from: from.to_string(),
+            to: to.to_string(),
+        }
+    }
+
+    pub(crate) fn from(&self) -> &str {
+        &self.from
+    }
+
+    pub(crate) fn to(&self) -> &str {
+        &self.to
+    }
 }
 
 #[cfg(test)]
@@ -110,7 +158,7 @@ pub(crate) mod tests {
         assert!(pipeline.translator.is_some());
 
         let translator = pipeline.translator.as_ref().unwrap();
-        assert_eq!(translator.from, "Uuid");
+        assert_eq!(translator.from, "uuid::Uuid");
         assert_eq!(translator.to, "String");
     }
 
@@ -141,10 +189,7 @@ pub(crate) mod tests {
                     PipelineConfig {
                         source: "test".to_string(),
                         sink: "test".to_string(),
-                        translator: Some(TranslatorConfig {
-                            from: "Uuid".to_string(),
-                            to: "String".to_string(),
-                        }),
+                        translator: Some(TranslatorConfig::new("uuid::Uuid", "String")),
                     }
                 }],
                 value: Value::Mapping(Mapping::new()),

@@ -44,7 +44,7 @@ impl Sink<String> for LogSink {}
 impl EntityData for String {}
 
 impl EntityConsumer<String> for LogSink {
-    fn put(&mut self, entities: &[Entity<String>]) -> Result<(), Box<dyn Error>> {
+    fn put(&self, entities: &[Entity<String>]) -> Result<(), Box<dyn Error>> {
         put(entities)
     }
 }
@@ -54,7 +54,7 @@ impl Sink<Uuid> for LogSink {}
 impl EntityData for Uuid {}
 
 impl EntityConsumer<Uuid> for LogSink {
-    fn put(&mut self, entities: &[Entity<Uuid>]) -> Result<(), Box<dyn Error>> {
+    fn put(&self, entities: &[Entity<Uuid>]) -> Result<(), Box<dyn Error>> {
         put(entities)
     }
 }
@@ -82,7 +82,7 @@ mod tests {
         Logger::use_in(|logger| {
             logger.reset();
 
-            let mut sink = LogSink::new();
+            let sink = LogSink::new();
             assert_eq!(LogSink::identifier(), &SinkIdentifier::new("log"));
 
             let entities = vec![
