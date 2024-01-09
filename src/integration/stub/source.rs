@@ -4,6 +4,7 @@ use std::error::Error;
 use std::fmt::Debug;
 
 use chrono::{DateTime, Duration, Utc};
+use once_cell::sync::Lazy;
 use uuid::Uuid;
 
 use crate::domain::entity::Entity;
@@ -12,30 +13,28 @@ use crate::domain::source::Source;
 use crate::domain::source_identifier::SourceIdentifier;
 
 #[derive(Debug)]
-pub(crate) struct StubSource {
-    source_identifier: SourceIdentifier,
-}
+pub(crate) struct StubSource;
 
 impl StubSource {
     pub(crate) fn new() -> Self {
-        Self {
-            source_identifier: SourceIdentifier::new("stub"),
-        }
+        Self {}
     }
 }
 
 impl EntityUser for StubSource {
-    fn supported_entity_data(&self) -> Vec<TypeId> {
+    fn supported_entity_data() -> Vec<TypeId> {
         vec![TypeId::of::<Uuid>()]
     }
 }
 
 impl Source<Uuid> for StubSource {
-    fn source_identifier(&self) -> &SourceIdentifier {
-        &self.source_identifier
+    fn identifier() -> &'static SourceIdentifier {
+        static SOURCE_IDENTIFIER: Lazy<SourceIdentifier> =
+            Lazy::new(|| SourceIdentifier::new("stub"));
+        &SOURCE_IDENTIFIER
     }
 
-    fn get(&mut self, since: &DateTime<Utc>) -> Result<Vec<Entity<Uuid>>, Box<dyn Error>> {
+    fn get(&self, since: &DateTime<Utc>) -> Result<Vec<Entity<Uuid>>, Box<dyn Error>> {
         let now = Utc::now();
         let diff = now - *since;
 
@@ -47,14 +46,13 @@ impl Source<Uuid> for StubSource {
             .map(|i| {
                 let created = *since + Duration::seconds(i);
                 let updated = min(*since + Duration::seconds(i + 1), now);
-                Entity::new(
+                Entity::new::<Self>(
                     &created,
                     Box::new(Uuid::new_v4()),
                     (*since + Duration::seconds(i))
                         .to_rfc3339()
                         .to_string()
                         .as_str(),
-                    self,
                     &updated,
                 )
             })
@@ -74,13 +72,12 @@ mod tests {
 
     #[test]
     fn test_stub_source_new() {
-        let source = StubSource::new();
-        assert_eq!(source.source_identifier(), &SourceIdentifier::new("stub"));
+        assert_eq!(StubSource::identifier(), &SourceIdentifier::new("stub"));
     }
 
     #[test]
     fn test_stub_source_get() {
-        let mut source = StubSource::new();
+        let source = StubSource::new();
         let now = Utc::now();
         let since = now - Duration::seconds(1);
         let entities = source.get(&since).unwrap();
@@ -101,7 +98,7 @@ mod tests {
 
     #[test]
     fn test_stub_source_get_empty() {
-        let mut source = StubSource::new();
+        let source = StubSource::new();
         let since = Utc::now();
         let entities = source.get(&since).unwrap();
         assert_eq!(entities.len(), 0);

@@ -1,60 +1,72 @@
 use std::any::TypeId;
 use std::error::Error;
 use std::fmt::Debug;
-use std::marker::PhantomData;
 
 use log::info;
-use serde::Serialize;
+use once_cell::sync::Lazy;
+use uuid::Uuid;
 
 use crate::domain::entity::Entity;
+use crate::domain::entity_consumer::EntityConsumer;
+use crate::domain::entity_data::EntityData;
 use crate::domain::entity_user::EntityUser;
+use crate::domain::identifiable_sink::IdentifiableSink;
 use crate::domain::sink::Sink;
 use crate::domain::sink_identifier::SinkIdentifier;
 
 #[derive(Debug)]
-pub(crate) struct LogSink<T>
-where
-    T: Debug,
-{
-    sink_identifier: SinkIdentifier,
-    phantom: PhantomData<T>,
-}
+pub(crate) struct LogSink {}
 
-impl<T> LogSink<T>
-where
-    T: Debug + 'static,
-{
+impl LogSink {
     pub(crate) fn new() -> Self {
-        Self {
-            sink_identifier: SinkIdentifier::new("log"),
-            phantom: Default::default(),
-        }
+        Self {}
     }
 }
 
-impl<T> EntityUser for LogSink<T>
-where
-    T: Debug + 'static,
-{
-    fn supported_entity_data(&self) -> Vec<TypeId> {
-        vec![TypeId::of::<T>()]
+impl EntityUser for LogSink {
+    fn supported_entity_data() -> Vec<TypeId>
+    where
+        Self: Sized,
+    {
+        vec![TypeId::of::<String>(), TypeId::of::<Uuid>()]
     }
 }
 
-impl<T> Sink<T> for LogSink<T>
-where
-    T: Debug + Serialize + 'static,
-{
-    fn sink_identifier(&self) -> &SinkIdentifier {
-        &self.sink_identifier
+impl IdentifiableSink for LogSink {
+    fn identifier() -> &'static SinkIdentifier {
+        static SINK_IDENTIFIER: Lazy<SinkIdentifier> = Lazy::new(|| SinkIdentifier::new("log"));
+        &SINK_IDENTIFIER
     }
+}
 
-    fn put(&mut self, entities: &Vec<Entity<T>>) -> Result<(), Box<dyn Error>> {
-        entities.iter().for_each(|entity| {
-            info!("{}", serde_yaml::to_string(&entity).unwrap());
-        });
-        Ok(())
+impl Sink<String> for LogSink {}
+
+impl EntityData for String {}
+
+impl EntityConsumer<String> for LogSink {
+    fn put(&self, entities: &[Entity<String>]) -> Result<(), Box<dyn Error>> {
+        put(entities)
     }
+}
+
+impl Sink<Uuid> for LogSink {}
+
+impl EntityData for Uuid {}
+
+impl EntityConsumer<Uuid> for LogSink {
+    fn put(&self, entities: &[Entity<Uuid>]) -> Result<(), Box<dyn Error>> {
+        put(entities)
+    }
+}
+
+fn put<T>(entities: &[Entity<T>]) -> Result<(), Box<dyn Error>>
+where
+    T: EntityData,
+{
+    entities.iter().for_each(|entity| {
+        info!("{}", serde_yaml::to_string(&entity).unwrap());
+    });
+    Ok(())
 }
 
 #[cfg(test)]
@@ -70,13 +82,12 @@ mod tests {
         Logger::use_in(|logger| {
             logger.reset();
 
-            let source: TestSource = TestSource::new("test");
-            let mut sink = LogSink::new();
-            assert_eq!(sink.sink_identifier(), &SinkIdentifier::new("log"));
+            let sink = LogSink::new();
+            assert_eq!(LogSink::identifier(), &SinkIdentifier::new("log"));
 
             let entities = vec![
-                Entity::new_now(Box::new("data 1".to_string()), "1", &source),
-                Entity::new_now(Box::new("data 2".to_string()), "2", &source),
+                Entity::new_now::<TestSource>(Box::new("data 1".to_string()), "1"),
+                Entity::new_now::<TestSource>(Box::new("data 2".to_string()), "2"),
             ];
 
             assert_eq!(logger.log_entries().len(), 0);
