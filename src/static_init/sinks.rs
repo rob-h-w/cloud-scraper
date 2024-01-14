@@ -1,61 +1,42 @@
-use std::error::Error;
-
-use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
+use std::collections::HashMap;
 
 use crate::domain::config::Config;
 use crate::domain::identifiable_sink::IdentifiableSink;
-use crate::domain::sink_identifier::SinkIdentifier;
 use crate::integration::log::sink::LogSink;
 
-#[derive(Debug, EnumIter)]
+#[derive(Debug)]
 pub(crate) enum Sinks {
-    Log(Option<LogSink>),
+    Log(LogSink),
 }
 
 impl Sinks {
-    pub(crate) fn identifier(&self) -> &SinkIdentifier {
+    pub(crate) fn identifier(&self) -> &str {
         match self {
-            Sinks::Log(instance) => instance.as_ref().unwrap().this_identifier(),
+            Sinks::Log(instance) => instance.this_identifier(),
         }
     }
 }
 
-pub(crate) fn create_sinks<ConfigType>(config: &ConfigType) -> Vec<Sinks>
+pub(crate) fn create_sinks<ConfigType>(config: &ConfigType) -> HashMap<&str, Sinks>
 where
     ConfigType: Config,
 {
-    Sinks::iter()
-        .flat_map(|sink_type| match sink_type {
-            Sinks::Log(_instance) => optional_init(config, LogSink::identifier(), || {
-                Ok(Sinks::Log(Some(LogSink::new())))
-            }),
-        })
-        .collect()
-}
+    let mut sinks = HashMap::new();
 
-fn optional_init<ConfigType, Closure>(
-    config: &ConfigType,
-    sink_identifier: &SinkIdentifier,
-    initializer: Closure,
-) -> Option<Sinks>
-where
-    ConfigType: Config,
-    Closure: Fn() -> Result<Sinks, Box<dyn Error>>,
-{
-    if !config.sink_configured(sink_identifier.unique_name()) {
-        None
-    } else {
-        Some(
-            initializer().expect(
-                format!(
-                    "Failed to initialize sink {src}",
-                    src = sink_identifier.unique_name()
-                )
-                .as_str(),
-            ),
-        )
+    for sink_name in config.sink_names() {
+        match sink_name.as_str() {
+            LogSink::SINK_ID => {
+                sinks.insert(LogSink::SINK_ID, Sinks::Log(LogSink::new()));
+            }
+            _ => {}
+        }
     }
+
+    if config.sink_configured("log") {
+        sinks.insert(LogSink::SINK_ID, Sinks::Log(LogSink::new()));
+    }
+
+    sinks
 }
 
 #[cfg(test)]
@@ -77,8 +58,7 @@ mod tests {
         let config = CoreConfig::new();
         let sinks = create_sinks(config.as_ref());
         assert!(sinks.len() > 0);
-        assert!(sinks.iter().any(|sink| match sink {
-            Sinks::Log(_) => true,
-        }));
+        let log = sinks.get("log").unwrap();
+        assert_eq!(log.identifier(), "log");
     }
 }

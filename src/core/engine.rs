@@ -46,7 +46,6 @@ mod tests {
     use serde_yaml::Value;
 
     use crate::domain::config::PipelineConfig;
-    use crate::domain::sink_identifier::SinkIdentifier;
     use crate::domain::source_identifier::SourceIdentifier;
 
     use super::*;
@@ -54,7 +53,7 @@ mod tests {
     struct StubConfig {}
 
     impl Config for StubConfig {
-        fn sink(&self, _sink_identifier: &SinkIdentifier) -> Option<&Value> {
+        fn sink(&self, _sink_identifier: &str) -> Option<&Value> {
             todo!()
         }
 
@@ -66,6 +65,10 @@ mod tests {
             static IT: Lazy<Vec<PipelineConfig>> =
                 Lazy::new(|| vec![PipelineConfig::new("log", "stub", None)]);
             &IT
+        }
+
+        fn sink_names(&self) -> Vec<String> {
+            vec!["log".to_string()]
         }
 
         fn sink_configured(&self, name: &str) -> bool {

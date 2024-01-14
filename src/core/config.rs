@@ -5,7 +5,6 @@ use serde::Deserialize;
 use serde_yaml::Value;
 
 use crate::domain::config::{Config as DomainConfig, PipelineConfig};
-use crate::domain::sink_identifier::SinkIdentifier;
 use crate::domain::source_identifier::SourceIdentifier;
 
 #[derive(Debug, Deserialize)]
@@ -32,8 +31,8 @@ impl Config {
 }
 
 impl DomainConfig for Config {
-    fn sink(&self, sink: &SinkIdentifier) -> Option<&Value> {
-        self.sinks.get(sink.unique_name())
+    fn sink(&self, sink: &str) -> Option<&Value> {
+        self.sinks.get(sink)
     }
 
     fn source(&self, source_identifier: &SourceIdentifier) -> Option<&Value> {
@@ -42,6 +41,10 @@ impl DomainConfig for Config {
 
     fn pipelines(&self) -> &Vec<PipelineConfig> {
         self.pipelines.as_ref()
+    }
+
+    fn sink_names(&self) -> Vec<String> {
+        self.sinks.keys().cloned().collect()
     }
 
     fn sink_configured(&self, name: &str) -> bool {
@@ -70,7 +73,7 @@ mod tests {
             pipelines: vec![],
         };
 
-        assert_eq!(config.sink(TestSink::identifier()), None);
+        assert_eq!(config.sink(TestSink::SINK_ID), None);
         assert_eq!(config.source(TestSource::identifier()), None);
         assert!(config.pipelines().is_empty());
         assert!(config.sanity_check().is_ok());

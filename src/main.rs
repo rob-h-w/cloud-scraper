@@ -57,7 +57,6 @@ mod tests {
 
     use crate::domain::config::tests::TestConfig;
     use crate::domain::config::PipelineConfig;
-    use crate::domain::sink_identifier::SinkIdentifier;
     use crate::domain::source_identifier::SourceIdentifier;
 
     use super::*;
@@ -199,7 +198,7 @@ mod tests {
     }
 
     impl DomainConfig for InsaneConfig {
-        fn sink(&self, _sink_identifier: &SinkIdentifier) -> Option<&Value> {
+        fn sink(&self, _sink_identifier: &str) -> Option<&Value> {
             None
         }
 
@@ -209,6 +208,10 @@ mod tests {
 
         fn pipelines(&self) -> &Vec<PipelineConfig> {
             &self.pipelines
+        }
+
+        fn sink_names(&self) -> Vec<String> {
+            vec![]
         }
 
         fn sink_configured(&self, _name: &str) -> bool {

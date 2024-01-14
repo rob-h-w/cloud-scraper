@@ -3,13 +3,14 @@ use std::vec;
 use serde::Deserialize;
 use serde_yaml::Value;
 
-use crate::domain::sink_identifier::SinkIdentifier;
 use crate::domain::source_identifier::SourceIdentifier;
 
 pub(crate) trait Config {
-    fn sink(&self, sink_identifier: &SinkIdentifier) -> Option<&Value>;
+    fn sink(&self, sink_identifier: &str) -> Option<&Value>;
     fn source(&self, source_identifier: &SourceIdentifier) -> Option<&Value>;
     fn pipelines(&self) -> &Vec<PipelineConfig>;
+
+    fn sink_names(&self) -> Vec<String>;
 
     fn sink_configured(&self, name: &str) -> bool;
     fn source_configured(&self, name: &str) -> bool;
@@ -112,17 +113,14 @@ pub(crate) mod tests {
         Logger::use_in(|logger| {
             logger.reset();
             let config = TestConfig::new(None);
-            let sink_config = config.sink(TestSink::identifier()).unwrap();
+            let sink_config = config.sink(TestSink::SINK_ID).unwrap();
             assert_eq!(sink_config, &Value::Mapping(Mapping::new()));
 
             let log_entries = logger.log_entries();
             assert_eq!(log_entries.len(), 1);
             let log_line = &log_entries[0];
             assert_eq!(log_line.level(), log::Level::Info);
-            assert!(log_line.args().contains(
-                "sink ID: SinkIdentifier { unique_name: \
-            \"test\" }"
-            ));
+            assert!(log_line.args().contains("\"test\""));
         });
     }
 
@@ -198,7 +196,7 @@ pub(crate) mod tests {
     }
 
     impl Config for TestConfig {
-        fn sink(&self, sink_identifier: &SinkIdentifier) -> Option<&Value> {
+        fn sink(&self, sink_identifier: &str) -> Option<&Value> {
             info!("sink ID: {:?}", sink_identifier);
             Some(&self.value)
         }
@@ -211,6 +209,10 @@ pub(crate) mod tests {
         fn pipelines(&self) -> &Vec<PipelineConfig> {
             info!("pipelines");
             &self.pipelines
+        }
+
+        fn sink_names(&self) -> Vec<String> {
+            vec!["test".to_string()]
         }
 
         fn sink_configured(&self, name: &str) -> bool {

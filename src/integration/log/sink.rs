@@ -3,7 +3,6 @@ use std::error::Error;
 use std::fmt::Debug;
 
 use log::info;
-use once_cell::sync::Lazy;
 use uuid::Uuid;
 
 use crate::domain::entity::Entity;
@@ -12,7 +11,6 @@ use crate::domain::entity_data::EntityData;
 use crate::domain::entity_user::EntityUser;
 use crate::domain::identifiable_sink::IdentifiableSink;
 use crate::domain::sink::Sink;
-use crate::domain::sink_identifier::SinkIdentifier;
 
 #[derive(Debug)]
 pub(crate) struct LogSink {}
@@ -33,10 +31,7 @@ impl EntityUser for LogSink {
 }
 
 impl IdentifiableSink for LogSink {
-    fn identifier() -> &'static SinkIdentifier {
-        static SINK_IDENTIFIER: Lazy<SinkIdentifier> = Lazy::new(|| SinkIdentifier::new("log"));
-        &SINK_IDENTIFIER
-    }
+    const SINK_ID: &'static str = "log";
 }
 
 impl Sink<String> for LogSink {}
@@ -83,7 +78,7 @@ mod tests {
             logger.reset();
 
             let sink = LogSink::new();
-            assert_eq!(LogSink::identifier(), &SinkIdentifier::new("log"));
+            assert_eq!(LogSink::SINK_ID, "log");
 
             let entities = vec![
                 Entity::new_now::<TestSource>(Box::new("data 1".to_string()), "1"),

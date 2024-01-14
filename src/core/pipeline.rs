@@ -108,7 +108,7 @@ mod tests {
     fn test_dev_usability() {
         let source = StubSource::new();
         let translator = TestTranslator::new(Config::new());
-        let sink = TestSink::new("test");
+        let sink = TestSink {};
         let pipeline = Pipeline::new(&source, translator, &sink);
         let count = pipeline
             .run(Some(Utc::now() - Duration::seconds(1)))

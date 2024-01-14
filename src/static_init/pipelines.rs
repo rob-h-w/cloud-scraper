@@ -20,7 +20,7 @@ use crate::static_init::translators::{Translators, SUPPORTED_TYPES};
 pub(crate) fn create_pipelines<'a, ConfigType>(
     config: &'a ConfigType,
     sources: &'a Vec<Sources>,
-    sinks: &'a Vec<Sinks>,
+    sinks: &'a HashMap<&str, Sinks>,
     translators: &'a HashMap<TranslationDescription, Translators>,
 ) -> Vec<Box<dyn ExecutablePipeline + 'a>>
 where
@@ -34,8 +34,7 @@ where
             .find(|source| source.identifier().unique_name() == pipeline.source())
             .expect(format!("Missing source: {}", pipeline.source()).as_ref());
         let sink = sinks
-            .iter()
-            .find(|sink| sink.identifier().unique_name() == pipeline.sink())
+            .get(pipeline.sink())
             .expect(format!("Missing sink: {}", pipeline.sink()).as_ref());
         let translator = translators
             .get_translator(pipeline.translator(), source, sink)
@@ -108,11 +107,7 @@ where
     TranslatorType: EntityTranslator<FromType, ToType> + 'a,
 {
     match sink {
-        Sinks::Log(implementation) => translator_with_sink(
-            translator,
-            source,
-            implementation.as_ref().expect("Could not get sink"),
-        ),
+        Sinks::Log(implementation) => translator_with_sink(translator, source, implementation),
     }
 }
 
@@ -150,11 +145,8 @@ where
     DataType: EntityData,
     LogSink: Sink<DataType>,
 {
-    let could_not_get_sink = "Could not get sink";
     match sinks {
-        Sinks::Log(implementation) => {
-            noop_translator_with_sink(source, implementation.as_ref().expect(could_not_get_sink))
-        }
+        Sinks::Log(implementation) => noop_translator_with_sink(source, implementation),
     }
 }
 
@@ -207,7 +199,7 @@ impl TranslatorGetter for HashMap<TranslationDescription, Translators> {
         };
 
         let to_list: Vec<TypeId> = match sink {
-            Sinks::Log(instance) => instance.as_ref()?.this_supports_entity_data(),
+            Sinks::Log(instance) => instance.this_supports_entity_data(),
         };
 
         if from_list
