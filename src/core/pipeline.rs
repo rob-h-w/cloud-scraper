@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use std::error::Error;
 
 use chrono::{DateTime, Utc};
@@ -9,8 +10,9 @@ use crate::domain::sink::Sink;
 use crate::domain::source::Source;
 use crate::integration::no_op_translator::NoOpTranslator;
 
+#[async_trait]
 pub(crate) trait ExecutablePipeline {
-    fn run(&self, since: Option<DateTime<Utc>>) -> Result<usize, Box<dyn Error>>;
+    async fn run(&self, since: Option<DateTime<Utc>>) -> Result<usize, Box<dyn Error>>;
 }
 
 pub(crate) struct Pipeline<'a, FromType, ToType, SourceType, TranslatorType, SinkType>
@@ -28,6 +30,7 @@ where
     phantom_to: std::marker::PhantomData<ToType>,
 }
 
+#[async_trait]
 impl<'a, FromType, ToType, SourceType, TranslatorType, SinkType> ExecutablePipeline
     for Pipeline<'a, FromType, ToType, SourceType, TranslatorType, SinkType>
 where
@@ -37,7 +40,7 @@ where
     TranslatorType: EntityTranslator<FromType, ToType>,
     SinkType: Sink<ToType>,
 {
-    fn run(&self, since: Option<DateTime<Utc>>) -> Result<usize, Box<dyn Error>> {
+    async fn run(&self, since: Option<DateTime<Utc>>) -> Result<usize, Box<dyn Error>> {
         let entities = self
             .source
             .get(&(if let Some(s) = since { s } else { Utc::now() }))?;
@@ -94,6 +97,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::block_on;
     use chrono::Duration;
 
     use crate::core::config::Config;
@@ -110,9 +114,7 @@ mod tests {
         let translator = TestTranslator::new(Config::new());
         let sink = TestSink {};
         let pipeline = Pipeline::new(&source, translator, &sink);
-        let count = pipeline
-            .run(Some(Utc::now() - Duration::seconds(1)))
-            .unwrap();
+        let count = block_on!(pipeline.run(Some(Utc::now() - Duration::seconds(1)))).unwrap();
 
         assert_eq!(count, 1)
     }

@@ -2,7 +2,7 @@ use crate::domain::entity_consumer::EntityConsumer;
 use crate::domain::entity_data::EntityData;
 use crate::domain::identifiable_sink::IdentifiableSink;
 
-pub(crate) trait Sink<DataType>: IdentifiableSink + EntityConsumer<DataType>
+pub(crate) trait Sink<DataType>: IdentifiableSink + EntityConsumer<DataType> + Sync
 where
     DataType: EntityData,
 {

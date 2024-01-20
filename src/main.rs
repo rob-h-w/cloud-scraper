@@ -10,6 +10,7 @@ use crate::domain::config::Config as DomainConfig;
 mod core;
 mod domain;
 mod integration;
+mod macros;
 mod static_init;
 
 fn main() -> Result<(), Box<dyn Error>> {
