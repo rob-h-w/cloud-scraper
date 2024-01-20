@@ -19,7 +19,7 @@ use crate::static_init::translators::{Translators, SUPPORTED_TYPES};
 
 pub(crate) fn create_pipelines<'a, ConfigType>(
     config: &'a ConfigType,
-    sources: &'a Vec<Sources>,
+    sources: &'a [Sources],
     sinks: &'a HashMap<&str, Sinks>,
     translators: &'a HashMap<TranslationDescription, Translators>,
 ) -> Vec<Box<dyn ExecutablePipeline + 'a>>
@@ -32,20 +32,19 @@ where
         let source = sources
             .iter()
             .find(|source| source.identifier().unique_name() == pipeline.source())
-            .expect(format!("Missing source: {}", pipeline.source()).as_ref());
+            .unwrap_or_else(|| panic!("Missing source: {}", pipeline.source()));
         let sink = sinks
             .get(pipeline.sink())
-            .expect(format!("Missing sink: {}", pipeline.sink()).as_ref());
+            .unwrap_or_else(|| panic!("Missing sink: {}", pipeline.sink()));
         let translator = translators
             .get_translator(pipeline.translator(), source, sink)
-            .expect(
-                format!(
+            .unwrap_or_else(|| {
+                panic!(
                     "Missing translator from source: {from}, to sink: {to}",
                     from = pipeline.source(),
                     to = pipeline.sink()
                 )
-                .as_ref(),
-            );
+            });
         pipelines.push(with_translators(translator, source, sink));
     }
 
