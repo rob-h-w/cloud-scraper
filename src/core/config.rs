@@ -22,10 +22,12 @@ impl Config {
         let mut sinks = HashMap::new();
         sinks.insert("log".to_string(), Value::Null);
 
+        let pipelines = vec![PipelineConfig::new("log", "stub", None)];
+
         Rc::new(Self {
             sinks,
             sources,
-            pipelines: vec![],
+            pipelines,
         })
     }
 }

@@ -45,7 +45,7 @@ mod tests {
     use once_cell::sync::Lazy;
     use serde_yaml::Value;
 
-    use crate::domain::config::PipelineConfig;
+    use crate::domain::config::{PipelineConfig, TranslatorConfig};
     use crate::domain::source_identifier::SourceIdentifier;
 
     use super::*;
@@ -62,8 +62,13 @@ mod tests {
         }
 
         fn pipelines(&self) -> &Vec<PipelineConfig> {
-            static IT: Lazy<Vec<PipelineConfig>> =
-                Lazy::new(|| vec![PipelineConfig::new("log", "stub", None)]);
+            static IT: Lazy<Vec<PipelineConfig>> = Lazy::new(|| {
+                vec![PipelineConfig::new(
+                    "log",
+                    "stub",
+                    Some(TranslatorConfig::new("uuid::Uuid", "alloc::string::String")),
+                )]
+            });
             &IT
         }
 

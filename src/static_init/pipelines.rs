@@ -227,4 +227,24 @@ impl TranslatorGetter for HashMap<TranslationDescription, Translators> {
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use super::*;
+
+    use crate::core::config::Config as CoreConfig;
+    use crate::static_init::sinks::create_sinks;
+    use crate::static_init::sources::create_sources;
+    use crate::static_init::translators::create_translators;
+
+    #[test]
+    fn get_translator_instantiates_when_no_direct_spec() {
+        let config = CoreConfig::new();
+
+        let sources = create_sources(config.as_ref());
+        let sinks = create_sinks(config.as_ref());
+        let translators = create_translators();
+
+        let pipelines = create_pipelines(config.as_ref(), &sources, &sinks, &translators);
+
+        assert_eq!(pipelines.len(), 1);
+    }
+}
