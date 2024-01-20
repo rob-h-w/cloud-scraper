@@ -49,10 +49,14 @@ impl Source<Uuid> for StubSource {
                 Entity::new::<Self>(
                     &created,
                     Box::new(Uuid::new_v4()),
-                    (*since + Duration::seconds(i))
-                        .to_rfc3339()
-                        .to_string()
-                        .as_str(),
+                    format!(
+                        "uuid at {}",
+                        (*since + Duration::seconds(i))
+                            .to_rfc3339()
+                            .to_string()
+                            .as_str()
+                    )
+                    .as_str(),
                     &updated,
                 )
             })
