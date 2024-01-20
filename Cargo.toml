@@ -15,6 +15,8 @@ serde = { version = "1.0.193", features = ["derive"] }
 serde_yaml = { version = "0.9.29", features = [] }
 strum = "0.25.0"
 strum_macros = "0.25.3"
+tokio = "1.35.1"
+tokio-test = "0.4.3"
 uuid = { version = "1.6.1", features = ["serde", "v4"] }
 
 [dev-dependencies]
