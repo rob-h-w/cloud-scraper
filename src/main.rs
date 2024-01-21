@@ -1,4 +1,3 @@
-use std::error::Error;
 use std::sync::Arc;
 
 use log::debug;
@@ -14,7 +13,7 @@ mod macros;
 mod static_init;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() -> Result<(), String> {
     main_impl(env_logger::init, Config::new, EngineImpl::new).await
 }
 
@@ -22,7 +21,7 @@ async fn main_impl<ConfigType, EngineType, LogInitializer, ConfigGetter, EngineC
     log_initializer: LogInitializer,
     config_getter: ConfigGetter,
     engine_constructor: EngineConstructor,
-) -> Result<(), Box<dyn Error>>
+) -> Result<(), String>
 where
     ConfigType: DomainConfig,
     EngineType: Engine<ConfigType>,
@@ -43,7 +42,16 @@ where
     let engine = engine_constructor(config);
 
     debug!("Starting engine");
-    engine.start().await
+    let results = engine.start().await;
+    if !results.is_empty() {
+        Err(results
+            .iter()
+            .map(|e| e.to_string())
+            .collect::<Vec<String>>()
+            .join("\n"))
+    } else {
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -190,9 +198,9 @@ mod tests {
             })
         }
 
-        async fn start(&self) -> Result<(), Box<dyn Error>> {
+        async fn start(&self) -> Vec<String> {
             *self.start_called.lock().unwrap() = true;
-            Ok(())
+            vec![]
         }
     }
 

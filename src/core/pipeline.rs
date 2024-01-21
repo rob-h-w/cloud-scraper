@@ -1,8 +1,7 @@
 use async_trait::async_trait;
-use std::error::Error;
-
 use chrono::{DateTime, Utc};
 
+use crate::core::error::PipelineError;
 use crate::domain::entity::Entity;
 use crate::domain::entity_data::EntityData;
 use crate::domain::entity_translator::EntityTranslator;
@@ -11,8 +10,8 @@ use crate::domain::source::Source;
 use crate::integration::no_op_translator::NoOpTranslator;
 
 #[async_trait]
-pub(crate) trait ExecutablePipeline {
-    async fn run(&self, since: Option<DateTime<Utc>>) -> Result<usize, Box<dyn Error>>;
+pub(crate) trait ExecutablePipeline: Send + Sync {
+    async fn run(&self, since: Option<DateTime<Utc>>) -> Result<usize, PipelineError>;
 }
 
 pub(crate) struct Pipeline<'a, FromType, ToType, SourceType, TranslatorType, SinkType>
@@ -40,7 +39,7 @@ where
     TranslatorType: EntityTranslator<FromType, ToType>,
     SinkType: Sink<ToType>,
 {
-    async fn run(&self, since: Option<DateTime<Utc>>) -> Result<usize, Box<dyn Error>> {
+    async fn run(&self, since: Option<DateTime<Utc>>) -> Result<usize, PipelineError> {
         let entities = self
             .source
             .get(&(if let Some(s) = since { s } else { Utc::now() }))?;
@@ -97,9 +96,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::block_on;
     use chrono::Duration;
 
+    use crate::block_on;
     use crate::core::config::Config;
     use crate::domain::entity_translator::tests::TestTranslator;
     use crate::domain::entity_translator::EntityTranslator;

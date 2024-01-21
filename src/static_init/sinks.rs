@@ -9,14 +9,6 @@ pub(crate) enum Sinks {
     Log(LogSink),
 }
 
-impl Sinks {
-    pub(crate) fn identifier(&self) -> &str {
-        match self {
-            Sinks::Log(instance) => instance.this_identifier(),
-        }
-    }
-}
-
 pub(crate) fn create_sinks<ConfigType>(config: &ConfigType) -> HashMap<&str, Sinks>
 where
     ConfigType: Config,
@@ -59,6 +51,10 @@ mod tests {
         let sinks = create_sinks(config.as_ref());
         assert!(sinks.len() > 0);
         let log = sinks.get("log").unwrap();
-        assert_eq!(log.identifier(), "log");
+        assert!(match log {
+            Sinks::Log(_) => true,
+            #[allow(unreachable_patterns)]
+            _ => false,
+        });
     }
 }

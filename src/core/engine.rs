@@ -1,8 +1,9 @@
-use std::error::Error;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use futures::future::join_all;
 
+use crate::core::error::PipelineError;
 use crate::domain::config::Config;
 use crate::static_init::pipelines::create_pipelines;
 use crate::static_init::sinks::create_sinks;
@@ -17,15 +18,6 @@ where
 }
 
 #[async_trait]
-pub(crate) trait Engine<T>
-where
-    T: Config,
-{
-    fn new(config: Arc<T>) -> Box<Self>;
-    async fn start(&self) -> Result<(), Box<dyn Error>>;
-}
-
-#[async_trait]
 impl<T> Engine<T> for EngineImpl<T>
 where
     T: Config,
@@ -34,13 +26,27 @@ where
         Box::new(EngineImpl { config })
     }
 
-    async fn start(&self) -> Result<(), Box<dyn Error + 'static>> {
+    async fn start(&self) -> Vec<String> {
         let sources = create_sources(self.config.as_ref());
         let sinks = create_sinks(self.config.as_ref());
         let translators = create_translators();
-        let _pipelines =
-            create_pipelines(self.config.as_ref(), sources.as_ref(), &sinks, &translators);
-        Ok(())
+        let results = join_all(
+            create_pipelines(self.config.as_ref(), sources.as_ref(), &sinks, &translators)
+                .iter()
+                .map(|pipeline| pipeline.run(None)),
+        )
+        .await;
+
+        results
+            .iter()
+            .filter_map(move |result: &Result<usize, PipelineError>| match result {
+                Ok(_) => None,
+                Err(e) => {
+                    log::error!("Error while running pipeline: {}", e);
+                    Some(e.to_string())
+                }
+            })
+            .collect::<Vec<_>>()
     }
 }
 
@@ -92,6 +98,15 @@ mod tests {
 
     #[test]
     fn test_engine_start() {
-        block_on!(EngineImpl::new(Arc::new(StubConfig {})).start()).unwrap();
+        block_on!(EngineImpl::new(Arc::new(StubConfig {})).start());
     }
+}
+
+#[async_trait]
+pub(crate) trait Engine<T>
+where
+    T: Config,
+{
+    fn new(config: Arc<T>) -> Box<Self>;
+    async fn start(&self) -> Vec<String>;
 }
