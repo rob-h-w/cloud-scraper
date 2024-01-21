@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::domain::config::Config;
 use crate::domain::entity::Entity;
@@ -27,7 +27,7 @@ impl<Type> EntityTranslator<Type, Type> for NoOpTranslator
 where
     Type: EntityData,
 {
-    fn new(_config: Rc<impl Config>) -> Self {
+    fn new(_config: Arc<impl Config>) -> Self {
         NoOpTranslator
     }
 

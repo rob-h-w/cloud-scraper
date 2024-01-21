@@ -1,6 +1,6 @@
 use std::any::TypeId;
 use std::fmt::Debug;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::domain::config::Config;
 use crate::domain::entity::Entity;
@@ -17,7 +17,7 @@ where
     FromDataType: EntityData,
     ToDataType: EntityData,
 {
-    fn new(config: Rc<impl Config>) -> Self
+    fn new(config: Arc<impl Config>) -> Self
     where
         Self: Sized;
 
@@ -33,6 +33,8 @@ where
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::sync::Arc;
+
     use uuid::Uuid;
 
     use crate::integration::stub::source::StubSource;
@@ -43,7 +45,7 @@ pub(crate) mod tests {
     pub(crate) struct TestTranslator;
 
     impl EntityTranslator<Uuid, String> for TestTranslator {
-        fn new(_: Rc<impl Config>) -> Self
+        fn new(_: Arc<impl Config>) -> Self
         where
             Self: Sized,
         {

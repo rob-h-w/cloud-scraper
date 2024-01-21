@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use serde::Deserialize;
 use serde_yaml::Value;
@@ -15,7 +15,7 @@ pub(crate) struct Config {
 }
 
 impl Config {
-    pub(crate) fn new() -> Rc<Self> {
+    pub(crate) fn new() -> Arc<Self> {
         let mut sources = HashMap::new();
         sources.insert("stub".to_string(), Value::Null);
 
@@ -24,7 +24,7 @@ impl Config {
 
         let pipelines = vec![PipelineConfig::new("log", "stub", None)];
 
-        Rc::new(Self {
+        Arc::new(Self {
             sinks,
             sources,
             pipelines,

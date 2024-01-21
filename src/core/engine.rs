@@ -1,5 +1,7 @@
 use std::error::Error;
-use std::rc::Rc;
+use std::sync::Arc;
+
+use async_trait::async_trait;
 
 use crate::domain::config::Config;
 use crate::static_init::pipelines::create_pipelines;
@@ -11,26 +13,28 @@ pub(crate) struct EngineImpl<T>
 where
     T: Config,
 {
-    config: Rc<T>,
+    config: Arc<T>,
 }
 
+#[async_trait]
 pub(crate) trait Engine<T>
 where
     T: Config,
 {
-    fn new(config: Rc<T>) -> Box<Self>;
-    fn start(&mut self) -> Result<(), Box<dyn Error>>;
+    fn new(config: Arc<T>) -> Box<Self>;
+    async fn start(&self) -> Result<(), Box<dyn Error>>;
 }
 
+#[async_trait]
 impl<T> Engine<T> for EngineImpl<T>
 where
     T: Config,
 {
-    fn new(config: Rc<T>) -> Box<EngineImpl<T>> {
+    fn new(config: Arc<T>) -> Box<EngineImpl<T>> {
         Box::new(EngineImpl { config })
     }
 
-    fn start(&mut self) -> Result<(), Box<dyn Error + 'static>> {
+    async fn start(&self) -> Result<(), Box<dyn Error + 'static>> {
         let sources = create_sources(self.config.as_ref());
         let sinks = create_sinks(self.config.as_ref());
         let translators = create_translators();
@@ -45,6 +49,7 @@ mod tests {
     use once_cell::sync::Lazy;
     use serde_yaml::Value;
 
+    use crate::block_on;
     use crate::domain::config::{PipelineConfig, TranslatorConfig};
     use crate::domain::source_identifier::SourceIdentifier;
 
@@ -87,6 +92,6 @@ mod tests {
 
     #[test]
     fn test_engine_start() {
-        EngineImpl::new(Rc::new(StubConfig {})).start().unwrap();
+        block_on!(EngineImpl::new(Arc::new(StubConfig {})).start()).unwrap();
     }
 }

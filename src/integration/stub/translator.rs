@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 use uuid::Uuid;
 
@@ -10,7 +10,7 @@ use crate::domain::entity_translator::EntityTranslator;
 pub(crate) struct UuidToStringTranslator;
 
 impl EntityTranslator<Uuid, String> for UuidToStringTranslator {
-    fn new(_: Rc<impl Config>) -> UuidToStringTranslator {
+    fn new(_: Arc<impl Config>) -> UuidToStringTranslator {
         UuidToStringTranslator {}
     }
 
