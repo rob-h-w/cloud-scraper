@@ -42,12 +42,16 @@ where
     async fn run(&self, since: Option<DateTime<Utc>>) -> Result<usize, PipelineError> {
         let entities = self
             .source
-            .get(&(if let Some(s) = since { s } else { Utc::now() }))?;
+            .get(&(if let Some(s) = since { s } else { Utc::now() }))
+            .await
+            .map_err(|e| PipelineError::Source(e.to_string()))?;
         let translated_entities: Vec<Entity<ToType>> = entities
             .iter()
             .map(|entity| self.translator.translate(&entity))
             .collect();
-        self.sink.put(&translated_entities)?;
+        self.sink
+            .put(&translated_entities)
+            .map_err(|e| PipelineError::Sink(e.to_string()))?;
         Ok(translated_entities.len())
     }
 }

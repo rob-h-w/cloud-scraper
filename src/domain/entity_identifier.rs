@@ -36,10 +36,12 @@ impl EntityIdentifier {
 
 #[cfg(test)]
 mod tests {
+    use async_trait::async_trait;
     use std::any::TypeId;
     use std::collections::hash_map::DefaultHasher;
     use std::hash::Hasher;
 
+    use crate::block_on;
     use chrono::{DateTime, Utc};
     use once_cell::sync::Lazy;
     use uuid::Uuid;
@@ -63,6 +65,7 @@ mod tests {
         }
     }
 
+    #[async_trait]
     impl Source<Uuid> for TestSource2 {
         fn identifier() -> &'static SourceIdentifier {
             static SOURCE_IDENTIFIER: Lazy<SourceIdentifier> =
@@ -70,7 +73,7 @@ mod tests {
             &SOURCE_IDENTIFIER
         }
 
-        fn get(
+        async fn get(
             &self,
             _since: &DateTime<Utc>,
         ) -> Result<Vec<Entity<Uuid>>, Box<dyn std::error::Error>> {
@@ -102,8 +105,7 @@ mod tests {
         }
 
         let source_1 = TestSource::new();
-        let [hash_1, hash_2] = source_1
-            .get(&Utc::now())
+        let [hash_1, hash_2] = block_on!(source_1.get(&Utc::now()))
             .unwrap()
             .iter()
             .map(|entity| hash(&entity.id()))

@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use std::any::TypeId;
 use std::cmp::min;
 use std::error::Error;
@@ -27,6 +28,7 @@ impl EntityUser for StubSource {
     }
 }
 
+#[async_trait]
 impl Source<Uuid> for StubSource {
     fn identifier() -> &'static SourceIdentifier {
         static SOURCE_IDENTIFIER: Lazy<SourceIdentifier> =
@@ -34,7 +36,7 @@ impl Source<Uuid> for StubSource {
         &SOURCE_IDENTIFIER
     }
 
-    fn get(&self, since: &DateTime<Utc>) -> Result<Vec<Entity<Uuid>>, Box<dyn Error>> {
+    async fn get(&self, since: &DateTime<Utc>) -> Result<Vec<Entity<Uuid>>, Box<dyn Error>> {
         let now = Utc::now();
         let diff = now - *since;
 
@@ -68,6 +70,7 @@ impl Source<Uuid> for StubSource {
 
 #[cfg(test)]
 mod tests {
+    use crate::block_on;
     use chrono::{Duration, Utc};
 
     use crate::domain::source::Source;
@@ -84,16 +87,16 @@ mod tests {
         let source = StubSource::new();
         let now = Utc::now();
         let since = now - Duration::seconds(1);
-        let entities = source.get(&since).unwrap();
+        let entities = block_on!(source.get(&since)).unwrap();
         assert_eq!(entities.len(), 1);
         assert_eq!(entities[0].created_at(), &since);
         assert_eq!(entities[0].updated_at(), &(since + Duration::seconds(1)));
 
         let since = now + Duration::seconds(2);
-        assert_eq!(source.get(&since).unwrap().len(), 0);
+        assert_eq!(block_on!(source.get(&since)).unwrap().len(), 0);
 
         let since = now - Duration::seconds(2);
-        let entities = source.get(&since).unwrap();
+        let entities = block_on!(source.get(&since)).unwrap();
         assert_eq!(entities.len(), 2);
         let last = &entities[1];
         assert_eq!(last.created_at(), &(now - Duration::seconds(1)));
@@ -104,7 +107,7 @@ mod tests {
     fn test_stub_source_get_empty() {
         let source = StubSource::new();
         let since = Utc::now();
-        let entities = source.get(&since).unwrap();
+        let entities = block_on!(source.get(&since)).unwrap();
         assert_eq!(entities.len(), 0);
     }
 }

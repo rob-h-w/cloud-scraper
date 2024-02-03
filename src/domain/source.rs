@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
 use crate::domain::entity::Entity;
@@ -5,6 +6,7 @@ use crate::domain::entity_data::EntityData;
 use crate::domain::entity_user::EntityUser;
 use crate::domain::source_identifier::SourceIdentifier;
 
+#[async_trait]
 pub(crate) trait Source<DataType>: EntityUser + Sync
 where
     DataType: EntityData,
@@ -12,7 +14,7 @@ where
     fn identifier() -> &'static SourceIdentifier
     where
         Self: Sized;
-    fn get(
+    async fn get(
         &self,
         since: &DateTime<Utc>,
     ) -> Result<Vec<Entity<DataType>>, Box<dyn std::error::Error>>;
@@ -28,6 +30,7 @@ where
 pub(crate) mod tests {
     use std::any::TypeId;
 
+    use crate::block_on;
     use chrono::{DateTime, Utc};
     use once_cell::sync::Lazy;
 
@@ -50,6 +53,7 @@ pub(crate) mod tests {
         }
     }
 
+    #[async_trait]
     impl Source<String> for TestSource {
         fn identifier() -> &'static SourceIdentifier {
             static SOURCE_IDENTIFIER: Lazy<SourceIdentifier> =
@@ -57,7 +61,7 @@ pub(crate) mod tests {
             &SOURCE_IDENTIFIER
         }
 
-        fn get(
+        async fn get(
             &self,
             _since: &DateTime<Utc>,
         ) -> Result<Vec<Entity<String>>, Box<dyn std::error::Error>> {
@@ -78,7 +82,7 @@ pub(crate) mod tests {
         );
 
         let since = Utc::now();
-        let entities = source.get(&since).unwrap();
+        let entities = block_on!(source.get(&since)).unwrap();
         assert_eq!(entities.len(), 2);
         assert_eq!(entities[0].data(), &"data 1".to_string());
         assert_eq!(entities[1].data(), &"data 2".to_string());
