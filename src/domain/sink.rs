@@ -10,6 +10,8 @@ where
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use crate::block_on;
+    use async_trait::async_trait;
     use std::any::TypeId;
     use std::error::Error;
 
@@ -36,8 +38,9 @@ pub(crate) mod tests {
         const SINK_ID: &'static str = "test";
     }
 
+    #[async_trait]
     impl EntityConsumer<String> for TestSink {
-        fn put(&self, entities: &[Entity<String>]) -> Result<(), Box<dyn Error>> {
+        async fn put(&self, entities: &[Entity<String>]) -> Result<(), Box<dyn Error>> {
             println!("putting entities: {:?}", entities);
             Ok(())
         }
@@ -52,7 +55,7 @@ pub(crate) mod tests {
             Entity::new_now::<TestSource>(Box::new("data 1".to_string()), "1"),
             Entity::new_now::<TestSource>(Box::new("data 2".to_string()), "2"),
         ];
-        sink.put(&entities).unwrap();
+        block_on!(sink.put(&entities)).unwrap();
     }
 
     #[test]

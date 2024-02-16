@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use std::any::TypeId;
 use std::error::Error;
 use std::fmt::Debug;
@@ -38,8 +39,9 @@ impl Sink<String> for LogSink {}
 
 impl EntityData for String {}
 
+#[async_trait]
 impl EntityConsumer<String> for LogSink {
-    fn put(&self, entities: &[Entity<String>]) -> Result<(), Box<dyn Error>> {
+    async fn put(&self, entities: &[Entity<String>]) -> Result<(), Box<dyn Error>> {
         put(entities)
     }
 }
@@ -48,8 +50,9 @@ impl Sink<Uuid> for LogSink {}
 
 impl EntityData for Uuid {}
 
+#[async_trait]
 impl EntityConsumer<Uuid> for LogSink {
-    fn put(&self, entities: &[Entity<Uuid>]) -> Result<(), Box<dyn Error>> {
+    async fn put(&self, entities: &[Entity<Uuid>]) -> Result<(), Box<dyn Error>> {
         put(entities)
     }
 }
@@ -66,6 +69,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::block_on;
     use crate::domain::source::tests::TestSource;
     use crate::tests::Logger;
 
@@ -86,7 +90,7 @@ mod tests {
             ];
 
             assert_eq!(logger.log_entries().len(), 0);
-            sink.put(&entities).unwrap();
+            block_on!(sink.put(&entities)).unwrap();
 
             let log_entries = logger.log_entries();
 

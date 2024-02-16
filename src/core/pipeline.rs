@@ -51,6 +51,7 @@ where
             .collect();
         self.sink
             .put(&translated_entities)
+            .await
             .map_err(|e| PipelineError::Sink(e.to_string()))?;
         Ok(translated_entities.len())
     }
