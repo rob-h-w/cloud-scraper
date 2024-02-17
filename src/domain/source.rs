@@ -7,7 +7,7 @@ use crate::domain::entity_user::EntityUser;
 use crate::domain::source_identifier::SourceIdentifier;
 
 #[async_trait]
-pub(crate) trait Source<DataType>: EntityUser + Sync
+pub(crate) trait Source<DataType>: EntityUser + Send + Sync
 where
     DataType: EntityData,
 {

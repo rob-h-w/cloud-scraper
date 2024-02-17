@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use std::sync::{Arc, Mutex};
 
 use crate::core::error::PipelineError;
 use crate::domain::entity::Entity;
@@ -14,7 +15,7 @@ pub(crate) trait ExecutablePipeline: Send + Sync {
     async fn run(&self, since: Option<DateTime<Utc>>) -> Result<usize, PipelineError>;
 }
 
-pub(crate) struct Pipeline<'a, FromType, ToType, SourceType, TranslatorType, SinkType>
+pub(crate) struct Pipeline<FromType, ToType, SourceType, TranslatorType, SinkType>
 where
     FromType: EntityData,
     SinkType: Sink<ToType>,
@@ -22,26 +23,28 @@ where
     ToType: EntityData,
     TranslatorType: EntityTranslator<FromType, ToType>,
 {
-    source: &'a SourceType,
+    source: Arc<Mutex<SourceType>>,
     translator: TranslatorType,
-    sink: &'a SinkType,
+    sink: Arc<Mutex<SinkType>>,
     phantom_from: std::marker::PhantomData<FromType>,
     phantom_to: std::marker::PhantomData<ToType>,
 }
 
 #[async_trait]
 impl<'a, FromType, ToType, SourceType, TranslatorType, SinkType> ExecutablePipeline
-    for Pipeline<'a, FromType, ToType, SourceType, TranslatorType, SinkType>
+    for Pipeline<FromType, ToType, SourceType, TranslatorType, SinkType>
 where
     FromType: EntityData,
     ToType: EntityData,
-    SourceType: Source<FromType>,
+    SourceType: Source<FromType> + Send,
     TranslatorType: EntityTranslator<FromType, ToType>,
     SinkType: Sink<ToType>,
 {
     async fn run(&self, since: Option<DateTime<Utc>>) -> Result<usize, PipelineError> {
         let entities = self
             .source
+            .lock()
+            .unwrap()
             .get(&(if let Some(s) = since { s } else { Utc::now() }))
             .await
             .map_err(|e| PipelineError::Source(e.to_string()))?;
@@ -50,6 +53,8 @@ where
             .map(|entity| self.translator.translate(&entity))
             .collect();
         self.sink
+            .lock()
+            .unwrap()
             .put(&translated_entities)
             .await
             .map_err(|e| PipelineError::Sink(e.to_string()))?;
@@ -58,16 +63,19 @@ where
 }
 
 impl<'a, DataType, SourceType, SinkType>
-    Pipeline<'a, DataType, DataType, SourceType, NoOpTranslator, SinkType>
+    Pipeline<DataType, DataType, SourceType, NoOpTranslator, SinkType>
 where
     DataType: EntityData,
     SourceType: Source<DataType>,
     SinkType: Sink<DataType>,
 {
-    pub(crate) fn new_no_op(source: &'a SourceType, sink: &'a SinkType) -> Box<Self> {
+    pub(crate) fn new_no_op(
+        source: &Arc<Mutex<SourceType>>,
+        sink: &Arc<Mutex<SinkType>>,
+    ) -> Box<Self> {
         Box::new(Self {
-            source,
-            sink,
+            source: source.clone(),
+            sink: sink.clone(),
             phantom_from: Default::default(),
             phantom_to: Default::default(),
             translator: NoOpTranslator::new(source),
@@ -76,7 +84,7 @@ where
 }
 
 impl<'a, FromType, ToType, SourceType, TranslatorType, SinkType>
-    Pipeline<'a, FromType, ToType, SourceType, TranslatorType, SinkType>
+    Pipeline<FromType, ToType, SourceType, TranslatorType, SinkType>
 where
     FromType: EntityData,
     SinkType: Sink<ToType>,
@@ -85,14 +93,14 @@ where
     TranslatorType: EntityTranslator<FromType, ToType>,
 {
     pub(crate) fn new(
-        source: &'a SourceType,
-        translator: TranslatorType,
-        sink: &'a SinkType,
+        source: &'a Arc<Mutex<SourceType>>,
+        translator: &'a TranslatorType,
+        sink: &'a Arc<Mutex<SinkType>>,
     ) -> Box<Self> {
         Box::new(Self {
-            source,
-            translator,
-            sink,
+            source: source.clone(),
+            translator: translator.clone(),
+            sink: sink.clone(),
             phantom_from: Default::default(),
             phantom_to: Default::default(),
         })
@@ -114,10 +122,10 @@ mod tests {
 
     #[test]
     fn test_dev_usability() {
-        let source = StubSource::new();
+        let source = Arc::new(Mutex::new(StubSource::new()));
         let translator = TestTranslator::new(Config::new());
-        let sink = TestSink {};
-        let pipeline = Pipeline::new(&source, translator, &sink);
+        let sink = Arc::new(Mutex::new(TestSink {}));
+        let pipeline = Pipeline::new(&source, &translator, &sink);
         let count = block_on!(pipeline.run(Some(Utc::now() - Duration::seconds(1)))).unwrap();
 
         assert_eq!(count, 1)

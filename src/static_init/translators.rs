@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::domain::entity_translator::{EntityTranslator, TranslationDescription};
 use crate::integration::stub::translator::UuidToStringTranslator;
 
-#[derive(EnumIter)]
+#[derive(Clone, EnumIter)]
 pub(crate) enum Translators {
     NoOp,
     UuidToString(Option<UuidToStringTranslator>),

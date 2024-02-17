@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use crate::domain::config::Config;
 use crate::domain::entity::Entity;
@@ -9,7 +9,7 @@ use crate::domain::source::Source;
 pub(crate) struct NoOpTranslator;
 
 impl NoOpTranslator {
-    pub(crate) fn new<SourceType, Type>(_: &SourceType) -> NoOpTranslator
+    pub(crate) fn new<SourceType, Type>(_: &Arc<Mutex<SourceType>>) -> NoOpTranslator
     where
         SourceType: Source<Type>,
         Type: EntityData,

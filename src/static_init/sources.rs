@@ -1,5 +1,7 @@
 use std::error::Error;
+use std::sync::{Arc, Mutex};
 
+use crate::arx;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
@@ -10,13 +12,13 @@ use crate::integration::stub::source::StubSource;
 
 #[derive(Debug, EnumIter)]
 pub(crate) enum Sources {
-    Stub(Option<StubSource>),
+    Stub(Option<arx!(StubSource)>),
 }
 
 impl Sources {
     pub(crate) fn identifier(&self) -> &SourceIdentifier {
         match self {
-            Sources::Stub(instance) => instance.as_ref().unwrap().this_identifier(),
+            Sources::Stub(instance) => instance.unwrap().lock().unwrap().this_identifier(),
         }
     }
 }
@@ -28,7 +30,7 @@ where
     Sources::iter()
         .flat_map(|source_type| match source_type {
             Sources::Stub(_instance) => optional_init(config, StubSource::identifier(), || {
-                Ok(Sources::Stub(Some(StubSource::new())))
+                Ok(Sources::Stub(Some(Arc::new(Mutex::new(StubSource::new())))))
             }),
         })
         .collect()
