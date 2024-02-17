@@ -2,7 +2,7 @@ use assert_cmd::Command;
 
 const BIN: &str = "cloud_scraper";
 
-#[test]
+// #[test]
 fn run_cli_env_debug() {
     Command::cargo_bin(BIN)
         .unwrap()

@@ -1,3 +1,4 @@
+use std::time::Duration;
 use std::vec;
 
 use serde::Deserialize;
@@ -6,6 +7,9 @@ use serde_yaml::Value;
 use crate::domain::source_identifier::SourceIdentifier;
 
 pub(crate) trait Config: Send + Sync {
+    fn exit_after(&self) -> Option<Duration> {
+        None
+    }
     fn sink(&self, sink_identifier: &str) -> Option<&Value>;
     fn source(&self, source_identifier: &SourceIdentifier) -> Option<&Value>;
     fn pipelines(&self) -> &Vec<PipelineConfig>;

@@ -36,16 +36,16 @@ impl EntityIdentifier {
 
 #[cfg(test)]
 mod tests {
-    use async_trait::async_trait;
     use std::any::TypeId;
     use std::collections::hash_map::DefaultHasher;
     use std::hash::Hasher;
 
-    use crate::block_on;
+    use async_trait::async_trait;
     use chrono::{DateTime, Utc};
     use once_cell::sync::Lazy;
     use uuid::Uuid;
 
+    use crate::block_on;
     use crate::domain::entity::Entity;
     use crate::domain::entity_user::EntityUser;
     use crate::domain::source::tests::TestSource;

@@ -1,12 +1,13 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::domain::config::Config;
 use crate::domain::identifiable_sink::IdentifiableSink;
-use crate::integration::log::sink::LogSink;
+use crate::integration::*;
 
 #[derive(Debug)]
 pub(crate) enum Sinks {
-    Log(LogSink),
+    Log(Arc<log::Sink>),
 }
 
 pub(crate) fn create_sinks<ConfigType>(config: &ConfigType) -> HashMap<&str, Sinks>
@@ -17,15 +18,15 @@ where
 
     for sink_name in config.sink_names() {
         match sink_name.as_str() {
-            LogSink::SINK_ID => {
-                sinks.insert(LogSink::SINK_ID, Sinks::Log(LogSink::new()));
+            log::Sink::SINK_ID => {
+                sinks.insert(log::Sink::SINK_ID, Sinks::Log(Arc::new(log::Sink::new())));
             }
             _ => {}
         }
     }
 
     if config.sink_configured("log") {
-        sinks.insert(LogSink::SINK_ID, Sinks::Log(LogSink::new()));
+        sinks.insert(log::Sink::SINK_ID, Sinks::Log(Arc::new(log::Sink::new())));
     }
 
     sinks

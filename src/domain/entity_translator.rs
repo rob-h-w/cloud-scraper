@@ -12,7 +12,8 @@ pub(crate) struct TranslationDescription {
     pub(crate) to: TypeId,
 }
 
-pub(crate) trait EntityTranslator<FromDataType, ToDataType>: Clone + Send + Sync
+pub(crate) trait EntityTranslator<FromDataType, ToDataType>:
+    Clone + Send + Sync + 'static
 where
     FromDataType: EntityData,
     ToDataType: EntityData,

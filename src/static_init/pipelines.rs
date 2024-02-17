@@ -2,27 +2,29 @@
 
 use std::any::TypeId;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::core::pipeline::{ExecutablePipeline, Pipeline};
 use crate::domain::config::{Config, TranslatorConfig};
 use crate::domain::entity_data::EntityData;
 use crate::domain::entity_translator::{EntityTranslator, TranslationDescription};
 use crate::domain::entity_user::EntityUser;
-use crate::domain::sink::Sink;
+use crate::domain::sink;
+use crate::domain::sink::Sink as SinkTrait;
 use crate::domain::source::Source;
-use crate::integration::log::sink::LogSink;
+use crate::integration::log::Sink;
 use crate::integration::stub::source::StubSource;
 use crate::static_init::sinks::Sinks;
 use crate::static_init::sources::Sources;
 use crate::static_init::translators::Translators::NoOp;
 use crate::static_init::translators::{Translators, SUPPORTED_TYPES};
 
-pub(crate) fn create_pipelines<'a, ConfigType>(
-    config: &'a ConfigType,
-    sources: &'a [Sources],
-    sinks: &'a HashMap<&str, Sinks>,
-    translators: &'a HashMap<TranslationDescription, Translators>,
-) -> Vec<Box<dyn ExecutablePipeline + 'a>>
+pub(crate) fn create_pipelines<ConfigType>(
+    config: &ConfigType,
+    sources: &[Sources],
+    sinks: &HashMap<&str, Sinks>,
+    translators: &HashMap<TranslationDescription, Translators>,
+) -> Vec<Box<dyn ExecutablePipeline>>
 where
     ConfigType: Config,
 {
@@ -51,11 +53,11 @@ where
     pipelines
 }
 
-fn with_translators<'a>(
-    translator: &'a Translators,
-    source: &'a Sources,
-    sink: &'a Sinks,
-) -> Box<dyn ExecutablePipeline + 'a> {
+fn with_translators(
+    translator: &Translators,
+    source: &Sources,
+    sink: &Sinks,
+) -> Box<dyn ExecutablePipeline> {
     match translator {
         NoOp => {
             let it: Box<dyn ExecutablePipeline> = noop_translator(source, sink);
@@ -72,17 +74,17 @@ fn with_translators<'a>(
     }
 }
 
-fn with_translator<'a, FromType, ToType, TranslatorType>(
-    translator: &'a TranslatorType,
-    sources: &'a Sources,
-    sinks: &'a Sinks,
-) -> Box<dyn ExecutablePipeline + 'a>
+fn with_translator<FromType, ToType, TranslatorType>(
+    translator: &TranslatorType,
+    sources: &Sources,
+    sinks: &Sinks,
+) -> Box<dyn ExecutablePipeline>
 where
     FromType: EntityData,
-    LogSink: Sink<ToType>,
     StubSource: Source<FromType>,
     ToType: EntityData,
     TranslatorType: EntityTranslator<FromType, ToType>,
+    Sink: sink::Sink<ToType>,
 {
     match sources {
         Sources::Stub(implementation) => translator_with_source(
@@ -93,69 +95,66 @@ where
     }
 }
 
-fn translator_with_source<'a, FromType, SourceType, ToType, TranslatorType>(
-    translator: &'a TranslatorType,
-    source: &'a SourceType,
-    sink: &'a Sinks,
-) -> Box<dyn ExecutablePipeline + 'a>
+fn translator_with_source<FromType, SourceType, ToType, TranslatorType>(
+    translator: &TranslatorType,
+    source: &Arc<SourceType>,
+    sink: &Sinks,
+) -> Box<dyn ExecutablePipeline>
 where
     FromType: EntityData,
-    LogSink: Sink<ToType>,
     SourceType: Source<FromType>,
     ToType: EntityData,
-    TranslatorType: EntityTranslator<FromType, ToType> + 'a,
+    TranslatorType: EntityTranslator<FromType, ToType>,
+    Sink: SinkTrait<ToType>,
 {
     match sink {
         Sinks::Log(implementation) => translator_with_sink(translator, source, implementation),
     }
 }
 
-fn translator_with_sink<'a, 'b, FromType, SinkType, SourceType, ToType, TranslatorType>(
-    translator: &'a TranslatorType,
-    source: &'b SourceType,
-    sink: &'b SinkType,
-) -> Box<dyn ExecutablePipeline + 'b>
+fn translator_with_sink<FromType, SinkType, SourceType, ToType, TranslatorType>(
+    translator: &TranslatorType,
+    source: &Arc<SourceType>,
+    sink: &Arc<SinkType>,
+) -> Box<dyn ExecutablePipeline>
 where
     FromType: EntityData,
-    LogSink: Sink<ToType>,
-    SinkType: Sink<ToType>,
+    SinkType: SinkTrait<ToType>,
     SourceType: Source<FromType>,
     ToType: EntityData,
-    TranslatorType: EntityTranslator<FromType, ToType> + 'b,
+    TranslatorType: EntityTranslator<FromType, ToType>,
 {
-    Pipeline::new(source, translator.clone(), sink)
+    Pipeline::new(source, translator, sink)
 }
 
-fn noop_translator<'a>(source: &'a Sources, sinks: &'a Sinks) -> Box<dyn ExecutablePipeline + 'a> {
+fn noop_translator(source: &Sources, _: &Sinks) -> Box<dyn ExecutablePipeline> {
     let could_not_get_source = "Could not get source";
     match source {
-        Sources::Stub(implementation) => {
-            noop_translator_with_source(implementation.as_ref().expect(could_not_get_source), sinks)
-        }
+        Sources::Stub(_) => panic!("{}", could_not_get_source),
     }
 }
 
-fn noop_translator_with_source<'a, DataType, SourceType>(
-    source: &'a SourceType,
-    sinks: &'a Sinks,
-) -> Box<dyn ExecutablePipeline + 'a>
+fn noop_translator_with_source<DataType, SourceType>(
+    source: &Arc<SourceType>,
+    sinks: &Sinks,
+) -> Box<dyn ExecutablePipeline>
 where
-    SourceType: Source<DataType>,
+    SourceType: Source<DataType> + Source<String>,
     DataType: EntityData,
-    LogSink: Sink<DataType>,
+    Sink: sink::Sink<DataType>,
 {
     match sinks {
         Sinks::Log(implementation) => noop_translator_with_sink(source, implementation),
     }
 }
 
-fn noop_translator_with_sink<'a, DataType, SinkType, SourceType>(
-    source: &'a SourceType,
-    sink: &'a SinkType,
-) -> Box<dyn ExecutablePipeline + 'a>
+fn noop_translator_with_sink<DataType, SinkType, SourceType>(
+    source: &Arc<SourceType>,
+    sink: &Arc<SinkType>,
+) -> Box<dyn ExecutablePipeline>
 where
     DataType: EntityData,
-    SinkType: Sink<DataType>,
+    SinkType: SinkTrait<DataType>,
     SourceType: Source<DataType>,
 {
     Pipeline::new_no_op(source, sink)
@@ -194,7 +193,7 @@ impl TranslatorGetter for HashMap<TranslationDescription, Translators> {
         }
 
         let from_list: Vec<TypeId> = match source {
-            Sources::Stub(instance) => instance.as_ref()?.this_supports_entity_data(),
+            Sources::Stub(instance) => instance.as_ref().unwrap().this_supports_entity_data(),
         };
 
         let to_list: Vec<TypeId> = match sink {

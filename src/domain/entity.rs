@@ -1,9 +1,9 @@
 use std::fmt::Debug;
 
+use crate::domain::entity_data::EntityData;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::domain::entity_data::EntityData;
 use crate::domain::entity_identifier::EntityIdentifier;
 use crate::domain::source::Source;
 

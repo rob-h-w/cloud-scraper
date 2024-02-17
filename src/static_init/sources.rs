@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::sync::Arc;
 
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
@@ -10,7 +11,7 @@ use crate::integration::stub::source::StubSource;
 
 #[derive(Debug, EnumIter)]
 pub(crate) enum Sources {
-    Stub(Option<StubSource>),
+    Stub(Option<Arc<StubSource>>),
 }
 
 impl Sources {
@@ -28,7 +29,7 @@ where
     Sources::iter()
         .flat_map(|source_type| match source_type {
             Sources::Stub(_instance) => optional_init(config, StubSource::identifier(), || {
-                Ok(Sources::Stub(Some(StubSource::new())))
+                Ok(Sources::Stub(Some(Arc::new(StubSource::new()))))
             }),
         })
         .collect()
@@ -95,6 +96,6 @@ mod tests {
         assert!(instance.is_some());
 
         let stub_source = instance.as_ref().unwrap();
-        assert_eq!(stub_source.type_id(), TypeId::of::<StubSource>());
+        assert_eq!(stub_source.as_ref().type_id(), TypeId::of::<StubSource>());
     }
 }

@@ -1,11 +1,15 @@
-use crate::domain::entity_consumer::EntityConsumer;
+use crate::domain::entity::Entity;
 use crate::domain::entity_data::EntityData;
 use crate::domain::identifiable_sink::IdentifiableSink;
+use async_trait::async_trait;
+use std::error::Error;
 
-pub(crate) trait Sink<DataType>: IdentifiableSink + EntityConsumer<DataType> + Sync
+#[async_trait]
+pub(crate) trait Sink<DataType>: IdentifiableSink + Send + Sync + 'static
 where
     DataType: EntityData,
 {
+    async fn put(&self, entities: &[Entity<DataType>]) -> Result<(), Box<dyn Error>>;
 }
 
 #[cfg(test)]
@@ -16,7 +20,6 @@ pub(crate) mod tests {
     use std::error::Error;
 
     use crate::domain::entity::Entity;
-    use crate::domain::entity_consumer::EntityConsumer;
     use crate::domain::entity_user::EntityUser;
     use crate::domain::identifiable_sink::IdentifiableSink;
     use crate::domain::source::tests::TestSource;
@@ -26,7 +29,13 @@ pub(crate) mod tests {
     #[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Hash)]
     pub(crate) struct TestSink {}
 
-    impl Sink<String> for TestSink {}
+    #[async_trait]
+    impl Sink<String> for TestSink {
+        async fn put(&self, entities: &[Entity<String>]) -> Result<(), Box<dyn Error>> {
+            println!("putting entities: {:?}", entities);
+            Ok(())
+        }
+    }
 
     impl EntityUser for TestSink {
         fn supported_entity_data() -> Vec<TypeId> {
@@ -36,14 +45,6 @@ pub(crate) mod tests {
 
     impl IdentifiableSink for TestSink {
         const SINK_ID: &'static str = "test";
-    }
-
-    #[async_trait]
-    impl EntityConsumer<String> for TestSink {
-        async fn put(&self, entities: &[Entity<String>]) -> Result<(), Box<dyn Error>> {
-            println!("putting entities: {:?}", entities);
-            Ok(())
-        }
     }
 
     #[test]

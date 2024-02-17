@@ -9,7 +9,7 @@ use crate::domain::source::Source;
 pub(crate) struct NoOpTranslator;
 
 impl NoOpTranslator {
-    pub(crate) fn new<SourceType, Type>(_: &SourceType) -> NoOpTranslator
+    pub(crate) fn new<SourceType, Type>(_: &Arc<SourceType>) -> NoOpTranslator
     where
         SourceType: Source<Type>,
         Type: EntityData,

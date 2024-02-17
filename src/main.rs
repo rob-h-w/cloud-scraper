@@ -42,16 +42,8 @@ where
     let engine = engine_constructor(config);
 
     debug!("Starting engine");
-    let results = engine.start().await;
-    if !results.is_empty() {
-        Err(results
-            .iter()
-            .map(|e| e.to_string())
-            .collect::<Vec<String>>()
-            .join("\n"))
-    } else {
-        Ok(())
-    }
+    engine.start().await;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -198,9 +190,8 @@ mod tests {
             })
         }
 
-        async fn start(&self) -> Vec<String> {
+        async fn start(&self) {
             *self.start_called.lock().unwrap() = true;
-            vec![]
         }
     }
 
