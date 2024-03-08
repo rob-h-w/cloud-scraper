@@ -21,11 +21,21 @@ pub(crate) struct Config {
 impl Config {
     pub(crate) fn new() -> Arc<Self> {
         let cli = Cli::parse();
-        Arc::new(Self {
-            exit_after: cli.exit_after,
-            sinks: Self::sinks(),
-            sources: Self::sources(),
-            pipelines: Self::pipelines(),
+        Arc::new(match cli.config {
+            Some(config_file) => {
+                let config_file =
+                    std::fs::read_to_string(config_file).expect("Could not open $config_file");
+                let mut config: Config =
+                    serde_yaml::from_str(&config_file).expect("Could not parse config");
+                config.merge_exit_after(cli.exit_after);
+                config
+            }
+            None => Self {
+                exit_after: cli.exit_after,
+                sinks: Self::sinks(),
+                sources: Self::sources(),
+                pipelines: Self::pipelines(),
+            },
         })
     }
 
@@ -53,6 +63,12 @@ impl Config {
         let mut sources = HashMap::new();
         sources.insert("stub".to_string(), Value::Null);
         sources
+    }
+
+    fn merge_exit_after(&mut self, exit_after: Option<u64>) {
+        if exit_after.is_some() {
+            self.exit_after = exit_after;
+        }
     }
 }
 

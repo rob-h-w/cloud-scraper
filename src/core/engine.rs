@@ -56,6 +56,10 @@ async fn run_pipelines<T: Config>(
     config: &T,
     pipelines: &mut Vec<Box<dyn ExecutablePipeline>>,
 ) -> usize {
+    if pipelines.is_empty() {
+        return 0;
+    }
+
     let (count_tx, mut count_rx) = tokio::sync::mpsc::channel(pipelines.len());
     let (error_tx, _) = tokio::sync::mpsc::channel(pipelines.len());
     let (stop_tx, _) = tokio::sync::broadcast::channel(pipelines.len());

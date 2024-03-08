@@ -1,0 +1,13 @@
+exit_after: 2
+sinks: {
+  log: { }
+}
+sources: {
+  stub: { }
+}
+pipelines: [
+  {
+    sink: log,
+    source: stub
+  }
+]
