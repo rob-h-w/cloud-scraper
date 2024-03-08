@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::mpsc::Sender;
 use tokio::task::{AbortHandle, JoinSet};
+use tokio::time::{sleep, Duration};
 
 use crate::core::error::PipelineError;
 use crate::core::pipeline::ExecutablePipeline;
@@ -12,6 +13,8 @@ use crate::static_init::pipelines::create_pipelines;
 use crate::static_init::sinks::create_sinks;
 use crate::static_init::sources::create_sources;
 use crate::static_init::translators::create_translators;
+
+const POLL_COOLOFF: Duration = Duration::from_millis(100);
 
 macro_rules! do_until_stop {
     ($stop_rx:expr, $f:expr) => {
@@ -61,7 +64,7 @@ async fn run_pipelines<T: Config>(
     }
 
     let (count_tx, mut count_rx) = tokio::sync::mpsc::channel(pipelines.len());
-    let (error_tx, _) = tokio::sync::mpsc::channel(pipelines.len());
+    let (error_tx, mut error_rx) = tokio::sync::mpsc::channel(pipelines.len());
     let (stop_tx, _) = tokio::sync::broadcast::channel(pipelines.len());
 
     let mut join_set = JoinSet::new();
@@ -83,7 +86,7 @@ async fn run_pipelines<T: Config>(
     let timer = join_set.spawn(async move {
         match wait {
             Some(duration) => {
-                tokio::time::sleep(duration).await;
+                sleep(duration).await;
                 let _ = wait_stop_tx.send(true).unwrap();
             }
             None => {
@@ -92,11 +95,24 @@ async fn run_pipelines<T: Config>(
         }
     });
 
+    let mut error_stop = stop_tx.subscribe();
+    let error = tokio::spawn(async move {
+        do_until_stop!(error_stop, {
+            match error_rx.recv().await {
+                Some(e) => log::error!("Error while running pipeline: {}", e),
+                None => break,
+            }
+        });
+    });
+
     let mut counter_stop_rx = stop_tx.subscribe();
     let counter = tokio::spawn(async move {
         let mut count = 0;
         do_until_stop!(counter_stop_rx, {
-            count += count_rx.recv().await.unwrap_or(0);
+            match count_rx.recv().await {
+                Some(c) => count += c,
+                None => break,
+            }
         });
         count
     });
@@ -112,9 +128,18 @@ async fn run_pipelines<T: Config>(
                     cancellation_handles.iter().for_each(|h| h.abort());
                     timer.abort();
                     counter.abort();
+                    error.abort();
                 }
             }
         }
+    }
+
+    if !counter.is_finished() {
+        counter.abort();
+    }
+
+    if !error.is_finished() {
+        error.abort();
     }
 
     counter.await.unwrap_or(0)
@@ -129,15 +154,22 @@ async fn run_pipeline(
     let mut since = None;
     do_until_stop!(stop_rx, {
         match pipeline.run(since).await {
-            Ok(count) => {
-                let _ = count_tx.send(count).await;
-            }
-            Err(e) => {
-                let _ = error_tx.send(e).await;
-            }
+            Ok(count) => match count_tx.send(count).await {
+                Ok(_) => {}
+                Err(e) => {
+                    log::error!("Error while sending count: {}", e);
+                }
+            },
+            Err(e) => match error_tx.send(e).await {
+                Ok(_) => {}
+                Err(e) => {
+                    log::error!("Error while sending error: {}", e);
+                }
+            },
         };
 
         since = Some(chrono::Utc::now());
+        sleep(POLL_COOLOFF).await;
     })
 }
 
