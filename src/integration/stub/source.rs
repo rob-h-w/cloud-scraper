@@ -1,8 +1,10 @@
 use async_trait::async_trait;
 use std::any::TypeId;
-use std::cmp::min;
+use std::cell::RefCell;
+use std::cmp::{max, min};
 use std::error::Error;
 use std::fmt::Debug;
+use std::sync::Mutex;
 
 use chrono::{DateTime, Duration, Utc};
 use once_cell::sync::Lazy;
@@ -14,11 +16,15 @@ use crate::domain::source::Source;
 use crate::domain::source_identifier::SourceIdentifier;
 
 #[derive(Debug)]
-pub(crate) struct StubSource;
+pub(crate) struct StubSource {
+    last: Mutex<RefCell<Option<DateTime<Utc>>>>,
+}
 
 impl StubSource {
     pub(crate) fn new() -> Self {
-        Self {}
+        Self {
+            last: Mutex::new(RefCell::new(None)),
+        }
     }
 }
 
@@ -37,17 +43,22 @@ impl Source<Uuid> for StubSource {
     }
 
     async fn get(&self, since: &DateTime<Utc>) -> Result<Vec<Entity<Uuid>>, Box<dyn Error>> {
+        let cell = self.last.lock().unwrap();
+        let prior_state = cell.borrow().is_some();
         let now = Utc::now();
-        let diff = now - *since;
+        let last = min(cell.borrow().unwrap_or(now), since.clone());
+        let diff = now - last;
 
-        if diff.num_seconds() < 1 || now < *since {
+        if prior_state && diff.num_seconds() < 1 {
             return Ok(vec![]);
         }
+
+        cell.replace(Some(now));
 
         let results = (0..diff.num_seconds())
             .map(|i| {
                 let created = *since + Duration::seconds(i);
-                let updated = min(*since + Duration::seconds(i + 1), now);
+                let updated = max(*since + Duration::seconds(i + 1), last);
                 Entity::new::<Self>(
                     &created,
                     Box::new(Uuid::new_v4()),
