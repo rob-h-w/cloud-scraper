@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
+use crate::core::cli::Cli;
+use clap::Parser;
 use serde::Deserialize;
 use serde_yaml::Value;
 
@@ -9,6 +12,7 @@ use crate::domain::source_identifier::SourceIdentifier;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct Config {
+    exit_after: Option<u64>,
     sinks: HashMap<String, Value>,
     sources: HashMap<String, Value>,
     pipelines: Vec<PipelineConfig>,
@@ -16,23 +20,40 @@ pub(crate) struct Config {
 
 impl Config {
     pub(crate) fn new() -> Arc<Self> {
-        let mut sources = HashMap::new();
-        sources.insert("stub".to_string(), Value::Null);
+        let cli = Cli::parse();
+        Arc::new(Self {
+            exit_after: cli.exit_after,
+            sinks: Self::sinks(),
+            sources: Self::sources(),
+            pipelines: Self::pipelines(),
+        })
+    }
 
+    fn pipelines() -> Vec<PipelineConfig> {
+        vec![PipelineConfig::new("log", "stub", None)]
+    }
+
+    fn sinks() -> HashMap<String, Value> {
         let mut sinks = HashMap::new();
         sinks.insert("log".to_string(), Value::Null);
+        sinks
+    }
 
-        let pipelines = vec![PipelineConfig::new("log", "stub", None)];
-
-        Arc::new(Self {
-            sinks,
-            sources,
-            pipelines,
-        })
+    fn sources() -> HashMap<String, Value> {
+        let mut sources = HashMap::new();
+        sources.insert("stub".to_string(), Value::Null);
+        sources
     }
 }
 
 impl DomainConfig for Config {
+    fn exit_after(&self) -> Option<Duration> {
+        match self.exit_after {
+            None => None,
+            Some(seconds) => Some(Duration::from_secs(seconds)),
+        }
+    }
+
     fn sink(&self, sink: &str) -> Option<&Value> {
         self.sinks.get(sink)
     }
@@ -70,6 +91,7 @@ mod tests {
     #[test]
     fn test_instantiate() {
         let config = Config {
+            exit_after: None,
             sinks: Default::default(),
             sources: Default::default(),
             pipelines: vec![],
