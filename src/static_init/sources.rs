@@ -81,7 +81,7 @@ mod tests {
 
     #[test]
     fn test_create_sources_with_stub_config() {
-        let config = CoreConfig::new();
+        let config = CoreConfig::new_test();
 
         let sources = create_sources(config.as_ref());
 

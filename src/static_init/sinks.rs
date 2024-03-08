@@ -48,7 +48,7 @@ mod tests {
 
     #[test]
     fn test_create_sinks_with_log_config() {
-        let config = CoreConfig::new();
+        let config = CoreConfig::new_test();
         let sinks = create_sinks(config.as_ref());
         assert!(sinks.len() > 0);
         let log = sinks.get("log").unwrap();

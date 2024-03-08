@@ -116,7 +116,7 @@ mod tests {
     #[test]
     fn test_dev_usability() {
         let source = Arc::new(StubSource::new());
-        let translator = TestTranslator::new(Config::new());
+        let translator = TestTranslator::new(Config::new_test());
         let sink = Arc::new(TestSink {});
         let pipeline = Pipeline::new(&source, &translator, &sink);
         let count = block_on!(pipeline.run(Some(Utc::now() - Duration::seconds(1)))).unwrap();

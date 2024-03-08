@@ -235,7 +235,7 @@ mod tests {
 
     #[test]
     fn get_translator_instantiates_when_no_direct_spec() {
-        let config = CoreConfig::new();
+        let config = CoreConfig::new_test();
 
         let sources = create_sources(config.as_ref());
         let sinks = create_sinks(config.as_ref());

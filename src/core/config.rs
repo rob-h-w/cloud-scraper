@@ -29,6 +29,16 @@ impl Config {
         })
     }
 
+    #[cfg(test)]
+    pub(crate) fn new_test() -> Arc<Self> {
+        Arc::new(Self {
+            exit_after: None,
+            sinks: Self::sinks(),
+            sources: Self::sources(),
+            pipelines: Self::pipelines(),
+        })
+    }
+
     fn pipelines() -> Vec<PipelineConfig> {
         vec![PipelineConfig::new("log", "stub", None)]
     }
