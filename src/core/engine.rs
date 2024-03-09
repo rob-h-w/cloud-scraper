@@ -19,8 +19,18 @@ const POLL_COOLOFF: Duration = Duration::from_millis(100);
 macro_rules! do_until_stop {
     ($stop_rx:expr, $f:expr) => {
         loop {
-            if $stop_rx.try_recv().is_ok() {
-                break;
+            if !$stop_rx.is_empty() {
+                match $stop_rx.try_recv() {
+                    Ok(stop) => {
+                        if stop {
+                            log::trace!("Received stop signal");
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("Error while receiving stop signal: {}", e);
+                    }
+                }
             }
             $f;
         }
@@ -67,6 +77,9 @@ async fn run_pipelines<T: Config>(
     let (error_tx, mut error_rx) = tokio::sync::mpsc::channel(pipelines.len());
     let (stop_tx, _) = tokio::sync::broadcast::channel(pipelines.len());
 
+    let mut counter_stop_rx = stop_tx.subscribe();
+    let wait_stop_tx = stop_tx.clone();
+
     let mut join_set = JoinSet::new();
     let mut cancellation_handles: Vec<AbortHandle> = vec![];
     while !pipelines.is_empty() {
@@ -81,17 +94,28 @@ async fn run_pipelines<T: Config>(
     }
 
     let wait = config.exit_after().clone();
-    let wait_stop_tx = stop_tx.clone();
     let mut wait_stop_rx = stop_tx.subscribe();
     let timer = join_set.spawn(async move {
         match wait {
             Some(duration) => {
                 sleep(duration).await;
-                let _ = wait_stop_tx.send(true).unwrap();
+                match wait_stop_tx.send(true) {
+                    Ok(_) => {
+                        log::trace!("Wait sent stop signal after {:?}", duration);
+                    }
+                    Err(e) => {
+                        panic!("Wait error while sending stop signal: {}", e);
+                    }
+                }
             }
-            None => {
-                let _ = wait_stop_rx.recv().await;
-            }
+            None => match wait_stop_rx.recv().await {
+                Ok(stop) => {
+                    log::trace!("Wait received stop signal: {}", stop);
+                }
+                Err(e) => {
+                    log::error!("Wait error while waiting for stop signal: {}", e);
+                }
+            },
         }
     });
 
@@ -105,15 +129,23 @@ async fn run_pipelines<T: Config>(
         });
     });
 
-    let mut counter_stop_rx = stop_tx.subscribe();
     let counter = tokio::spawn(async move {
         let mut count = 0;
         do_until_stop!(counter_stop_rx, {
+            log::trace!("Waiting for count");
             match count_rx.recv().await {
-                Some(c) => count += c,
-                None => break,
+                Some(c) => {
+                    log::trace!("Received count: {}", c);
+                    count += c;
+                }
+                None => {
+                    log::trace!("Count channel closed");
+                    break;
+                }
             }
+            log::trace!("Count: {}, waiting for stop", count);
         });
+        log::trace!("Count: {}", count);
         count
     });
 
@@ -134,15 +166,29 @@ async fn run_pipelines<T: Config>(
         }
     }
 
-    if !counter.is_finished() {
-        counter.abort();
+    while !counter.is_finished() {
+        // nudge the counter to finish by sending a 0.
+        match count_tx.send(0).await {
+            Ok(_) => {
+                log::trace!("Sent count 0");
+            }
+            Err(e) => {
+                log::trace!("Error while sending count: {}", e);
+
+                // The nudge didn't work. Lose the count & abort.
+                counter.abort();
+            }
+        }
     }
 
     if !error.is_finished() {
         error.abort();
     }
 
-    counter.await.unwrap_or(0)
+    counter.await.unwrap_or_else(|e| {
+        log::error!("Error while waiting for counter: {}", e);
+        0
+    })
 }
 
 async fn run_pipeline(
@@ -155,15 +201,19 @@ async fn run_pipeline(
     do_until_stop!(stop_rx, {
         match pipeline.run(since).await {
             Ok(count) => match count_tx.send(count).await {
-                Ok(_) => {}
+                Ok(_) => {
+                    log::trace!("Pipeline sent count: {}", count);
+                }
                 Err(e) => {
-                    log::error!("Error while sending count: {}", e);
+                    log::error!("Pipeline error while sending count: {}", e);
                 }
             },
-            Err(e) => match error_tx.send(e).await {
-                Ok(_) => {}
+            Err(e) => match error_tx.send(e.clone()).await {
+                Ok(_) => {
+                    log::trace!("Pipeline sent error: {}", e);
+                }
                 Err(e) => {
-                    log::error!("Error while sending error: {}", e);
+                    log::error!("Pipeline error while sending error: {}", e);
                 }
             },
         };
