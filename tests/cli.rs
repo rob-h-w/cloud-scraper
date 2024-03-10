@@ -1,5 +1,5 @@
 use assert_cmd::Command;
-use chrono::Utc;
+use chrono::{TimeDelta, Utc};
 
 const BIN: &str = "cloud_scraper";
 
@@ -46,5 +46,5 @@ fn run_env_debug_with_empty_config_cli_exit_override() {
         .stderr(predicates::str::contains("Constructing engine..."))
         .stderr(predicates::str::contains("Starting engine"));
     let end = Utc::now();
-    assert!(end - start < chrono::Duration::seconds(1));
+    assert!(end - start < TimeDelta::try_seconds(1).unwrap());
 }

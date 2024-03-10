@@ -177,14 +177,12 @@ impl TranslatorGetter for HashMap<TranslationDescription, Translators> {
         sink: &Sinks,
     ) -> Option<&Translators> {
         if let Some(translator_config) = translator_spec {
-            let from_type_id = SUPPORTED_TYPES
+            let from_type_id = *SUPPORTED_TYPES
                 .get(translator_config.from())
-                .expect("Could not find from type")
-                .clone();
-            let to_type_id = SUPPORTED_TYPES
+                .expect("Could not find from type");
+            let to_type_id = *SUPPORTED_TYPES
                 .get(translator_config.to())
-                .expect("Could not find to type")
-                .clone();
+                .expect("Could not find to type");
             let translation_description = TranslationDescription {
                 from: from_type_id,
                 to: to_type_id,
@@ -200,11 +198,7 @@ impl TranslatorGetter for HashMap<TranslationDescription, Translators> {
             Sinks::Log(instance) => instance.this_supports_entity_data(),
         };
 
-        if from_list
-            .iter()
-            .find(|from| to_list.contains(from))
-            .is_some()
-        {
+        if from_list.iter().any(|from| to_list.contains(from)) {
             return Some(&NoOp);
         }
 

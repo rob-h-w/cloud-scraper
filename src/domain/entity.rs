@@ -77,19 +77,19 @@ where
 
 #[cfg(test)]
 mod tests {
-    use chrono::{DateTime, Utc};
+    use chrono::{DateTime, TimeDelta, Utc};
 
     use crate::domain::entity::Entity;
     use crate::domain::entity_identifier::EntityIdentifier;
     use crate::domain::source::tests::TestSource;
 
     fn assert_right_about_now(time: &DateTime<Utc>) {
-        assert!(*time - Utc::now() < chrono::Duration::seconds(1));
+        assert!(*time - Utc::now() < TimeDelta::try_seconds(1).unwrap());
     }
 
     #[test]
     fn test_entity_new() {
-        let created_at = Utc::now() - chrono::Duration::days(1);
+        let created_at = Utc::now() - chrono::TimeDelta::try_days(1).unwrap();
         let updated_at = Utc::now();
         let entity =
             Entity::new::<TestSource>(&created_at, Box::new("data".to_string()), "1", &updated_at);

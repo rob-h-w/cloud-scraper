@@ -82,8 +82,7 @@ async fn run_pipelines<T: Config>(
 
     let mut join_set = JoinSet::new();
     let mut cancellation_handles: Vec<AbortHandle> = vec![];
-    while !pipelines.is_empty() {
-        let pipeline = pipelines.pop().unwrap();
+    while let Some(pipeline) = pipelines.pop() {
         let count_tx = count_tx.clone();
         let error_tx = error_tx.clone();
         let stop_rx = stop_tx.subscribe();
@@ -93,7 +92,7 @@ async fn run_pipelines<T: Config>(
         );
     }
 
-    let wait = config.exit_after().clone();
+    let wait = config.exit_after();
     let mut wait_stop_rx = stop_tx.subscribe();
     let timer = join_set.spawn(async move {
         match wait {

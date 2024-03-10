@@ -6,7 +6,7 @@ use std::error::Error;
 use std::fmt::Debug;
 use std::sync::Mutex;
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, TimeDelta, Utc};
 use once_cell::sync::Lazy;
 use uuid::Uuid;
 
@@ -46,7 +46,7 @@ impl Source<Uuid> for StubSource {
         let cell = self.last.lock().unwrap();
         let prior_state = cell.borrow().is_some();
         let now = Utc::now();
-        let last = min(cell.borrow().unwrap_or(now), since.clone());
+        let last = min(cell.borrow().unwrap_or(now), *since);
         let diff = now - last;
 
         if prior_state && diff.num_seconds() < 1 {
@@ -57,19 +57,12 @@ impl Source<Uuid> for StubSource {
 
         let results = (0..diff.num_seconds())
             .map(|i| {
-                let created = *since + Duration::seconds(i);
-                let updated = max(*since + Duration::seconds(i + 1), last);
+                let created = *since + TimeDelta::try_seconds(i).unwrap();
+                let updated = max(*since + TimeDelta::try_seconds(i + 1).unwrap(), last);
                 Entity::new::<Self>(
                     &created,
                     Box::new(Uuid::new_v4()),
-                    format!(
-                        "uuid at {}",
-                        (*since + Duration::seconds(i))
-                            .to_rfc3339()
-                            .to_string()
-                            .as_str()
-                    )
-                    .as_str(),
+                    format!("uuid at {}", created.to_rfc3339().to_string().as_str()).as_str(),
                     &updated,
                 )
             })
@@ -82,7 +75,7 @@ impl Source<Uuid> for StubSource {
 #[cfg(test)]
 mod tests {
     use crate::block_on;
-    use chrono::{Duration, Utc};
+    use chrono::{TimeDelta, Utc};
 
     use crate::domain::source::Source;
 
@@ -97,20 +90,26 @@ mod tests {
     fn test_stub_source_get() {
         let source = StubSource::new();
         let now = Utc::now();
-        let since = now - Duration::seconds(1);
+        let since = now - TimeDelta::try_seconds(1).unwrap();
         let entities = block_on!(source.get(&since)).unwrap();
         assert_eq!(entities.len(), 1);
         assert_eq!(entities[0].created_at(), &since);
-        assert_eq!(entities[0].updated_at(), &(since + Duration::seconds(1)));
+        assert_eq!(
+            entities[0].updated_at(),
+            &(since + TimeDelta::try_seconds(1).unwrap())
+        );
 
-        let since = now + Duration::seconds(2);
+        let since = now + TimeDelta::try_seconds(2).unwrap();
         assert_eq!(block_on!(source.get(&since)).unwrap().len(), 0);
 
-        let since = now - Duration::seconds(2);
+        let since = now - TimeDelta::try_seconds(2).unwrap();
         let entities = block_on!(source.get(&since)).unwrap();
         assert_eq!(entities.len(), 2);
         let last = &entities[1];
-        assert_eq!(last.created_at(), &(now - Duration::seconds(1)));
+        assert_eq!(
+            last.created_at(),
+            &(now - TimeDelta::try_seconds(1).unwrap())
+        );
         assert_eq!(last.updated_at(), &now);
     }
 

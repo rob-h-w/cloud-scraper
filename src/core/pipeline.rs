@@ -31,7 +31,7 @@ where
 }
 
 #[async_trait]
-impl<'a, FromType, ToType, SourceType, TranslatorType, SinkType> ExecutablePipeline
+impl<FromType, ToType, SourceType, TranslatorType, SinkType> ExecutablePipeline
     for Pipeline<FromType, ToType, SourceType, TranslatorType, SinkType>
 where
     FromType: EntityData,
@@ -58,7 +58,7 @@ where
     }
 }
 
-impl<'a, DataType, SourceType, SinkType>
+impl<DataType, SourceType, SinkType>
     Pipeline<DataType, DataType, SourceType, NoOpTranslator, SinkType>
 where
     DataType: EntityData,
@@ -102,7 +102,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use chrono::Duration;
+    use chrono::TimeDelta;
 
     use crate::block_on;
     use crate::core::config::Config;
@@ -119,7 +119,8 @@ mod tests {
         let translator = TestTranslator::new(Config::new_test());
         let sink = Arc::new(TestSink {});
         let pipeline = Pipeline::new(&source, &translator, &sink);
-        let count = block_on!(pipeline.run(Some(Utc::now() - Duration::seconds(1)))).unwrap();
+        let count =
+            block_on!(pipeline.run(Some(Utc::now() - TimeDelta::try_seconds(1).unwrap()))).unwrap();
 
         assert_eq!(count, 1)
     }

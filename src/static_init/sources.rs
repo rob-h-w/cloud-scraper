@@ -47,15 +47,12 @@ where
     if !config.source_configured(source_identifier.unique_name()) {
         None
     } else {
-        Some(
-            initializer().expect(
-                format!(
-                    "Failed to initialize source {src}",
-                    src = source_identifier.unique_name()
-                )
-                .as_str(),
-            ),
-        )
+        Some(initializer().unwrap_or_else(|_| {
+            panic!(
+                "Failed to initialize source {src}",
+                src = source_identifier.unique_name()
+            )
+        }))
     }
 }
 

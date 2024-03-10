@@ -74,10 +74,7 @@ impl Config {
 
 impl DomainConfig for Config {
     fn exit_after(&self) -> Option<Duration> {
-        match self.exit_after {
-            None => None,
-            Some(seconds) => Some(Duration::from_secs(seconds)),
-        }
+        self.exit_after.map(Duration::from_secs)
     }
 
     fn sink(&self, sink: &str) -> Option<&Value> {

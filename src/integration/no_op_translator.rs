@@ -33,6 +33,6 @@ where
     }
 
     fn translate(&self, entity: &Entity<Type>) -> Entity<Type> {
-        entity.with_data(&entity.data())
+        entity.with_data(entity.data())
     }
 }
