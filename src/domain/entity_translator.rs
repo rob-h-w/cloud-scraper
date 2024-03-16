@@ -1,7 +1,10 @@
 use std::any::TypeId;
+use std::fmt::Debug;
+use std::sync::Arc;
 
 use crate::domain::config::Config;
 use crate::domain::entity::Entity;
+use crate::domain::entity_data::EntityData;
 
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) struct TranslationDescription {
@@ -9,31 +12,44 @@ pub(crate) struct TranslationDescription {
     pub(crate) to: TypeId,
 }
 
-pub(crate) trait EntityTranslator<T: 'static, U: 'static> {
-    fn new(config: impl Config) -> Self;
+pub(crate) trait EntityTranslator<FromDataType, ToDataType>:
+    Clone + Send + Sync + 'static
+where
+    FromDataType: EntityData,
+    ToDataType: EntityData,
+{
+    fn new(config: Arc<impl Config>) -> Self
+    where
+        Self: Sized;
 
-    fn translation_description(&self) -> TranslationDescription {
+    fn translation_description() -> TranslationDescription {
         TranslationDescription {
-            from: TypeId::of::<T>(),
-            to: TypeId::of::<U>(),
+            from: TypeId::of::<FromDataType>(),
+            to: TypeId::of::<ToDataType>(),
         }
     }
 
-    fn translate(&self, entity: &Entity<T>) -> Entity<U>;
+    fn translate(&self, entity: &Entity<FromDataType>) -> Entity<ToDataType>;
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::sync::Arc;
+
     use uuid::Uuid;
 
     use crate::integration::stub::source::StubSource;
 
     use super::*;
 
+    #[derive(Clone)]
     pub(crate) struct TestTranslator;
 
     impl EntityTranslator<Uuid, String> for TestTranslator {
-        fn new(_: impl Config) -> Self {
+        fn new(_: Arc<impl Config>) -> Self
+        where
+            Self: Sized,
+        {
             Self
         }
 
@@ -45,9 +61,8 @@ pub(crate) mod tests {
     #[test]
     fn test_translate() {
         let translator = TestTranslator;
-        let source = StubSource::new();
         let uuid = Uuid::new_v4();
-        let entity = Entity::new_now(Box::new(uuid), "1", &source);
+        let entity = Entity::new_now::<StubSource>(Box::new(uuid), "1");
 
         let translated_entity: Entity<String> = translator.translate(&entity);
 
@@ -59,9 +74,8 @@ pub(crate) mod tests {
 
     #[test]
     fn test_translation_description() {
-        let translator = TestTranslator;
         assert_eq!(
-            translator.translation_description(),
+            TestTranslator::translation_description(),
             TranslationDescription {
                 from: TypeId::of::<Uuid>(),
                 to: TypeId::of::<String>(),

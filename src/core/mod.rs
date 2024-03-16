@@ -1,3 +1,5 @@
+pub(crate) mod cli;
 pub(crate) mod config;
 pub(crate) mod engine;
-mod pipeline;
+mod error;
+pub(crate) mod pipeline;

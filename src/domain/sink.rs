@@ -1,78 +1,74 @@
-use std::error::Error;
-use std::fmt::Debug;
-
 use crate::domain::entity::Entity;
-use crate::domain::entity_user::EntityUser;
-use crate::domain::sink_identifier::SinkIdentifier;
+use crate::domain::entity_data::EntityData;
+use crate::domain::identifiable_sink::IdentifiableSink;
+use async_trait::async_trait;
+use std::error::Error;
 
-pub(crate) trait Sink<T>: Debug + EntityUser {
-    fn sink_identifier(&self) -> &SinkIdentifier;
-    fn put(&mut self, entities: &Vec<Entity<T>>) -> Result<(), Box<dyn Error>>;
+#[async_trait]
+pub(crate) trait Sink<DataType>: IdentifiableSink + Send + Sync + 'static
+where
+    DataType: EntityData,
+{
+    async fn put(&self, entities: &[Entity<DataType>]) -> Result<(), Box<dyn Error>>;
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use crate::block_on;
+    use async_trait::async_trait;
     use std::any::TypeId;
+    use std::error::Error;
 
-    use crate::domain::sink::Sink;
+    use crate::domain::entity::Entity;
+    use crate::domain::entity_user::EntityUser;
+    use crate::domain::identifiable_sink::IdentifiableSink;
     use crate::domain::source::tests::TestSource;
 
     use super::*;
 
     #[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Hash)]
-    pub(crate) struct TestSink {
-        sink_identifier: SinkIdentifier,
-    }
+    pub(crate) struct TestSink {}
 
-    impl TestSink {
-        pub(crate) fn new(unique_name: &str) -> Self {
-            Self {
-                sink_identifier: SinkIdentifier::new(unique_name),
-            }
-        }
-    }
-
-    impl EntityUser for TestSink {
-        fn supported_entity_data(&self) -> Vec<TypeId> {
-            vec![TypeId::of::<String>()]
-        }
-    }
-
+    #[async_trait]
     impl Sink<String> for TestSink {
-        fn sink_identifier(&self) -> &SinkIdentifier {
-            &self.sink_identifier
-        }
-
-        fn put(&mut self, entities: &Vec<Entity<String>>) -> Result<(), Box<dyn Error>> {
+        async fn put(&self, entities: &[Entity<String>]) -> Result<(), Box<dyn Error>> {
             println!("putting entities: {:?}", entities);
             Ok(())
         }
     }
 
+    impl EntityUser for TestSink {
+        fn supported_entity_data() -> Vec<TypeId> {
+            vec![TypeId::of::<String>()]
+        }
+    }
+
+    impl IdentifiableSink for TestSink {
+        const SINK_ID: &'static str = "test";
+    }
+
     #[test]
     fn test_dev_usability() {
-        let source = TestSource::new("test");
-        let sink_name = "test";
-        let mut sink = TestSink::new(sink_name);
-        assert_eq!(sink.sink_identifier(), &SinkIdentifier::new(sink_name));
+        let sink = TestSink {};
+        assert_eq!(TestSink::SINK_ID, "test");
 
         let entities = vec![
-            Entity::new_now(Box::new("data 1".to_string()), "1", &source),
-            Entity::new_now(Box::new("data 2".to_string()), "2", &source),
+            Entity::new_now::<TestSource>(Box::new("data 1".to_string()), "1"),
+            Entity::new_now::<TestSource>(Box::new("data 2".to_string()), "2"),
         ];
-        sink.put(&entities).unwrap();
+        block_on!(sink.put(&entities)).unwrap();
     }
 
     #[test]
     fn test_sink_identifier() {
-        let sink_name = "test";
-        let sink = TestSink::new(sink_name);
-        assert_eq!(sink.sink_identifier(), &SinkIdentifier::new(sink_name));
+        assert_eq!(TestSink::SINK_ID, "test");
     }
 
     #[test]
     fn test_supported_entity_data() {
-        let sink = TestSink::new("test");
-        assert_eq!(sink.supported_entity_data(), vec![TypeId::of::<String>()]);
+        assert_eq!(
+            TestSink::supported_entity_data(),
+            vec!(TypeId::of::<String>())
+        );
     }
 }
