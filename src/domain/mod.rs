@@ -5,6 +5,6 @@ pub(crate) mod entity_identifier;
 pub(crate) mod entity_translator;
 pub(crate) mod entity_user;
 pub(crate) mod identifiable_sink;
+pub(crate) mod identifiable_source;
 pub(crate) mod sink;
 pub(crate) mod source;
-pub(crate) mod source_identifier;

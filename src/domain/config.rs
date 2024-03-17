@@ -4,17 +4,16 @@ use std::vec;
 use serde::Deserialize;
 use serde_yaml::Value;
 
-use crate::domain::source_identifier::SourceIdentifier;
-
 pub(crate) trait Config: Send + Sync {
     fn exit_after(&self) -> Option<Duration> {
         None
     }
     fn sink(&self, sink_identifier: &str) -> Option<&Value>;
-    fn source(&self, source_identifier: &SourceIdentifier) -> Option<&Value>;
+    fn source(&self, source_identifier: &str) -> Option<&Value>;
     fn pipelines(&self) -> &Vec<PipelineConfig>;
 
     fn sink_names(&self) -> Vec<String>;
+    fn source_names(&self) -> Vec<String>;
 
     fn sink_configured(&self, name: &str) -> bool;
     fn source_configured(&self, name: &str) -> bool;
@@ -41,15 +40,13 @@ pub(crate) trait Config: Send + Sync {
 pub(crate) struct PipelineConfig {
     sink: String,
     source: String,
-    translator: Option<TranslatorConfig>,
 }
 
 impl PipelineConfig {
-    pub(crate) fn new(sink: &str, source: &str, translator: Option<TranslatorConfig>) -> Self {
+    pub(crate) fn new(sink: &str, source: &str) -> Self {
         Self {
             sink: sink.to_string(),
             source: source.to_string(),
-            translator,
         }
     }
     pub(crate) fn source(&self) -> &str {
@@ -59,10 +56,6 @@ impl PipelineConfig {
     pub(crate) fn sink(&self) -> &str {
         &self.sink
     }
-
-    pub(crate) fn translator(&self) -> Option<&TranslatorConfig> {
-        self.translator.as_ref()
-    }
 }
 
 impl Clone for PipelineConfig {
@@ -70,31 +63,7 @@ impl Clone for PipelineConfig {
         PipelineConfig {
             sink: self.sink.clone(),
             source: self.source.clone(),
-            translator: self.translator.clone(),
         }
-    }
-}
-
-#[derive(Clone, Debug, Deserialize)]
-pub(crate) struct TranslatorConfig {
-    from: String,
-    to: String,
-}
-
-impl TranslatorConfig {
-    pub(crate) fn new(from: &str, to: &str) -> Self {
-        Self {
-            from: from.to_string(),
-            to: to.to_string(),
-        }
-    }
-
-    pub(crate) fn from(&self) -> &str {
-        &self.from
-    }
-
-    pub(crate) fn to(&self) -> &str {
-        &self.to
     }
 }
 
@@ -104,9 +73,9 @@ pub(crate) mod tests {
     use serde_yaml::Mapping;
 
     use crate::domain::identifiable_sink::IdentifiableSink;
+    use crate::domain::identifiable_source::IdentifiableSource;
     use crate::domain::sink::tests::TestSink;
     use crate::domain::source::tests::TestSource;
-    use crate::domain::source::Source;
     use crate::tests::Logger;
 
     use super::*;
@@ -134,17 +103,14 @@ pub(crate) mod tests {
         Logger::use_in(|logger| {
             logger.reset();
             let config = TestConfig::new(None);
-            let source_config = config.source(TestSource::identifier()).unwrap();
+            let source_config = config.source(TestSource::SOURCE_ID).unwrap();
             assert_eq!(source_config, &Value::Mapping(Mapping::new()));
 
             let log_entries = logger.log_entries();
             assert_eq!(log_entries.len(), 1);
             let log_line = &log_entries[0];
             assert_eq!(log_line.level(), log::Level::Info);
-            assert!(log_line.args().contains(
-                "source ID: SourceIdentifier { unique_name: \
-            \"test\" }"
-            ));
+            assert!(log_line.args().contains("source ID: \"test source\""));
         });
     }
 
@@ -157,11 +123,6 @@ pub(crate) mod tests {
         let pipeline = &pipelines[0];
         assert_eq!(pipeline.source, "test");
         assert_eq!(pipeline.sink, "test");
-        assert!(pipeline.translator.is_some());
-
-        let translator = pipeline.translator.as_ref().unwrap();
-        assert_eq!(translator.from, "uuid::Uuid");
-        assert_eq!(translator.to, "String");
     }
 
     #[test]
@@ -172,7 +133,6 @@ pub(crate) mod tests {
         let bad_config = TestConfig::new(Some(PipelineConfig {
             source: "test".to_string(),
             sink: "test2".to_string(),
-            translator: None,
         }));
         assert!(bad_config.sanity_check().is_err());
     }
@@ -191,7 +151,6 @@ pub(crate) mod tests {
                     PipelineConfig {
                         source: "test".to_string(),
                         sink: "test".to_string(),
-                        translator: Some(TranslatorConfig::new("uuid::Uuid", "String")),
                     }
                 }],
                 value: Value::Mapping(Mapping::new()),
@@ -205,7 +164,7 @@ pub(crate) mod tests {
             Some(&self.value)
         }
 
-        fn source(&self, source_identifier: &SourceIdentifier) -> Option<&Value> {
+        fn source(&self, source_identifier: &str) -> Option<&Value> {
             info!("source ID: {:?}", source_identifier);
             Some(&self.value)
         }
@@ -217,6 +176,10 @@ pub(crate) mod tests {
 
         fn sink_names(&self) -> Vec<String> {
             vec!["test".to_string()]
+        }
+
+        fn source_names(&self) -> Vec<String> {
+            vec![TestSource::SOURCE_ID.to_string()]
         }
 
         fn sink_configured(&self, name: &str) -> bool {

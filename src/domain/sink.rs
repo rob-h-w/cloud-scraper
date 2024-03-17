@@ -38,8 +38,8 @@ pub(crate) mod tests {
     }
 
     impl EntityUser for TestSink {
-        fn supported_entity_data() -> Vec<TypeId> {
-            vec![TypeId::of::<String>()]
+        fn supported_entity_data() -> TypeId {
+            TypeId::of::<String>()
         }
     }
 
@@ -66,9 +66,6 @@ pub(crate) mod tests {
 
     #[test]
     fn test_supported_entity_data() {
-        assert_eq!(
-            TestSink::supported_entity_data(),
-            vec!(TypeId::of::<String>())
-        );
+        assert_eq!(TestSink::supported_entity_data(), TypeId::of::<String>());
     }
 }

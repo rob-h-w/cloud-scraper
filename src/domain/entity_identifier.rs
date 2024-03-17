@@ -5,12 +5,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::domain::entity_data::EntityData;
 use crate::domain::source::Source;
-use crate::domain::source_identifier::SourceIdentifier;
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub(crate) struct EntityIdentifier {
     name: String,
-    source_identifier: SourceIdentifier,
+    source_identifier: String,
 }
 
 impl EntityIdentifier {
@@ -21,7 +20,7 @@ impl EntityIdentifier {
     {
         Self {
             name: name.to_string(),
-            source_identifier: SourceType::identifier().clone(),
+            source_identifier: SourceType::SOURCE_ID.to_string(),
         }
     }
 
@@ -29,7 +28,7 @@ impl EntityIdentifier {
         &self.name
     }
 
-    pub(crate) fn source_identifier(&self) -> &SourceIdentifier {
+    pub(crate) fn source_identifier(&self) -> &str {
         &self.source_identifier
     }
 }
@@ -42,12 +41,12 @@ mod tests {
 
     use async_trait::async_trait;
     use chrono::{DateTime, Utc};
-    use once_cell::sync::Lazy;
     use uuid::Uuid;
 
     use crate::block_on;
     use crate::domain::entity::Entity;
     use crate::domain::entity_user::EntityUser;
+    use crate::domain::identifiable_source::IdentifiableSource;
     use crate::domain::source::tests::TestSource;
     use crate::domain::source::Source;
 
@@ -57,22 +56,20 @@ mod tests {
     struct TestSource2;
 
     impl EntityUser for TestSource2 {
-        fn supported_entity_data() -> Vec<TypeId>
+        fn supported_entity_data() -> TypeId
         where
             Self: Sized,
         {
-            vec![TypeId::of::<Uuid>()]
+            TypeId::of::<Uuid>()
         }
+    }
+
+    impl IdentifiableSource for TestSource2 {
+        const SOURCE_ID: &'static str = "test source 2";
     }
 
     #[async_trait]
     impl Source<Uuid> for TestSource2 {
-        fn identifier() -> &'static SourceIdentifier {
-            static SOURCE_IDENTIFIER: Lazy<SourceIdentifier> =
-                Lazy::new(|| SourceIdentifier::new("test2"));
-            &SOURCE_IDENTIFIER
-        }
-
         async fn get(
             &self,
             _since: &DateTime<Utc>,
@@ -91,7 +88,7 @@ mod tests {
             entity_identifier,
             EntityIdentifier {
                 name: "test".to_string(),
-                source_identifier: TestSource::identifier().clone(),
+                source_identifier: TestSource::SOURCE_ID.to_string(),
             }
         );
     }
@@ -131,9 +128,6 @@ mod tests {
     #[test]
     fn test_entity_identifier_source_identifier() {
         let entity_identifier = EntityIdentifier::new::<TestSource, String>("test");
-        assert_eq!(
-            entity_identifier.source_identifier(),
-            TestSource::identifier()
-        );
+        assert_eq!(entity_identifier.source_identifier(), TestSource::SOURCE_ID);
     }
 }

@@ -21,11 +21,11 @@ impl Sink {
 }
 
 impl EntityUser for Sink {
-    fn supported_entity_data() -> Vec<TypeId>
+    fn supported_entity_data() -> TypeId
     where
         Self: Sized,
     {
-        vec![TypeId::of::<String>()]
+        TypeId::of::<String>()
     }
 }
 

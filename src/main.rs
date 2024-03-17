@@ -59,7 +59,6 @@ mod tests {
 
     use crate::domain::config::tests::TestConfig;
     use crate::domain::config::PipelineConfig;
-    use crate::domain::source_identifier::SourceIdentifier;
 
     use super::*;
 
@@ -204,7 +203,7 @@ mod tests {
             None
         }
 
-        fn source(&self, _source_identifier: &SourceIdentifier) -> Option<&Value> {
+        fn source(&self, _source_identifier: &str) -> Option<&Value> {
             None
         }
 
@@ -213,6 +212,10 @@ mod tests {
         }
 
         fn sink_names(&self) -> Vec<String> {
+            vec![]
+        }
+
+        fn source_names(&self) -> Vec<String> {
             vec![]
         }
 

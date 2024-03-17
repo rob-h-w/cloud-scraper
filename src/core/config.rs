@@ -8,7 +8,6 @@ use serde::Deserialize;
 use serde_yaml::Value;
 
 use crate::domain::config::{Config as DomainConfig, PipelineConfig};
-use crate::domain::source_identifier::SourceIdentifier;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct Config {
@@ -50,7 +49,7 @@ impl Config {
     }
 
     fn pipelines() -> Vec<PipelineConfig> {
-        vec![PipelineConfig::new("log", "stub", None)]
+        vec![PipelineConfig::new("log", "stub")]
     }
 
     fn sinks() -> HashMap<String, Value> {
@@ -81,8 +80,8 @@ impl DomainConfig for Config {
         self.sinks.get(sink)
     }
 
-    fn source(&self, source_identifier: &SourceIdentifier) -> Option<&Value> {
-        self.sources.get(source_identifier.unique_name())
+    fn source(&self, source_identifier: &str) -> Option<&Value> {
+        self.sources.get(source_identifier)
     }
 
     fn pipelines(&self) -> &Vec<PipelineConfig> {
@@ -91,6 +90,10 @@ impl DomainConfig for Config {
 
     fn sink_names(&self) -> Vec<String> {
         self.sinks.keys().cloned().collect()
+    }
+
+    fn source_names(&self) -> Vec<String> {
+        self.sources.keys().cloned().collect()
     }
 
     fn sink_configured(&self, name: &str) -> bool {
@@ -105,9 +108,9 @@ impl DomainConfig for Config {
 #[cfg(test)]
 mod tests {
     use crate::domain::identifiable_sink::IdentifiableSink;
+    use crate::domain::identifiable_source::IdentifiableSource;
     use crate::domain::sink::tests::TestSink;
     use crate::domain::source::tests::TestSource;
-    use crate::domain::source::Source;
 
     use super::*;
 
@@ -121,7 +124,7 @@ mod tests {
         };
 
         assert_eq!(config.sink(TestSink::SINK_ID), None);
-        assert_eq!(config.source(TestSource::identifier()), None);
+        assert_eq!(config.source(TestSource::SOURCE_ID), None);
         assert!(config.pipelines().is_empty());
         assert!(config.sanity_check().is_ok());
     }

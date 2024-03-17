@@ -1,37 +1,33 @@
-use std::sync::Arc;
-
-use crate::domain::config::Config;
 use crate::domain::entity::Entity;
 use crate::domain::entity_data::EntityData;
 use crate::domain::entity_translator::EntityTranslator;
-use crate::domain::source::Source;
 
-pub(crate) struct NoOpTranslator;
-
-impl NoOpTranslator {
-    pub(crate) fn new<SourceType, Type>(_: &Arc<SourceType>) -> NoOpTranslator
-    where
-        SourceType: Source<Type>,
-        Type: EntityData,
-    {
-        NoOpTranslator {}
-    }
-}
-
-impl Clone for NoOpTranslator {
-    fn clone(&self) -> Self {
-        NoOpTranslator
-    }
-}
-
-impl<Type> EntityTranslator<Type, Type> for NoOpTranslator
+#[derive(Clone, Debug)]
+pub(crate) struct NoOpTranslator<Type>
 where
     Type: EntityData,
 {
-    fn new(_config: Arc<impl Config>) -> Self {
-        NoOpTranslator
-    }
+    _phantom: std::marker::PhantomData<Type>,
+}
 
+impl<Type> NoOpTranslator<Type>
+where
+    Type: EntityData,
+{
+    pub(crate) fn new() -> NoOpTranslator<Type>
+    where
+        Type: EntityData,
+    {
+        NoOpTranslator {
+            _phantom: Default::default(),
+        }
+    }
+}
+
+impl<Type> EntityTranslator<Type, Type> for NoOpTranslator<Type>
+where
+    Type: EntityData,
+{
     fn translate(&self, entity: &Entity<Type>) -> Entity<Type> {
         entity.with_data(entity.data())
     }

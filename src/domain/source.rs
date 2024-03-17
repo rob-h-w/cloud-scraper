@@ -1,28 +1,23 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use std::any::TypeId;
 
 use crate::domain::entity::Entity;
 use crate::domain::entity_data::EntityData;
-use crate::domain::entity_user::EntityUser;
-use crate::domain::source_identifier::SourceIdentifier;
+use crate::domain::identifiable_source::IdentifiableSource;
 
 #[async_trait]
-pub(crate) trait Source<DataType>: EntityUser + Send + Sync + 'static
+pub(crate) trait Source<DataType>: IdentifiableSource + Send + Sync
 where
     DataType: EntityData,
 {
-    fn identifier() -> &'static SourceIdentifier
-    where
-        Self: Sized;
     async fn get(
         &self,
         since: &DateTime<Utc>,
     ) -> Result<Vec<Entity<DataType>>, Box<dyn std::error::Error>>;
-    fn this_identifier(&self) -> &'static SourceIdentifier
-    where
-        Self: Sized,
-    {
-        Self::identifier()
+
+    fn data_type(&self) -> TypeId {
+        TypeId::of::<DataType>()
     }
 }
 
@@ -31,8 +26,8 @@ pub(crate) mod tests {
     use std::any::TypeId;
 
     use crate::block_on;
+    use crate::domain::entity_user::EntityUser;
     use chrono::{DateTime, Utc};
-    use once_cell::sync::Lazy;
 
     use crate::domain::source::Source;
 
@@ -47,20 +42,21 @@ pub(crate) mod tests {
         }
     }
 
+    impl IdentifiableSource for TestSource {
+        const SOURCE_ID: &'static str = "test source";
+    }
+
     impl EntityUser for TestSource {
-        fn supported_entity_data() -> Vec<TypeId> {
-            vec![TypeId::of::<String>()]
+        fn supported_entity_data() -> TypeId
+        where
+            Self: Sized,
+        {
+            TypeId::of::<String>()
         }
     }
 
     #[async_trait]
     impl Source<String> for TestSource {
-        fn identifier() -> &'static SourceIdentifier {
-            static SOURCE_IDENTIFIER: Lazy<SourceIdentifier> =
-                Lazy::new(|| SourceIdentifier::new("test"));
-            &SOURCE_IDENTIFIER
-        }
-
         async fn get(
             &self,
             _since: &DateTime<Utc>,
@@ -74,12 +70,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_dev_usability() {
-        let source_name = "test";
         let source = TestSource::new();
-        assert_eq!(
-            TestSource::identifier(),
-            &SourceIdentifier::new(source_name)
-        );
 
         let since = Utc::now();
         let entities = block_on!(source.get(&since)).unwrap();
@@ -90,9 +81,6 @@ pub(crate) mod tests {
 
     #[test]
     fn test_entity_user() {
-        assert_eq!(
-            TestSource::supported_entity_data(),
-            vec!(TypeId::of::<String>())
-        );
+        assert_eq!(TestSource::supported_entity_data(), TypeId::of::<String>());
     }
 }

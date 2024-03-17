@@ -1,69 +1,66 @@
-use std::error::Error;
+use std::collections::HashMap;
 use std::sync::Arc;
 
-use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
-
 use crate::domain::config::Config;
-use crate::domain::source::Source;
-use crate::domain::source_identifier::SourceIdentifier;
+use crate::domain::identifiable_source::IdentifiableSource;
+use crate::integration::google::keep::source::KeepSource;
 use crate::integration::stub::source::StubSource;
+use crate::static_init::sources::SourceCreationError::MissingImplementation;
 
-#[derive(Debug, EnumIter)]
+#[derive(Debug)]
 pub(crate) enum Sources {
-    Stub(Option<Arc<StubSource>>),
+    Stub(Arc<StubSource>),
+    GoogleKeep(Arc<KeepSource>),
 }
 
-impl Sources {
-    pub(crate) fn identifier(&self) -> &SourceIdentifier {
-        match self {
-            Sources::Stub(instance) => instance.as_ref().unwrap().this_identifier(),
+pub(crate) fn create_sources<ConfigType>(
+    config: &ConfigType,
+) -> Result<HashMap<&str, Sources>, SourceCreationError>
+where
+    ConfigType: Config,
+{
+    let mut sources = HashMap::new();
+
+    for source_name in config.source_names() {
+        match source_name.as_str() {
+            KeepSource::SOURCE_ID => {
+                sources.insert(
+                    KeepSource::SOURCE_ID,
+                    Sources::GoogleKeep(Arc::new(KeepSource::new(
+                        config.source(KeepSource::SOURCE_ID).ok_or(
+                            SourceCreationError::MissingConfig(KeepSource::SOURCE_ID.to_string()),
+                        )?,
+                    ))),
+                );
+            }
+            StubSource::SOURCE_ID => {
+                sources.insert(
+                    StubSource::SOURCE_ID,
+                    Sources::Stub(Arc::new(StubSource::new())),
+                );
+            }
+            name => {
+                return Err(MissingImplementation(name.to_string()));
+            }
         }
     }
+
+    Ok(sources)
 }
 
-pub(crate) fn create_sources<ConfigType>(config: &ConfigType) -> Vec<Sources>
-where
-    ConfigType: Config,
-{
-    Sources::iter()
-        .flat_map(|source_type| match source_type {
-            Sources::Stub(_instance) => optional_init(config, StubSource::identifier(), || {
-                Ok(Sources::Stub(Some(Arc::new(StubSource::new()))))
-            }),
-        })
-        .collect()
-}
-
-fn optional_init<ConfigType, Closure>(
-    config: &ConfigType,
-    source_identifier: &SourceIdentifier,
-    initializer: Closure,
-) -> Option<Sources>
-where
-    ConfigType: Config,
-    Closure: Fn() -> Result<Sources, Box<dyn Error>>,
-{
-    if !config.source_configured(source_identifier.unique_name()) {
-        None
-    } else {
-        Some(initializer().unwrap_or_else(|_| {
-            panic!(
-                "Failed to initialize source {src}",
-                src = source_identifier.unique_name()
-            )
-        }))
-    }
+#[derive(Debug)]
+pub(crate) enum SourceCreationError {
+    MissingConfig(String),
+    MissingImplementation(String),
 }
 
 #[cfg(test)]
 mod tests {
-    use std::any::{Any, TypeId};
     use std::rc::Rc;
+    use tokio_test::assert_err;
 
     use crate::core::config::Config as CoreConfig;
     use crate::domain::config::tests::TestConfig;
-    use crate::integration::stub::source::StubSource;
 
     use super::*;
 
@@ -71,28 +68,31 @@ mod tests {
     fn test_create_sources_with_empty_config() {
         let config = Rc::new(TestConfig::new(None));
 
-        let sources = create_sources(config.as_ref());
+        let result = create_sources(config.as_ref());
 
-        assert_eq!(sources.len(), 0);
+        let error = assert_err!(result);
+
+        assert_eq!(
+            format!("{:?}", error),
+            "MissingImplementation(\"test source\")"
+        )
     }
 
     #[test]
     fn test_create_sources_with_stub_config() {
         let config = CoreConfig::new_test();
 
-        let sources = create_sources(config.as_ref());
+        let sources = create_sources(config.as_ref()).expect("Failed to create sources");
 
         assert!(sources.len() > 0);
+        assert!(sources.contains_key("stub"));
 
-        let enum_wrapper = sources.iter().find(|it| match *it {
-            Sources::Stub(_) => true,
-        });
+        let enum_wrapper = sources.get("stub");
         assert!(enum_wrapper.is_some());
 
-        let Sources::Stub(instance) = enum_wrapper.unwrap();
-        assert!(instance.is_some());
-
-        let stub_source = instance.as_ref().unwrap();
-        assert_eq!(stub_source.as_ref().type_id(), TypeId::of::<StubSource>());
+        match enum_wrapper.unwrap() {
+            Sources::Stub(_) => {}
+            _ => panic!("Expected Sources::Stub"),
+        }
     }
 }

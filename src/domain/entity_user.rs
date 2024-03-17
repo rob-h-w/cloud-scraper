@@ -2,11 +2,11 @@ use std::any::TypeId;
 use std::fmt::Debug;
 
 pub(crate) trait EntityUser: Debug {
-    fn supported_entity_data() -> Vec<TypeId>
+    fn supported_entity_data() -> TypeId
     where
         Self: Sized;
 
-    fn this_supports_entity_data(&self) -> Vec<TypeId>
+    fn this_supported_entity_data(&self) -> TypeId
     where
         Self: Sized,
     {
