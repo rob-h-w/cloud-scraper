@@ -12,7 +12,6 @@ use crate::domain::config::Config;
 use crate::static_init::pipelines::create_pipelines;
 use crate::static_init::sinks::create_sinks;
 use crate::static_init::sources::create_sources;
-use crate::static_init::translators::create_translators;
 
 const POLL_COOLOFF: Duration = Duration::from_millis(100);
 
@@ -54,11 +53,11 @@ where
     }
 
     async fn start(&self) {
-        let sources = create_sources(self.config.as_ref());
+        let sources = create_sources(self.config.as_ref())
+            .unwrap_or_else(|e| panic!("Error while creating sources: {:?}", e));
         let sinks = create_sinks(self.config.as_ref());
-        let translators = create_translators();
-        let mut pipelines =
-            create_pipelines(self.config.as_ref(), sources.as_ref(), &sinks, &translators);
+        let mut pipelines = create_pipelines(self.config.as_ref(), &sources, &sinks)
+            .unwrap_or_else(|e| panic!("Error while creating pipelines: {:?}", e));
         let result = run_pipelines(self.config.as_ref(), &mut pipelines).await;
 
         log::info!("Processed {} entities", result);
@@ -229,8 +228,7 @@ mod tests {
     use std::time::Duration;
 
     use crate::block_on;
-    use crate::domain::config::{PipelineConfig, TranslatorConfig};
-    use crate::domain::source_identifier::SourceIdentifier;
+    use crate::domain::config::PipelineConfig;
 
     use super::*;
 
@@ -244,23 +242,22 @@ mod tests {
             todo!()
         }
 
-        fn source(&self, _source_identifier: &SourceIdentifier) -> Option<&Value> {
+        fn source(&self, _source_identifier: &str) -> Option<&Value> {
             todo!()
         }
 
         fn pipelines(&self) -> &Vec<PipelineConfig> {
-            static IT: Lazy<Vec<PipelineConfig>> = Lazy::new(|| {
-                vec![PipelineConfig::new(
-                    "log",
-                    "stub",
-                    Some(TranslatorConfig::new("uuid::Uuid", "alloc::string::String")),
-                )]
-            });
+            static IT: Lazy<Vec<PipelineConfig>> =
+                Lazy::new(|| vec![PipelineConfig::new("log", "stub")]);
             &IT
         }
 
         fn sink_names(&self) -> Vec<String> {
             vec!["log".to_string()]
+        }
+
+        fn source_names(&self) -> Vec<String> {
+            vec!["stub".to_string()]
         }
 
         fn sink_configured(&self, name: &str) -> bool {
