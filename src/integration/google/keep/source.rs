@@ -2,7 +2,9 @@ use crate::domain::entity::Entity;
 use crate::domain::entity_user::EntityUser;
 use crate::domain::identifiable_source::IdentifiableSource;
 use crate::domain::source::Source;
+use crate::integration::google::keep::config::Config;
 use crate::integration::google::keep::google_keep::GoogleKeep;
+use crate::static_init::sources::SourceCreationError;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde_yaml::Value;
@@ -10,11 +12,15 @@ use std::any::TypeId;
 use std::error::Error;
 
 #[derive(Debug)]
-pub(crate) struct KeepSource {}
+pub(crate) struct KeepSource {
+    config: Config,
+}
 
 impl KeepSource {
-    pub(crate) fn new(_config: &Value) -> Self {
-        Self {}
+    pub(crate) fn new(_config: &Value) -> Result<Self, SourceCreationError> {
+        Ok(Self {
+            config: Config::from_yaml(_config.clone())?,
+        })
     }
 }
 

@@ -23,7 +23,10 @@ strum_macros = "0.26.1"
 tokio = { version = "1.35.1", features = ["rt", "rt-multi-thread", "macros"] }
 tokio-test = "0.4.3"
 uuid = { version = "1.6.1", features = ["serde", "v4"] }
+async_once = "0.2.6"
 
 [dev-dependencies]
 assert_cmd = "2.0.12"
+matches = "0.1.10"
+mockall = "0.12.1"
 predicates = "3.0.4"

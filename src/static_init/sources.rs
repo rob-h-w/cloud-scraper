@@ -30,7 +30,7 @@ where
                         config.source(KeepSource::SOURCE_ID).ok_or(
                             SourceCreationError::MissingConfig(KeepSource::SOURCE_ID.to_string()),
                         )?,
-                    ))),
+                    )?)),
                 );
             }
             StubSource::SOURCE_ID => {
@@ -51,6 +51,7 @@ where
 #[derive(Debug)]
 pub(crate) enum SourceCreationError {
     MissingConfig(String),
+    BadConfig(serde_yaml::Error),
     MissingImplementation(String),
 }
 
