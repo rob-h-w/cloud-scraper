@@ -1,44 +1,31 @@
-use once_cell::sync::Lazy;
-use std::any::{type_name, Any, TypeId};
-use std::collections::HashMap;
-
-use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
-use uuid::Uuid;
-
-use crate::domain::entity_translator::{EntityTranslator, TranslationDescription};
+use crate::integration::google::keep::translator::Translator as GoogleKeepTranslator;
+use crate::integration::no_op_translator::NoOpTranslator;
 use crate::integration::stub::translator::UuidToStringTranslator;
+use crate::static_init::sinks::Sinks;
+use crate::static_init::sources::Sources;
+use crate::static_init::translators::TranslatorCreationError::MissingSinkType;
 
-#[derive(Clone, EnumIter)]
+#[derive(Clone, Debug)]
 pub(crate) enum Translators {
-    NoOp,
-    UuidToString(Option<UuidToStringTranslator>),
+    StringToString(NoOpTranslator<String>),
+    GoogleKeepToString(GoogleKeepTranslator),
+    UuidToString(UuidToStringTranslator),
 }
 
-pub(crate) static SUPPORTED_TYPES: Lazy<HashMap<&str, TypeId>> = Lazy::new(|| {
-    let mut types_by_name: HashMap<&str, TypeId> = HashMap::new();
-    types_by_name.insert(type_name::<String>(), TypeId::of::<String>());
-    types_by_name.insert(type_name::<Uuid>(), TypeId::of::<Uuid>());
-    types_by_name
-});
+impl Translators {
+    pub(crate) fn new(sink: &Sinks, source: &Sources) -> Result<Self, TranslatorCreationError> {
+        match sink {
+            Sinks::Log(_) => match source {
+                Sources::Stub(_) => Ok(Translators::UuidToString(UuidToStringTranslator)),
+                Sources::GoogleKeep(_) => Ok(Translators::GoogleKeepToString(GoogleKeepTranslator)),
+            },
+            _ => Err(MissingSinkType),
+        }
+    }
+}
 
-pub(crate) fn create_translators() -> HashMap<TranslationDescription, Translators> {
-    let mut translators_by_description: HashMap<TranslationDescription, Translators> =
-        HashMap::new();
-    Translators::iter().for_each(|translator_type| {
-        match translator_type {
-            Translators::NoOp => translators_by_description.insert(
-                TranslationDescription {
-                    from: TypeId::of::<dyn Any>(),
-                    to: TypeId::of::<dyn Any>(),
-                },
-                Translators::NoOp,
-            ),
-            Translators::UuidToString(_) => translators_by_description.insert(
-                UuidToStringTranslator::translation_description(),
-                Translators::UuidToString(Some(UuidToStringTranslator)),
-            ),
-        };
-    });
-    translators_by_description
+#[derive(Debug)]
+pub(crate) enum TranslatorCreationError {
+    MissingSinkType,
+    MissingSourceType,
 }
