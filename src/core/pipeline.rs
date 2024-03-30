@@ -51,7 +51,7 @@ where
             .source
             .get(&(if let Some(s) = since { s } else { *START_TIME }))
             .await
-            .map_err(|e| PipelineError::Source(e.to_string()))?;
+            .map_err(|e| PipelineError::Source(format!("Failed to retrieve entities: {:?}", e)))?;
         let translated_entities: Vec<Entity<ToType>> = entities
             .iter()
             .map(|entity| self.translator.translate(&entity))

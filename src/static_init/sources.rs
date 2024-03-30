@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::error::Error;
+use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 
 use crate::domain::config::Config;
@@ -54,6 +56,19 @@ pub(crate) enum SourceCreationError {
     BadConfig(serde_yaml::Error),
     MissingImplementation(String),
 }
+
+#[derive(Debug)]
+pub(crate) enum SourceExecutionError {
+    SourceConnectionFailure(String),
+}
+
+impl Display for SourceExecutionError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl Error for SourceExecutionError {}
 
 #[cfg(test)]
 mod tests {

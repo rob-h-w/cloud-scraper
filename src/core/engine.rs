@@ -211,10 +211,10 @@ async fn run_pipeline(
             }
             Err(e) => match error_tx.send(e.clone()).await {
                 Ok(_) => {
-                    log::trace!("Pipeline sent error: {}", e);
+                    log::trace!("Pipeline sent error: {:?}", e);
                 }
                 Err(e) => {
-                    log::error!("Pipeline error while sending error: {}", e);
+                    log::error!("Pipeline error while sending error: {:?}", e);
                 }
             },
         };
