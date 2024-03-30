@@ -24,6 +24,7 @@ tokio = { version = "1.35.1", features = ["rt", "rt-multi-thread", "macros"] }
 tokio-test = "0.4.3"
 uuid = { version = "1.6.1", features = ["serde", "v4"] }
 async_once = "0.2.6"
+debug-ignore = "1.0.5"
 
 [dev-dependencies]
 assert_cmd = "2.0.12"
