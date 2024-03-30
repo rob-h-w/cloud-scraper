@@ -9,7 +9,7 @@ use tokio::sync::RwLock;
 use crate::integration::google::keep::auth::{auth, Error};
 use crate::static_init::singleton::{async_ginit, reset as reset_singleton};
 
-static SHARED_KEEP: Lazy<RwLock<Option<Keep<HttpsConnector<HttpConnector>>>>> =
+const SHARED_KEEP: Lazy<RwLock<Option<Keep<HttpsConnector<HttpConnector>>>>> =
     Lazy::new(|| RwLock::new(None));
 
 async fn hub(value: Value) -> Result<Keep<HttpsConnector<HttpConnector>>, Error> {

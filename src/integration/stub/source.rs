@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use std::any::TypeId;
 use std::cell::RefCell;
 use std::cmp::{max, min};
@@ -6,6 +5,7 @@ use std::error::Error;
 use std::fmt::Debug;
 use std::sync::Mutex;
 
+use async_trait::async_trait;
 use chrono::{DateTime, TimeDelta, Utc};
 use uuid::Uuid;
 
@@ -13,6 +13,8 @@ use crate::domain::entity::Entity;
 use crate::domain::entity_user::EntityUser;
 use crate::domain::identifiable_source::IdentifiableSource;
 use crate::domain::source::Source;
+
+const MAX_ENTITIES: usize = 10;
 
 #[derive(Debug)]
 pub(crate) struct StubSource {
@@ -50,12 +52,13 @@ impl Source<Uuid> for StubSource {
             return Ok(vec![]);
         }
 
-        cell.replace(Some(now));
-
-        let results = (0..diff.num_seconds())
+        let results = (0..min(diff.num_seconds(), MAX_ENTITIES as i64))
             .map(|i| {
                 let created = *since + TimeDelta::try_seconds(i).unwrap();
                 let updated = max(*since + TimeDelta::try_seconds(i + 1).unwrap(), last);
+                if cell.borrow().is_none() || cell.borrow().unwrap() < updated {
+                    cell.replace(Some(updated));
+                }
                 Entity::new::<Self>(
                     &created,
                     Box::new(Uuid::new_v4()),
@@ -71,9 +74,9 @@ impl Source<Uuid> for StubSource {
 
 #[cfg(test)]
 mod tests {
-    use crate::block_on;
     use chrono::{TimeDelta, Utc};
 
+    use crate::block_on;
     use crate::domain::source::Source;
 
     use super::*;

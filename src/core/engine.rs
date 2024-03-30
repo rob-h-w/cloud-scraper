@@ -198,14 +198,17 @@ async fn run_pipeline(
     let mut since = None;
     do_until_stop!(stop_rx, {
         match pipeline.run(since).await {
-            Ok(count) => match count_tx.send(count).await {
-                Ok(_) => {
-                    log::trace!("Pipeline sent count: {}", count);
+            Ok(entities) => {
+                since = entities.iter().max().map(|e| e.clone());
+                match count_tx.send(entities.len()).await {
+                    Ok(_) => {
+                        log::trace!("Pipeline sent count: {}", entities.len());
+                    }
+                    Err(e) => {
+                        log::error!("Pipeline error while sending count: {}", e);
+                    }
                 }
-                Err(e) => {
-                    log::error!("Pipeline error while sending count: {}", e);
-                }
-            },
+            }
             Err(e) => match error_tx.send(e.clone()).await {
                 Ok(_) => {
                     log::trace!("Pipeline sent error: {}", e);
@@ -216,7 +219,6 @@ async fn run_pipeline(
             },
         };
 
-        since = Some(chrono::Utc::now());
         sleep(POLL_COOLOFF).await;
     })
 }
