@@ -92,3 +92,4 @@ Cargo.lock
 .nfs*
 
 *.json
+config*.yaml
