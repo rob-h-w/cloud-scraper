@@ -1,3 +1,4 @@
+use std::future::Future;
 use std::sync::Arc;
 
 use log::debug;
@@ -5,6 +6,9 @@ use log::debug;
 use crate::core::config::Config;
 use crate::core::engine::{Engine, EngineImpl};
 use crate::domain::config::Config as DomainConfig;
+use crate::integration::dependencies::{
+    initialize_dependencies, teardown_dependencies, DependencyError,
+};
 
 mod core;
 mod domain;
@@ -14,13 +18,28 @@ mod static_init;
 
 #[tokio::main]
 async fn main() -> Result<(), String> {
-    main_impl(env_logger::init, Config::new, EngineImpl::new).await
+    main_impl(
+        env_logger::init,
+        Config::new,
+        EngineImpl::new,
+        initialize_dependencies,
+    )
+    .await
 }
 
-async fn main_impl<ConfigType, EngineType, LogInitializer, ConfigGetter, EngineConstructor>(
+async fn main_impl<
+    ConfigType,
+    EngineType,
+    LogInitializer,
+    ConfigGetter,
+    EngineConstructor,
+    DependenciesInitializer,
+    DependenciesResult,
+>(
     log_initializer: LogInitializer,
     config_getter: ConfigGetter,
     engine_constructor: EngineConstructor,
+    initializer: DependenciesInitializer,
 ) -> Result<(), String>
 where
     ConfigType: DomainConfig,
@@ -28,9 +47,17 @@ where
     LogInitializer: FnOnce(),
     ConfigGetter: FnOnce() -> Arc<ConfigType>,
     EngineConstructor: FnOnce(Arc<ConfigType>) -> Box<EngineType>,
+    DependenciesInitializer: FnOnce() -> DependenciesResult,
+    DependenciesResult: Future<Output = Result<(), Vec<DependencyError>>> + Sized,
 {
     // Make sure we never initialize the env_logger in unit tests.
     log_initializer();
+
+    debug!("Initializing dependencies...");
+    initializer().await.map_err(|e| {
+        let errors: Vec<String> = e.iter().map(|e| format!("{:?}", e)).collect();
+        format!("Failed to initialize dependencies: {:?}", errors)
+    })?;
 
     debug!("Reading config...");
     let config = config_getter();
@@ -43,6 +70,9 @@ where
 
     debug!("Starting engine");
     engine.start().await;
+
+    teardown_dependencies().await;
+
     Ok(())
 }
 
@@ -59,7 +89,6 @@ mod tests {
 
     use crate::domain::config::tests::TestConfig;
     use crate::domain::config::PipelineConfig;
-    use crate::domain::source_identifier::SourceIdentifier;
 
     use super::*;
 
@@ -204,7 +233,7 @@ mod tests {
             None
         }
 
-        fn source(&self, _source_identifier: &SourceIdentifier) -> Option<&Value> {
+        fn source(&self, _source_identifier: &str) -> Option<&Value> {
             None
         }
 
@@ -213,6 +242,10 @@ mod tests {
         }
 
         fn sink_names(&self) -> Vec<String> {
+            vec![]
+        }
+
+        fn source_names(&self) -> Vec<String> {
             vec![]
         }
 
@@ -240,10 +273,12 @@ mod tests {
             started = Some(engine.start_called.clone());
             engine
         };
+        let dependency_initializer = || async { Ok(()) };
         block_on!(main_impl(
             log_initializer,
             config_getter,
-            engine_constructor
+            engine_constructor,
+            dependency_initializer
         ))
         .unwrap();
 
@@ -270,10 +305,12 @@ mod tests {
             started = Some(engine.start_called.clone());
             engine
         };
+        let dependency_initializer = || async { Ok(()) };
         block_on!(main_impl(
             log_initializer,
             config_getter,
-            engine_constructor
+            engine_constructor,
+            dependency_initializer
         ))
         .unwrap();
 
@@ -288,9 +325,16 @@ mod tests {
     fn test_main_impl_logs() {
         let config = Arc::new(TestConfig::new(None));
         let config_getter = || -> Arc<TestConfig> { config };
+        let dependency_initializer = || async { Ok(()) };
 
         Logger::use_in(|logger| {
-            block_on!(main_impl(Logger::init, config_getter, EngineTestImpl::new)).unwrap();
+            block_on!(main_impl(
+                Logger::init,
+                config_getter,
+                EngineTestImpl::new,
+                dependency_initializer
+            ))
+            .unwrap();
             assert_eq!(
                 logger.log_entry_exists(&LogEntry::debug("Starting engine")),
                 true
@@ -302,8 +346,14 @@ mod tests {
     fn test_barfs_insane_config() {
         let config = Arc::new(InsaneConfig { pipelines: vec![] });
         let config_getter = || -> Arc<InsaneConfig> { config };
+        let dependency_initializer = || async { Ok(()) };
 
-        let result = block_on!(main_impl(Logger::init, config_getter, EngineTestImpl::new));
+        let result = block_on!(main_impl(
+            Logger::init,
+            config_getter,
+            EngineTestImpl::new,
+            dependency_initializer
+        ));
 
         assert!(result.is_err());
     }
