@@ -1,10 +1,20 @@
 use assert_cmd::Command;
 use chrono::{TimeDelta, Utc};
+use lazy_static::lazy_static;
+use std::net::TcpListener;
+use std::sync::Mutex;
+use std::thread::sleep;
 
 const BIN: &str = "cloud_scraper";
 
+lazy_static! {
+    // Ensure that only one test runs at a time.
+    static ref MUTEX: Mutex<()> = Mutex::new(());
+}
+
 #[test]
 fn run_cli_env_debug() {
+    let lock = MUTEX.lock().unwrap();
     Command::cargo_bin(BIN)
         .unwrap()
         .env("RUST_LOG", "debug")
@@ -19,6 +29,7 @@ fn run_cli_env_debug() {
 
 #[test]
 fn run_env_debug_with_empty_config() {
+    let lock = MUTEX.lock().unwrap();
     Command::cargo_bin(BIN)
         .unwrap()
         .env("RUST_LOG", "debug")
@@ -33,6 +44,7 @@ fn run_env_debug_with_empty_config() {
 
 #[test]
 fn run_env_debug_with_empty_config_cli_exit_override() {
+    let lock = MUTEX.lock().unwrap();
     let start = Utc::now();
     Command::cargo_bin(BIN)
         .unwrap()

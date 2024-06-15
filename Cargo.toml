@@ -19,10 +19,10 @@ serde = { version = "1.0.193", features = ["derive"] }
 serde_yaml = { version = "0.9.29", features = [] }
 strum = "0.26.1"
 strum_macros = "0.26.1"
-tokio = { version = "1.35.1", features = ["rt", "rt-multi-thread", "macros", "time"] }
+tokio = { version = "1.35.1", features = ["rt", "rt-multi-thread", "macros", "signal", "time"] }
 tokio-test = "0.4.3"
 uuid = { version = "1.6.1", features = ["serde", "v4"] }
-warp = "0.3"
+warp = { version = "0.3", features = ["tls"] }
 
 [dev-dependencies]
 assert_cmd = "2.0.12"
