@@ -9,10 +9,14 @@ use tokio::time::{sleep, Duration};
 use crate::core::error::PipelineError;
 use crate::core::pipeline::ExecutablePipeline;
 use crate::domain::config::Config;
+use crate::server::WebServer;
 use crate::static_init::pipelines::create_pipelines;
 use crate::static_init::sinks::create_sinks;
 use crate::static_init::sources::create_sources;
 use crate::static_init::translators::create_translators;
+
+#[cfg(test)]
+use mockall::automock;
 
 const POLL_COOLOFF: Duration = Duration::from_millis(100);
 
@@ -37,22 +41,37 @@ macro_rules! do_until_stop {
     };
 }
 
-pub(crate) struct EngineImpl<T>
+#[async_trait]
+#[cfg_attr(test, automock)]
+pub(crate) trait Engine {
+    async fn start(&self);
+}
+
+pub(crate) struct EngineImpl<ConfigType, ServerType>
 where
-    T: Config,
+    ConfigType: Config,
+    ServerType: WebServer,
 {
-    config: Arc<T>,
+    config: Arc<ConfigType>,
+    server: ServerType,
+}
+
+impl<ConfigType, ServerType> EngineImpl<ConfigType, ServerType>
+where
+    ConfigType: Config,
+    ServerType: WebServer,
+{
+    pub(crate) fn new(config: Arc<ConfigType>, server: ServerType) -> Self {
+        Self { config, server }
+    }
 }
 
 #[async_trait]
-impl<T> Engine<T> for EngineImpl<T>
+impl<ConfigType, ServerType> Engine for EngineImpl<ConfigType, ServerType>
 where
-    T: Config,
+    ConfigType: Config,
+    ServerType: WebServer,
 {
-    fn new(config: Arc<T>) -> Box<EngineImpl<T>> {
-        Box::new(EngineImpl { config })
-    }
-
     async fn start(&self) {
         let sources = create_sources(self.config.as_ref());
         let sinks = create_sinks(self.config.as_ref());
@@ -223,7 +242,7 @@ async fn run_pipeline(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use once_cell::sync::Lazy;
     use serde_yaml::Value;
     use std::time::Duration;
@@ -231,10 +250,11 @@ mod tests {
     use crate::block_on;
     use crate::domain::config::{PipelineConfig, TranslatorConfig};
     use crate::domain::source_identifier::SourceIdentifier;
+    use crate::server::MockWebServer;
 
     use super::*;
 
-    struct StubConfig {}
+    pub(crate) struct StubConfig {}
 
     impl Config for StubConfig {
         fn exit_after(&self) -> Option<Duration> {
@@ -259,6 +279,10 @@ mod tests {
             &IT
         }
 
+        fn port(&self) -> u16 {
+            80
+        }
+
         fn sink_names(&self) -> Vec<String> {
             vec!["log".to_string()]
         }
@@ -274,15 +298,6 @@ mod tests {
 
     #[test]
     fn test_engine_start() {
-        block_on!(EngineImpl::new(Arc::new(StubConfig {})).start());
+        block_on!(EngineImpl::new(Arc::new(StubConfig {}), MockWebServer::new()).start());
     }
-}
-
-#[async_trait]
-pub(crate) trait Engine<T>
-where
-    T: Config,
-{
-    fn new(config: Arc<T>) -> Box<Self>;
-    async fn start(&self);
 }

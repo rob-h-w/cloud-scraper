@@ -5,29 +5,42 @@ use log::debug;
 use crate::core::config::Config;
 use crate::core::engine::{Engine, EngineImpl};
 use crate::domain::config::Config as DomainConfig;
+use server::WebServer;
 
 mod core;
 mod domain;
 mod integration;
 mod macros;
+mod server;
 mod static_init;
 
 #[tokio::main]
 async fn main() -> Result<(), String> {
-    main_impl(env_logger::init, Config::new, EngineImpl::new).await
+    main_impl(env_logger::init, Config::new, server::new, EngineImpl::new).await
 }
 
-async fn main_impl<ConfigType, EngineType, LogInitializer, ConfigGetter, EngineConstructor>(
+async fn main_impl<
+    ConfigType,
+    EngineType,
+    ServerType,
+    LogInitializer,
+    ConfigGetter,
+    ServerConstructor,
+    EngineConstructor,
+>(
     log_initializer: LogInitializer,
     config_getter: ConfigGetter,
+    server_constructor: ServerConstructor,
     engine_constructor: EngineConstructor,
 ) -> Result<(), String>
 where
     ConfigType: DomainConfig,
-    EngineType: Engine<ConfigType>,
+    EngineType: Engine,
+    ServerType: WebServer,
     LogInitializer: FnOnce(),
     ConfigGetter: FnOnce() -> Arc<ConfigType>,
-    EngineConstructor: FnOnce(Arc<ConfigType>) -> Box<EngineType>,
+    ServerConstructor: FnOnce(Arc<ConfigType>) -> ServerType,
+    EngineConstructor: FnOnce(Arc<ConfigType>, ServerType) -> EngineType,
 {
     // Make sure we never initialize the env_logger in unit tests.
     log_initializer();
@@ -38,8 +51,11 @@ where
     debug!("Checking config...");
     config.sanity_check()?;
 
+    debug!("Constructing server...");
+    let server = server_constructor(config.clone());
+
     debug!("Constructing engine...");
-    let engine = engine_constructor(config);
+    let engine = engine_constructor(config, server);
 
     debug!("Starting engine");
     engine.start().await;
@@ -52,7 +68,7 @@ mod tests {
     use std::sync::Once;
     use std::sync::{Arc, Mutex};
 
-    use async_trait::async_trait;
+    use crate::core::engine::MockEngine;
     use log::{Log, Metadata, Record};
     use parking_lot::ReentrantMutex;
     use serde_yaml::Value;
@@ -60,6 +76,7 @@ mod tests {
     use crate::domain::config::tests::TestConfig;
     use crate::domain::config::PipelineConfig;
     use crate::domain::source_identifier::SourceIdentifier;
+    use crate::server::MockWebServer;
 
     use super::*;
 
@@ -175,26 +192,6 @@ mod tests {
         fn flush(&self) {}
     }
 
-    struct EngineTestImpl {
-        pub(crate) start_called: Arc<Mutex<bool>>,
-    }
-
-    #[async_trait]
-    impl<ConfigType> Engine<ConfigType> for EngineTestImpl
-    where
-        ConfigType: DomainConfig,
-    {
-        fn new(_: Arc<ConfigType>) -> Box<Self> {
-            Box::new(EngineTestImpl {
-                start_called: Arc::new(Mutex::new(false)),
-            })
-        }
-
-        async fn start(&self) {
-            *self.start_called.lock().unwrap() = true;
-        }
-    }
-
     struct InsaneConfig {
         pipelines: Vec<PipelineConfig>,
     }
@@ -210,6 +207,10 @@ mod tests {
 
         fn pipelines(&self) -> &Vec<PipelineConfig> {
             &self.pipelines
+        }
+
+        fn port(&self) -> u16 {
+            80
         }
 
         fn sink_names(&self) -> Vec<String> {
@@ -232,28 +233,28 @@ mod tests {
     #[test]
     fn test_main_impl() {
         let config = Arc::new(TestConfig::new(None));
-        let mut started: Option<Arc<Mutex<bool>>> = None;
         let log_initializer = || -> () {};
         let config_getter = || -> Arc<TestConfig> { config };
-        let engine_constructor = |config: Arc<TestConfig>| -> Box<EngineTestImpl> {
-            let engine = EngineTestImpl::new(config);
-            started = Some(engine.start_called.clone());
-            engine
-        };
+        let server_constructor = |_: Arc<TestConfig>| -> MockWebServer { MockWebServer::new() };
+        let mut mock_engine = MockEngine::new();
+        mock_engine
+            .expect_start()
+            .times(1)
+            .returning(|| Box::pin(async {}));
+        let engine_constructor =
+            |_: Arc<TestConfig>, _: MockWebServer| -> MockEngine { mock_engine };
         block_on!(main_impl(
             log_initializer,
             config_getter,
+            server_constructor,
             engine_constructor
         ))
         .unwrap();
-
-        assert_eq!(*started.unwrap().lock().unwrap(), true);
     }
 
     #[test]
     fn test_main_impl_calls_log_initializer() {
         let config = Arc::new(TestConfig::new(None));
-        let mut started: Option<Arc<Mutex<bool>>> = None;
         let mut log_initializer_called = false;
         let log_initializer = || -> () {
             log_initializer_called = true;
@@ -263,16 +264,21 @@ mod tests {
             config_getter_called = true;
             config
         };
+        let server_constructor = |_: Arc<TestConfig>| -> MockWebServer { MockWebServer::new() };
+        let mut mock_engine = MockEngine::new();
+        mock_engine
+            .expect_start()
+            .times(1)
+            .returning(|| Box::pin(async {}));
         let mut engine_constructor_called = false;
-        let engine_constructor = |config: Arc<TestConfig>| -> Box<EngineTestImpl> {
+        let engine_constructor = |_: Arc<TestConfig>, _: MockWebServer| -> MockEngine {
             engine_constructor_called = true;
-            let engine = EngineTestImpl::new(config);
-            started = Some(engine.start_called.clone());
-            engine
+            mock_engine
         };
         block_on!(main_impl(
             log_initializer,
             config_getter,
+            server_constructor,
             engine_constructor
         ))
         .unwrap();
@@ -280,17 +286,29 @@ mod tests {
         assert_eq!(log_initializer_called, true);
         assert_eq!(config_getter_called, true);
         assert_eq!(engine_constructor_called, true);
-
-        assert_eq!(*started.unwrap().lock().unwrap(), true);
     }
 
     #[test]
     fn test_main_impl_logs() {
         let config = Arc::new(TestConfig::new(None));
         let config_getter = || -> Arc<TestConfig> { config };
+        let server_constructor = |_: Arc<TestConfig>| -> MockWebServer { MockWebServer::new() };
+        let mut mock_engine = MockEngine::new();
+        mock_engine
+            .expect_start()
+            .times(1)
+            .returning(|| Box::pin(async {}));
+        let engine_constructor =
+            |_: Arc<TestConfig>, _: MockWebServer| -> MockEngine { mock_engine };
 
         Logger::use_in(|logger| {
-            block_on!(main_impl(Logger::init, config_getter, EngineTestImpl::new)).unwrap();
+            block_on!(main_impl(
+                Logger::init,
+                config_getter,
+                server_constructor,
+                engine_constructor
+            ))
+            .unwrap();
             assert_eq!(
                 logger.log_entry_exists(&LogEntry::debug("Starting engine")),
                 true
@@ -302,8 +320,16 @@ mod tests {
     fn test_barfs_insane_config() {
         let config = Arc::new(InsaneConfig { pipelines: vec![] });
         let config_getter = || -> Arc<InsaneConfig> { config };
+        let server_constructor = |_: Arc<InsaneConfig>| -> MockWebServer { MockWebServer::new() };
+        let engine_constructor =
+            |_: Arc<InsaneConfig>, _: MockWebServer| -> MockEngine { MockEngine::new() };
 
-        let result = block_on!(main_impl(Logger::init, config_getter, EngineTestImpl::new));
+        let result = block_on!(main_impl(
+            Logger::init,
+            config_getter,
+            server_constructor,
+            engine_constructor
+        ));
 
         assert!(result.is_err());
     }
