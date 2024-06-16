@@ -1,6 +1,5 @@
 use crate::domain::config::Config;
 use async_trait::async_trait;
-use std::future::Future;
 use std::sync::Arc;
 use warp::Filter;
 
@@ -13,7 +12,6 @@ where
 
 #[cfg(test)]
 use mockall::automock;
-use tokio::sync::broadcast::error::TryRecvError;
 
 #[async_trait]
 #[cfg_attr(test, automock)]
