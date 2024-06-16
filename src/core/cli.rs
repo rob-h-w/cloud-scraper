@@ -9,4 +9,7 @@ pub(crate) struct Cli {
     /// Exit after the specified number of seconds
     #[arg(long)]
     pub(crate) exit_after: Option<u64>,
+    /// Port to listen on
+    #[arg(short, long)]
+    pub port: Option<u16>,
 }

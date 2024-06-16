@@ -1,4 +1,5 @@
 exit_after: 1
+port: 8080
+pipelines: [ ]
 sinks: { }
 sources: { }
-pipelines: [ ]

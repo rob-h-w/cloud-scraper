@@ -197,6 +197,10 @@ mod tests {
     }
 
     impl DomainConfig for InsaneConfig {
+        fn domain_config(&self) -> Option<&domain::config::DomainConfig> {
+            None
+        }
+
         fn sink(&self, _sink_identifier: &str) -> Option<&Value> {
             None
         }
@@ -219,6 +223,10 @@ mod tests {
 
         fn sink_configured(&self, _name: &str) -> bool {
             false
+        }
+
+        fn site_folder(&self) -> &str {
+            "insane_site_folder"
         }
 
         fn source_configured(&self, _name: &str) -> bool {
