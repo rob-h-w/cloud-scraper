@@ -65,7 +65,7 @@ where
 }
 
 fn router() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-    warp::path("new").map(move || "This is a new HTTP endpoint stub!")
+    warp::path::end().map(move || "This is the root stub.")
 }
 
 #[cfg(test)]
@@ -78,7 +78,7 @@ mod tests {
     #[tokio::test]
     async fn test_filter() {
         let filter = router();
-        let res = request().method("GET").path("/new").reply(&filter).await;
+        let res = request().method("GET").path("/").reply(&filter).await;
 
         assert_eq!(res.status(), StatusCode::OK);
     }
