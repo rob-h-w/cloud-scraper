@@ -9,10 +9,15 @@ use tokio::time::{sleep, Duration};
 use crate::core::error::PipelineError;
 use crate::core::pipeline::ExecutablePipeline;
 use crate::domain::config::Config;
+use crate::server::WebServer;
 use crate::static_init::pipelines::create_pipelines;
 use crate::static_init::sinks::create_sinks;
 use crate::static_init::sources::create_sources;
 use crate::static_init::translators::create_translators;
+
+#[cfg(test)]
+use mockall::automock;
+use tokio::join;
 
 const POLL_COOLOFF: Duration = Duration::from_millis(100);
 
@@ -37,157 +42,187 @@ macro_rules! do_until_stop {
     };
 }
 
-pub(crate) struct EngineImpl<T>
+#[async_trait]
+#[cfg_attr(test, automock)]
+pub(crate) trait Engine {
+    async fn start(&self);
+}
+
+pub(crate) struct EngineImpl<ConfigType, ServerType>
 where
-    T: Config,
+    ConfigType: Config,
+    ServerType: WebServer,
 {
-    config: Arc<T>,
+    config: Arc<ConfigType>,
+    server: ServerType,
+    stop: tokio::sync::broadcast::Sender<bool>,
 }
 
 #[async_trait]
-impl<T> Engine<T> for EngineImpl<T>
+impl<ConfigType, ServerType> Engine for EngineImpl<ConfigType, ServerType>
 where
-    T: Config,
+    ConfigType: Config,
+    ServerType: WebServer,
 {
-    fn new(config: Arc<T>) -> Box<EngineImpl<T>> {
-        Box::new(EngineImpl { config })
+    async fn start(&self) {
+        join!(
+            self.server.serve(self.stop.subscribe()),
+            self.run_pipelines()
+        );
+    }
+}
+
+impl<ConfigType, ServerType> EngineImpl<ConfigType, ServerType>
+where
+    ConfigType: Config,
+    ServerType: WebServer,
+{
+    pub(crate) fn new(config: Arc<ConfigType>, server: ServerType) -> Self {
+        let (stop_tx, _) = tokio::sync::broadcast::channel(32);
+        Self {
+            config,
+            server,
+            stop: stop_tx,
+        }
     }
 
-    async fn start(&self) {
+    async fn run_pipelines(&self) {
         let sources = create_sources(self.config.as_ref());
         let sinks = create_sinks(self.config.as_ref());
         let translators = create_translators();
         let mut pipelines =
             create_pipelines(self.config.as_ref(), sources.as_ref(), &sinks, &translators);
-        let result = run_pipelines(self.config.as_ref(), &mut pipelines).await;
 
-        log::info!("Processed {} entities", result);
-    }
-}
+        if !pipelines.is_empty() {
+            let (count_tx, mut count_rx) = tokio::sync::mpsc::channel(pipelines.len());
+            let (error_tx, mut error_rx) = tokio::sync::mpsc::channel(pipelines.len());
 
-async fn run_pipelines<T: Config>(
-    config: &T,
-    pipelines: &mut Vec<Box<dyn ExecutablePipeline>>,
-) -> usize {
-    if pipelines.is_empty() {
-        return 0;
-    }
+            let mut counter_stop_rx = self.stop.subscribe();
+            let wait_stop_tx = self.stop.clone();
 
-    let (count_tx, mut count_rx) = tokio::sync::mpsc::channel(pipelines.len());
-    let (error_tx, mut error_rx) = tokio::sync::mpsc::channel(pipelines.len());
-    let (stop_tx, _) = tokio::sync::broadcast::channel(pipelines.len());
+            let mut join_set = JoinSet::new();
+            let mut cancellation_handles: Vec<AbortHandle> = vec![];
+            while let Some(pipeline) = pipelines.pop() {
+                let count_tx = count_tx.clone();
+                let error_tx = error_tx.clone();
+                let stop_rx = self.stop.subscribe();
+                cancellation_handles.push(join_set.spawn(async move {
+                    run_pipeline(pipeline, count_tx, error_tx, stop_rx).await
+                }));
+            }
 
-    let mut counter_stop_rx = stop_tx.subscribe();
-    let wait_stop_tx = stop_tx.clone();
+            let wait = self.config.exit_after();
+            let mut wait_stop_rx = self.stop.subscribe();
+            let timer = join_set.spawn(async move {
+                match wait {
+                    Some(duration) => {
+                        sleep(duration).await;
+                        match wait_stop_tx.send(true) {
+                            Ok(_) => {
+                                log::trace!("Wait sent stop signal after {:?}", duration);
+                            }
+                            Err(e) => {
+                                panic!("Wait error while sending stop signal: {}", e);
+                            }
+                        }
+                    }
+                    None => match wait_stop_rx.recv().await {
+                        Ok(stop) => {
+                            log::trace!("Wait received stop signal: {}", stop);
+                        }
+                        Err(e) => {
+                            log::error!("Wait error while waiting for stop signal: {}", e);
+                        }
+                    },
+                }
+            });
 
-    let mut join_set = JoinSet::new();
-    let mut cancellation_handles: Vec<AbortHandle> = vec![];
-    while let Some(pipeline) = pipelines.pop() {
-        let count_tx = count_tx.clone();
-        let error_tx = error_tx.clone();
-        let stop_rx = stop_tx.subscribe();
-        cancellation_handles.push(
-            join_set
-                .spawn(async move { run_pipeline(pipeline, count_tx, error_tx, stop_rx).await }),
-        );
-    }
+            let mut error_stop = self.stop.subscribe();
+            let error = tokio::spawn(async move {
+                do_until_stop!(error_stop, {
+                    match error_rx.recv().await {
+                        Some(e) => log::error!("Error while running pipeline: {}", e),
+                        None => break,
+                    }
+                });
+            });
 
-    let wait = config.exit_after();
-    let mut wait_stop_rx = stop_tx.subscribe();
-    let timer = join_set.spawn(async move {
-        match wait {
-            Some(duration) => {
-                sleep(duration).await;
-                match wait_stop_tx.send(true) {
+            let counter = tokio::spawn(async move {
+                let mut count = 0;
+                do_until_stop!(counter_stop_rx, {
+                    log::trace!("Waiting for count");
+                    match count_rx.recv().await {
+                        Some(c) => {
+                            log::trace!("Received count: {}", c);
+                            count += c;
+                        }
+                        None => {
+                            log::trace!("Count channel closed");
+                            break;
+                        }
+                    }
+                    log::trace!("Count: {}, waiting for stop", count);
+                });
+                log::trace!("Count: {}", count);
+                count
+            });
+
+            let mut cancelled = false;
+            while let Some(res) = join_set.join_next().await {
+                match res {
+                    Ok(_) => {}
+                    Err(e) => {
+                        log::error!("Error while running pipeline: {}", e);
+                        if !cancelled {
+                            cancelled = true;
+                            cancellation_handles.iter().for_each(|h| h.abort());
+                            timer.abort();
+                            counter.abort();
+                            error.abort();
+                        }
+                    }
+                }
+            }
+
+            while !counter.is_finished() {
+                // nudge the counter to finish by sending a 0.
+                match count_tx.send(0).await {
                     Ok(_) => {
-                        log::trace!("Wait sent stop signal after {:?}", duration);
+                        log::trace!("Sent count 0");
                     }
                     Err(e) => {
-                        panic!("Wait error while sending stop signal: {}", e);
+                        log::trace!("Error while sending count: {}", e);
+
+                        // The nudge didn't work. Lose the count & abort.
+                        counter.abort();
                     }
                 }
             }
-            None => match wait_stop_rx.recv().await {
-                Ok(stop) => {
-                    log::trace!("Wait received stop signal: {}", stop);
+
+            if !error.is_finished() {
+                error.abort();
+            }
+
+            let result = counter.await.unwrap_or_else(|e| {
+                log::error!("Error while waiting for counter: {}", e);
+                0
+            });
+
+            log::info!("Processed {} entities", result);
+        } else {
+            match self.stop.send(true) {
+                Ok(_) => {
+                    log::trace!("No pipelines to run, sent stop signal");
                 }
                 Err(e) => {
-                    log::error!("Wait error while waiting for stop signal: {}", e);
-                }
-            },
-        }
-    });
-
-    let mut error_stop = stop_tx.subscribe();
-    let error = tokio::spawn(async move {
-        do_until_stop!(error_stop, {
-            match error_rx.recv().await {
-                Some(e) => log::error!("Error while running pipeline: {}", e),
-                None => break,
-            }
-        });
-    });
-
-    let counter = tokio::spawn(async move {
-        let mut count = 0;
-        do_until_stop!(counter_stop_rx, {
-            log::trace!("Waiting for count");
-            match count_rx.recv().await {
-                Some(c) => {
-                    log::trace!("Received count: {}", c);
-                    count += c;
-                }
-                None => {
-                    log::trace!("Count channel closed");
-                    break;
-                }
-            }
-            log::trace!("Count: {}, waiting for stop", count);
-        });
-        log::trace!("Count: {}", count);
-        count
-    });
-
-    let mut cancelled = false;
-    while let Some(res) = join_set.join_next().await {
-        match res {
-            Ok(_) => {}
-            Err(e) => {
-                log::error!("Error while running pipeline: {}", e);
-                if !cancelled {
-                    cancelled = true;
-                    cancellation_handles.iter().for_each(|h| h.abort());
-                    timer.abort();
-                    counter.abort();
-                    error.abort();
+                    log::error!(
+                        "No pipelines to run, error while sending stop signal: {}",
+                        e
+                    );
                 }
             }
         }
     }
-
-    while !counter.is_finished() {
-        // nudge the counter to finish by sending a 0.
-        match count_tx.send(0).await {
-            Ok(_) => {
-                log::trace!("Sent count 0");
-            }
-            Err(e) => {
-                log::trace!("Error while sending count: {}", e);
-
-                // The nudge didn't work. Lose the count & abort.
-                counter.abort();
-            }
-        }
-    }
-
-    if !error.is_finished() {
-        error.abort();
-    }
-
-    counter.await.unwrap_or_else(|e| {
-        log::error!("Error while waiting for counter: {}", e);
-        0
-    })
 }
 
 async fn run_pipeline(
@@ -223,7 +258,7 @@ async fn run_pipeline(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use once_cell::sync::Lazy;
     use serde_yaml::Value;
     use std::time::Duration;
@@ -231,10 +266,11 @@ mod tests {
     use crate::block_on;
     use crate::domain::config::{PipelineConfig, TranslatorConfig};
     use crate::domain::source_identifier::SourceIdentifier;
+    use crate::server::MockWebServer;
 
     use super::*;
 
-    struct StubConfig {}
+    pub(crate) struct StubConfig {}
 
     impl Config for StubConfig {
         fn exit_after(&self) -> Option<Duration> {
@@ -259,6 +295,10 @@ mod tests {
             &IT
         }
 
+        fn port(&self) -> u16 {
+            80
+        }
+
         fn sink_names(&self) -> Vec<String> {
             vec!["log".to_string()]
         }
@@ -274,15 +314,11 @@ mod tests {
 
     #[test]
     fn test_engine_start() {
-        block_on!(EngineImpl::new(Arc::new(StubConfig {})).start());
+        let mut mock_web_server = MockWebServer::new();
+        mock_web_server
+            .expect_serve()
+            .times(1)
+            .returning(|_| Box::pin(async {}));
+        block_on!(EngineImpl::new(Arc::new(StubConfig {}), mock_web_server).start());
     }
-}
-
-#[async_trait]
-pub(crate) trait Engine<T>
-where
-    T: Config,
-{
-    fn new(config: Arc<T>) -> Box<Self>;
-    async fn start(&self);
 }

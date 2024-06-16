@@ -10,12 +10,15 @@ use serde_yaml::Value;
 use crate::domain::config::{Config as DomainConfig, PipelineConfig};
 use crate::domain::source_identifier::SourceIdentifier;
 
+const DEFAULT_PORT: u16 = 8080;
+
 #[derive(Debug, Deserialize)]
 pub(crate) struct Config {
     exit_after: Option<u64>,
     sinks: HashMap<String, Value>,
     sources: HashMap<String, Value>,
     pipelines: Vec<PipelineConfig>,
+    port: Option<u16>,
 }
 
 impl Config {
@@ -35,6 +38,7 @@ impl Config {
                 sinks: Self::sinks(),
                 sources: Self::sources(),
                 pipelines: Self::pipelines(),
+                port: None,
             },
         })
     }
@@ -46,6 +50,7 @@ impl Config {
             sinks: Self::sinks(),
             sources: Self::sources(),
             pipelines: Self::pipelines(),
+            port: None,
         })
     }
 
@@ -89,6 +94,10 @@ impl DomainConfig for Config {
         self.pipelines.as_ref()
     }
 
+    fn port(&self) -> u16 {
+        self.port.unwrap_or(DEFAULT_PORT)
+    }
+
     fn sink_names(&self) -> Vec<String> {
         self.sinks.keys().cloned().collect()
     }
@@ -118,11 +127,13 @@ mod tests {
             sinks: Default::default(),
             sources: Default::default(),
             pipelines: vec![],
+            port: None,
         };
 
         assert_eq!(config.sink(TestSink::SINK_ID), None);
         assert_eq!(config.source(TestSource::identifier()), None);
         assert!(config.pipelines().is_empty());
+        assert!(config.port() == DEFAULT_PORT);
         assert!(config.sanity_check().is_ok());
     }
 }

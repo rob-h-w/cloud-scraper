@@ -13,6 +13,7 @@ pub(crate) trait Config: Send + Sync {
     fn sink(&self, sink_identifier: &str) -> Option<&Value>;
     fn source(&self, source_identifier: &SourceIdentifier) -> Option<&Value>;
     fn pipelines(&self) -> &Vec<PipelineConfig>;
+    fn port(&self) -> u16;
 
     fn sink_names(&self) -> Vec<String>;
 
@@ -213,6 +214,10 @@ pub(crate) mod tests {
         fn pipelines(&self) -> &Vec<PipelineConfig> {
             info!("pipelines");
             &self.pipelines
+        }
+
+        fn port(&self) -> u16 {
+            80
         }
 
         fn sink_names(&self) -> Vec<String> {
