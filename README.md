@@ -54,3 +54,39 @@ store they want to use.
 I intend to implement Google Keep initially because this is the service I think is the biggest risk
 for me. By risk, I mean the combination of probability and impact for me of my Keep notes
 becoming unavailable.
+
+## Building
+
+### Dependencies
+
+Probably you already have this dev library installed if you're doing any other development in a
+systems programming language. If not, you'll need to install it.
+
+```bash
+openssl
+```
+
+Beyond that, it's a pretty normal Rust project.
+
+```bash
+cargo build # build
+cargo test # run tests
+```
+
+### Running
+
+```bash
+cargo run
+```
+
+You can get log information by setting the `RUST_LOG` environment variable.
+
+```bash
+RUST_LOG=debug cargo run
+```
+
+Of course you can also run the binary directly.
+
+```bash
+./target/debug/cloud_scraper
+```
