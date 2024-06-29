@@ -9,9 +9,12 @@ use acme2::{
     DirectoryBuilder, Error, OrderBuilder, OrderStatus,
 };
 use async_trait::async_trait;
+use chrono::Utc;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::{fs, join};
+use x509_parser::parse_x509_certificate;
+use x509_parser::pem::parse_x509_pem;
 
 const LETS_ENCRYPT_URL: &str = "https://acme-v02.api.letsencrypt.org/directory";
 
@@ -39,7 +42,8 @@ where
     }
 
     async fn cert_is_valid(&self) -> bool {
-        fs::metadata(self.site_state.cert_path()).await.is_ok()
+        let path = self.site_state.cert_path();
+        fs::metadata(path).await.is_ok() && cert_is_not_expired(path).await
     }
 
     async fn get_cert(&self) -> Result<CertAndPrivateKey, Error> {
@@ -241,5 +245,91 @@ where
 
     fn key_path(&self) -> &str {
         self.site_state.key_path()
+    }
+}
+
+async fn cert_is_not_expired(path: &str) -> bool {
+    // Get the expiry timestamp of the certificate
+    let validity = match get_cert_validity(path).await {
+        Ok(t) => t,
+        Err(e) => {
+            log::error!("Failed to get certificate expiry timestamp: {}", e);
+            return false;
+        }
+    };
+
+    // Get the current time
+    let now = Utc::now();
+
+    // Check if the certificate has expired
+    validity.is_valid_at(now.timestamp())
+}
+
+struct Validity {
+    not_before: i64,
+    not_after: i64,
+}
+
+impl Validity {
+    fn is_valid_at(&self, now: i64) -> bool {
+        now >= self.not_before && now <= self.not_after
+    }
+}
+
+async fn get_cert_validity(path: &str) -> Result<Validity, String> {
+    // Read the certificate file
+    let cert_pem = fs::read(path)
+        .await
+        .map_err(|e| format!("Failed to read certificate file: {}", e))?;
+
+    // Read the pem
+    let (_, pem) = parse_x509_pem(&cert_pem).map_err(|e| format!("Failed to read pem: {}", e))?;
+
+    if pem.label != "CERTIFICATE" {
+        return Err(format!("Expected a certificate, got {:?}", pem.label));
+    }
+
+    // Parse the certificate
+    let (_, cert) = parse_x509_certificate(&pem.contents)
+        .map_err(|e| format!("Failed to parse certificate: {}", e))?;
+
+    Ok(Validity {
+        not_after: cert.tbs_certificate.validity.not_after.timestamp(),
+        not_before: cert.tbs_certificate.validity.not_before.timestamp(),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_get_cert_expiry_timestamp() {
+        let cert = include_bytes!("../../../tests/fixtures/cert.pem");
+        let path = "/tmp/cert.pem";
+        fs::write(path, cert).await.unwrap();
+        let validity = get_cert_validity(path)
+            .await
+            .expect("Could not get validity");
+
+        // Saturday, June 29, 2024 19:04:36
+        assert_eq!(validity.not_before, 1719687876);
+
+        // Sunday, June 30, 2024 19:04:36
+        assert_eq!(validity.not_after, 1719774276);
+    }
+
+    #[test]
+    fn test_validity_is_valid_at() {
+        let validity = Validity {
+            not_before: 1,
+            not_after: 10,
+        };
+
+        assert!(!validity.is_valid_at(0));
+        assert!(validity.is_valid_at(1));
+        assert!(validity.is_valid_at(5));
+        assert!(validity.is_valid_at(10));
+        assert!(!validity.is_valid_at(11));
     }
 }
