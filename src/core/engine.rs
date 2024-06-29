@@ -65,10 +65,14 @@ where
     ServerType: WebServer,
 {
     async fn start(&self) {
-        join!(
+        let (server_result, _) = join!(
             self.server.serve(self.stop.subscribe()),
             self.run_pipelines()
         );
+
+        if let Err(e) = server_result {
+            log::error!("Error while serving: {}", e);
+        }
     }
 }
 
@@ -264,7 +268,7 @@ pub(crate) mod tests {
     use std::time::Duration;
 
     use crate::block_on;
-    use crate::domain::config::{PipelineConfig, TranslatorConfig};
+    use crate::domain::config::{DomainConfig, PipelineConfig, TranslatorConfig};
     use crate::domain::source_identifier::SourceIdentifier;
     use crate::server::MockWebServer;
 
@@ -273,6 +277,10 @@ pub(crate) mod tests {
     pub(crate) struct StubConfig {}
 
     impl Config for StubConfig {
+        fn domain_config(&self) -> Option<&DomainConfig> {
+            None
+        }
+
         fn exit_after(&self) -> Option<Duration> {
             Some(Duration::from_millis(10))
         }
@@ -307,6 +315,10 @@ pub(crate) mod tests {
             name == "log"
         }
 
+        fn site_folder(&self) -> &str {
+            "./stub_site_folder"
+        }
+
         fn source_configured(&self, name: &str) -> bool {
             name == "stub"
         }
@@ -318,7 +330,7 @@ pub(crate) mod tests {
         mock_web_server
             .expect_serve()
             .times(1)
-            .returning(|_| Box::pin(async {}));
+            .returning(|_| Box::pin(async { Ok(()) }));
         block_on!(EngineImpl::new(Arc::new(StubConfig {}), mock_web_server).start());
     }
 }

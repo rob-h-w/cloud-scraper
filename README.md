@@ -90,3 +90,17 @@ Of course you can also run the binary directly.
 ```bash
 ./target/debug/cloud_scraper
 ```
+
+#### Permission to open ports < 1024 as a non-root user
+
+Linux usually doesn't let you open ports like 80 or 443 as a non-root user. You can use the
+following
+command to allow this.
+
+```bash
+# If needed, install setcap, for example in Ubuntu: sudo apt-get install libcap2-bin
+sudo setcap cap_net_bind_service=+ep ./target/debug/cloud_scraper
+```
+
+Remember that after running the above that the permission applies to `cloud_scraper`, not
+`cargo`. Using `cargo run` will not work with the above permission.

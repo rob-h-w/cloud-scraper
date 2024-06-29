@@ -7,6 +7,10 @@ use serde_yaml::Value;
 use crate::domain::source_identifier::SourceIdentifier;
 
 pub(crate) trait Config: Send + Sync {
+    fn domain_config(&self) -> Option<&DomainConfig>;
+    fn domain_is_defined(&self) -> bool {
+        self.domain_config().is_some()
+    }
     fn exit_after(&self) -> Option<Duration> {
         None
     }
@@ -18,6 +22,7 @@ pub(crate) trait Config: Send + Sync {
     fn sink_names(&self) -> Vec<String>;
 
     fn sink_configured(&self, name: &str) -> bool;
+    fn site_folder(&self) -> &str;
     fn source_configured(&self, name: &str) -> bool;
 
     fn sanity_check(&self) -> Result<(), String> {
@@ -30,12 +35,30 @@ pub(crate) trait Config: Send + Sync {
                 errors.push(format!("Source '{}' not found", pipeline.source));
             }
         }
+
+        if let Some(domain_config) = self.domain_config() {
+            if domain_config.builder_contacts.is_empty() {
+                errors.push("No builder contacts configured".to_string());
+            }
+            if domain_config.domain_name.is_empty() {
+                errors.push("No domain name configured".to_string());
+            }
+        }
+
         if errors.is_empty() {
             Ok(())
         } else {
             Err(errors.join(", "))
         }
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DomainConfig {
+    pub builder_contacts: Vec<String>,
+    pub domain_name: String,
+    pub poll_attempts: usize,
+    pub poll_interval_seconds: u64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -201,6 +224,10 @@ pub(crate) mod tests {
     }
 
     impl Config for TestConfig {
+        fn domain_config(&self) -> Option<&DomainConfig> {
+            None
+        }
+
         fn sink(&self, sink_identifier: &str) -> Option<&Value> {
             info!("sink ID: {:?}", sink_identifier);
             Some(&self.value)
@@ -226,6 +253,10 @@ pub(crate) mod tests {
 
         fn sink_configured(&self, name: &str) -> bool {
             name == "test"
+        }
+
+        fn site_folder(&self) -> &str {
+            "test_site_folder"
         }
 
         fn source_configured(&self, name: &str) -> bool {
