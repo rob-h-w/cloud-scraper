@@ -1,7 +1,8 @@
+use clap::Parser;
+use log::debug;
 use std::sync::Arc;
 
-use log::debug;
-
+use crate::core::cli::Cli;
 use crate::core::config::Config;
 use crate::core::engine::{Engine, EngineImpl};
 use crate::domain::config::Config as DomainConfig;
@@ -16,7 +17,14 @@ mod static_init;
 
 #[tokio::main]
 async fn main() -> Result<(), String> {
-    main_impl(env_logger::init, Config::new, server::new, EngineImpl::new).await
+    main_impl(
+        env_logger::init,
+        Cli::parse,
+        Config::new,
+        server::new,
+        EngineImpl::new,
+    )
+    .await
 }
 
 async fn main_impl<
@@ -24,12 +32,14 @@ async fn main_impl<
     EngineType,
     ServerType,
     LogInitializer,
-    ConfigGetter,
+    CliGetter,
+    ConfigConstructor,
     ServerConstructor,
     EngineConstructor,
 >(
     log_initializer: LogInitializer,
-    config_getter: ConfigGetter,
+    cli_getter: CliGetter,
+    config_constructor: ConfigConstructor,
     server_constructor: ServerConstructor,
     engine_constructor: EngineConstructor,
 ) -> Result<(), String>
@@ -38,15 +48,19 @@ where
     EngineType: Engine,
     ServerType: WebServer,
     LogInitializer: FnOnce(),
-    ConfigGetter: FnOnce() -> Arc<ConfigType>,
+    CliGetter: FnOnce() -> Cli,
+    ConfigConstructor: FnOnce(&Cli) -> Arc<ConfigType>,
     ServerConstructor: FnOnce(Arc<ConfigType>) -> ServerType,
     EngineConstructor: FnOnce(Arc<ConfigType>, ServerType) -> EngineType,
 {
     // Make sure we never initialize the env_logger in unit tests.
     log_initializer();
 
+    debug!("Reading cli input...");
+    let cli = cli_getter();
+
     debug!("Reading config...");
-    let config = config_getter();
+    let config = config_constructor(&cli);
 
     debug!("Checking config...");
     config.sanity_check()?;
@@ -69,14 +83,13 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use crate::core::engine::MockEngine;
-    use log::{Log, Metadata, Record};
-    use parking_lot::ReentrantMutex;
-    use serde_yaml::Value;
-
     use crate::domain::config::tests::TestConfig;
     use crate::domain::config::PipelineConfig;
     use crate::domain::source_identifier::SourceIdentifier;
     use crate::server::MockWebServer;
+    use log::{Log, Metadata, Record};
+    use parking_lot::ReentrantMutex;
+    use serde_yaml::Value;
 
     use super::*;
 
@@ -240,9 +253,16 @@ mod tests {
 
     #[test]
     fn test_main_impl() {
+        let cli = Cli {
+            command: None,
+            config: None,
+            exit_after: None,
+            port: None,
+        };
         let config = Arc::new(TestConfig::new(None));
         let log_initializer = || -> () {};
-        let config_getter = || -> Arc<TestConfig> { config };
+        let cli_getter = || -> Cli { cli };
+        let config_constructor = |_: &Cli| -> Arc<TestConfig> { config };
         let server_constructor = |_: Arc<TestConfig>| -> MockWebServer { MockWebServer::new() };
         let mut mock_engine = MockEngine::new();
         mock_engine
@@ -253,7 +273,8 @@ mod tests {
             |_: Arc<TestConfig>, _: MockWebServer| -> MockEngine { mock_engine };
         block_on!(main_impl(
             log_initializer,
-            config_getter,
+            cli_getter,
+            config_constructor,
             server_constructor,
             engine_constructor
         ))
@@ -262,14 +283,21 @@ mod tests {
 
     #[test]
     fn test_main_impl_calls_log_initializer() {
+        let cli = Cli {
+            command: None,
+            config: None,
+            exit_after: None,
+            port: None,
+        };
         let config = Arc::new(TestConfig::new(None));
         let mut log_initializer_called = false;
         let log_initializer = || -> () {
             log_initializer_called = true;
         };
-        let mut config_getter_called = false;
-        let config_getter = || -> Arc<TestConfig> {
-            config_getter_called = true;
+        let cli_getter = || -> Cli { cli };
+        let mut config_constructor_called = false;
+        let config_constructor = |_: &Cli| -> Arc<TestConfig> {
+            config_constructor_called = true;
             config
         };
         let server_constructor = |_: Arc<TestConfig>| -> MockWebServer { MockWebServer::new() };
@@ -285,21 +313,29 @@ mod tests {
         };
         block_on!(main_impl(
             log_initializer,
-            config_getter,
+            cli_getter,
+            config_constructor,
             server_constructor,
             engine_constructor
         ))
         .unwrap();
 
         assert_eq!(log_initializer_called, true);
-        assert_eq!(config_getter_called, true);
+        assert_eq!(config_constructor_called, true);
         assert_eq!(engine_constructor_called, true);
     }
 
     #[test]
     fn test_main_impl_logs() {
+        let cli = Cli {
+            command: None,
+            config: None,
+            exit_after: None,
+            port: None,
+        };
         let config = Arc::new(TestConfig::new(None));
-        let config_getter = || -> Arc<TestConfig> { config };
+        let cli_getter = || -> Cli { cli };
+        let config_constructor = |_: &Cli| -> Arc<TestConfig> { config };
         let server_constructor = |_: Arc<TestConfig>| -> MockWebServer { MockWebServer::new() };
         let mut mock_engine = MockEngine::new();
         mock_engine
@@ -312,7 +348,8 @@ mod tests {
         Logger::use_in(|logger| {
             block_on!(main_impl(
                 Logger::init,
-                config_getter,
+                cli_getter,
+                config_constructor,
                 server_constructor,
                 engine_constructor
             ))
@@ -326,15 +363,23 @@ mod tests {
 
     #[test]
     fn test_barfs_insane_config() {
+        let cli = Cli {
+            command: None,
+            config: None,
+            exit_after: None,
+            port: None,
+        };
         let config = Arc::new(InsaneConfig { pipelines: vec![] });
-        let config_getter = || -> Arc<InsaneConfig> { config };
+        let cli_getter = || -> Cli { cli };
+        let config_constructor = |_: &Cli| -> Arc<InsaneConfig> { config };
         let server_constructor = |_: Arc<InsaneConfig>| -> MockWebServer { MockWebServer::new() };
         let engine_constructor =
             |_: Arc<InsaneConfig>, _: MockWebServer| -> MockEngine { MockEngine::new() };
 
         let result = block_on!(main_impl(
             Logger::init,
-            config_getter,
+            cli_getter,
+            config_constructor,
             server_constructor,
             engine_constructor
         ));
