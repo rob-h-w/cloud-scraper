@@ -1,10 +1,9 @@
 use std::time::Duration;
 use std::vec;
 
+use crate::domain::source_identifier::SourceIdentifier;
 use serde::Deserialize;
 use serde_yaml::Value;
-
-use crate::domain::source_identifier::SourceIdentifier;
 
 pub(crate) trait Config: Send + Sync {
     fn domain_config(&self) -> Option<&DomainConfig>;

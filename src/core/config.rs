@@ -3,7 +3,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::core::cli::Cli;
-use clap::Parser;
 use serde::Deserialize;
 use serde_yaml::Value;
 
@@ -25,9 +24,8 @@ pub(crate) struct Config {
 }
 
 impl Config {
-    pub(crate) fn new() -> Arc<Self> {
-        let cli = Cli::parse();
-        Arc::new(match cli.config {
+    pub(crate) fn new(cli: &Cli) -> Arc<Self> {
+        Arc::new(match cli.config.as_ref() {
             Some(config_file) => {
                 let config_file =
                     std::fs::read_to_string(config_file).expect("Could not open $config_file");
