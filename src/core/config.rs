@@ -2,12 +2,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::core::cli::Cli;
-use clap::Parser;
+use crate::core::cli::ServeArgs;
 use serde::Deserialize;
 use serde_yaml::Value;
 
 use crate::domain::config::{Config as DomainConfig, PipelineConfig};
+#[cfg(test)]
 use crate::domain::source_identifier::SourceIdentifier;
 
 const TLS_PORT: u16 = 443;
@@ -25,25 +25,24 @@ pub(crate) struct Config {
 }
 
 impl Config {
-    pub(crate) fn new() -> Arc<Self> {
-        let cli = Cli::parse();
-        Arc::new(match cli.config {
+    pub(crate) fn new(serve_args: &ServeArgs) -> Arc<Self> {
+        Arc::new(match serve_args.config.as_ref() {
             Some(config_file) => {
                 let config_file =
                     std::fs::read_to_string(config_file).expect("Could not open $config_file");
                 let mut config: Config =
                     serde_yaml::from_str(&config_file).expect("Could not parse config");
-                config.merge_exit_after(cli.exit_after);
-                config.merge_port(cli.port);
+                config.merge_exit_after(serve_args.exit_after);
+                config.merge_port(serve_args.port);
                 config
             }
             None => Self {
                 domain_config: None,
-                exit_after: cli.exit_after,
+                exit_after: serve_args.exit_after,
                 sinks: Self::sinks(),
                 sources: Self::sources(),
                 pipelines: Self::pipelines(),
-                port: cli.port,
+                port: serve_args.port,
                 site_state_folder: None,
             },
         })
@@ -100,10 +99,12 @@ impl DomainConfig for Config {
         self.exit_after.map(Duration::from_secs)
     }
 
+    #[cfg(test)]
     fn sink(&self, sink: &str) -> Option<&Value> {
         self.sinks.get(sink)
     }
 
+    #[cfg(test)]
     fn source(&self, source_identifier: &SourceIdentifier) -> Option<&Value> {
         self.sources.get(source_identifier.unique_name())
     }

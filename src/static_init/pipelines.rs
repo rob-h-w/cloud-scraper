@@ -134,6 +134,7 @@ fn noop_translator(source: &Sources, _: &Sinks) -> Box<dyn ExecutablePipeline> {
     }
 }
 
+#[cfg(test)]
 fn noop_translator_with_source<DataType, SourceType>(
     source: &Arc<SourceType>,
     sinks: &Sinks,
@@ -148,6 +149,7 @@ where
     }
 }
 
+#[cfg(test)]
 fn noop_translator_with_sink<DataType, SinkType, SourceType>(
     source: &Arc<SourceType>,
     sink: &Arc<SinkType>,
