@@ -1,8 +1,10 @@
 use std::time::Duration;
 use std::vec;
 
+#[cfg(test)]
 use crate::domain::source_identifier::SourceIdentifier;
 use serde::Deserialize;
+#[cfg(test)]
 use serde_yaml::Value;
 
 pub(crate) trait Config: Send + Sync {
@@ -13,7 +15,9 @@ pub(crate) trait Config: Send + Sync {
     fn exit_after(&self) -> Option<Duration> {
         None
     }
+    #[cfg(test)]
     fn sink(&self, sink_identifier: &str) -> Option<&Value>;
+    #[cfg(test)]
     fn source(&self, source_identifier: &SourceIdentifier) -> Option<&Value>;
     fn pipelines(&self) -> &Vec<PipelineConfig>;
     fn port(&self) -> u16;
@@ -105,6 +109,7 @@ pub(crate) struct TranslatorConfig {
 }
 
 impl TranslatorConfig {
+    #[cfg(test)]
     pub(crate) fn new(from: &str, to: &str) -> Self {
         Self {
             from: from.to_string(),

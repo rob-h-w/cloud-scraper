@@ -8,6 +8,8 @@ use crate::domain::entity_data::EntityData;
 use crate::domain::entity_translator::EntityTranslator;
 use crate::domain::sink::Sink;
 use crate::domain::source::Source;
+
+#[cfg(test)]
 use crate::integration::no_op_translator::NoOpTranslator;
 
 #[async_trait]
@@ -58,6 +60,7 @@ where
     }
 }
 
+#[cfg(test)]
 impl<DataType, SourceType, SinkType>
     Pipeline<DataType, DataType, SourceType, NoOpTranslator, SinkType>
 where

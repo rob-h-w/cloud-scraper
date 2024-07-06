@@ -25,10 +25,12 @@ impl EntityIdentifier {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn name(&self) -> &str {
         &self.name
     }
 
+    #[cfg(test)]
     pub(crate) fn source_identifier(&self) -> &SourceIdentifier {
         &self.source_identifier
     }

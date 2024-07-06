@@ -39,6 +39,7 @@ where
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn new_now<SourceType>(data: Box<DataType>, id: &str) -> Self
     where
         SourceType: Source<DataType>,
@@ -46,14 +47,17 @@ where
         Self::new::<SourceType>(&Utc::now(), data, id, &Utc::now())
     }
 
+    #[cfg(test)]
     pub(crate) fn id(&self) -> &EntityIdentifier {
         &self.id
     }
 
+    #[cfg(test)]
     pub(crate) fn created_at(&self) -> &DateTime<Utc> {
         &self.created_at
     }
 
+    #[cfg(test)]
     pub(crate) fn updated_at(&self) -> &DateTime<Utc> {
         &self.updated_at
     }

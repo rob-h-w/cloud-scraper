@@ -7,6 +7,7 @@ use serde::Deserialize;
 use serde_yaml::Value;
 
 use crate::domain::config::{Config as DomainConfig, PipelineConfig};
+#[cfg(test)]
 use crate::domain::source_identifier::SourceIdentifier;
 
 const TLS_PORT: u16 = 443;
@@ -98,10 +99,12 @@ impl DomainConfig for Config {
         self.exit_after.map(Duration::from_secs)
     }
 
+    #[cfg(test)]
     fn sink(&self, sink: &str) -> Option<&Value> {
         self.sinks.get(sink)
     }
 
+    #[cfg(test)]
     fn source(&self, source_identifier: &SourceIdentifier) -> Option<&Value> {
         self.sources.get(source_identifier.unique_name())
     }

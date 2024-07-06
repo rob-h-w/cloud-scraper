@@ -1,7 +1,9 @@
 use std::any::TypeId;
 use std::fmt::Debug;
+#[cfg(test)]
 use std::sync::Arc;
 
+#[cfg(test)]
 use crate::domain::config::Config;
 use crate::domain::entity::Entity;
 use crate::domain::entity_data::EntityData;
@@ -18,6 +20,7 @@ where
     FromDataType: EntityData,
     ToDataType: EntityData,
 {
+    #[cfg(test)]
     fn new(config: Arc<impl Config>) -> Self
     where
         Self: Sized;

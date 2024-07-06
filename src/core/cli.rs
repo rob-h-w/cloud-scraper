@@ -25,6 +25,7 @@ pub struct ServeArgs {
     pub port: Option<u16>,
 }
 
+#[cfg(test)]
 impl ServeArgs {
     pub(crate) fn default() -> ServeArgs {
         Self {
