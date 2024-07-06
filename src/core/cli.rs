@@ -1,11 +1,19 @@
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use serde::Deserialize;
 
 #[derive(Debug, Parser)]
-#[command(version, about)]
+#[command(about = "Tool to set up and run a Small Technology inspired web service that integrates \
+with your Big Web services on your behalf.", version = env!("CARGO_PKG_VERSION"))]
 pub(crate) struct Cli {
     #[command(subcommand)]
-    pub command: Option<Command>,
+    pub command: Command,
+}
+
+#[derive(Args, Clone, Debug, Deserialize, PartialEq)]
+pub struct RootPasswordArgs;
+
+#[derive(Args, Clone, Debug, Deserialize, PartialEq)]
+pub struct ServeArgs {
     /// Config file
     #[arg(short, long)]
     pub(crate) config: Option<String>,
@@ -17,30 +25,18 @@ pub(crate) struct Cli {
     pub port: Option<u16>,
 }
 
-impl Cli {
-    pub fn get_command(&self) -> &Command {
-        self.command.as_ref().unwrap_or(&Command::Serve)
+impl ServeArgs {
+    pub(crate) fn default() -> ServeArgs {
+        Self {
+            config: None,
+            exit_after: None,
+            port: Some(8080),
+        }
     }
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Subcommand)]
 pub enum Command {
-    RootPassword,
-    Serve,
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_default_command() {
-        let cli = Cli {
-            command: None,
-            config: None,
-            exit_after: None,
-            port: None,
-        };
-        assert_eq!(cli.get_command(), &Command::Serve);
-    }
+    RootPassword(RootPasswordArgs),
+    Serve(ServeArgs),
 }

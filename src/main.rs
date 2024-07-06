@@ -1,16 +1,19 @@
-use crate::core::cli::Cli;
+use crate::core::cli::{Cli, Command, ServeArgs};
 use crate::core::config::Config;
 use crate::core::engine::{Engine, EngineImpl};
 use crate::domain::config::Config as DomainConfig;
+use crate::root_password::create_root_password;
 use clap::Parser;
 use log::debug;
 use server::WebServer;
 use std::sync::Arc;
+use Command::{RootPassword, Serve};
 
-mod core;
+pub mod core;
 mod domain;
 mod integration;
 mod macros;
+mod root_password;
 mod server;
 mod static_init;
 
@@ -30,20 +33,27 @@ where
     debug!("Reading cli input...");
     let cli = Interface::get_cli();
 
-    debug!("Reading config...");
-    let config = Interface::construct_config(&cli);
+    match &cli.command {
+        RootPassword(_root_password_args) => {
+            create_root_password().await?;
+        }
+        Serve(serve_args) => {
+            debug!("Reading config...");
+            let config = Interface::construct_config(serve_args);
 
-    debug!("Checking config...");
-    config.sanity_check()?;
+            debug!("Checking config...");
+            config.sanity_check()?;
 
-    debug!("Constructing server...");
-    let server = Interface::construct_server(config.clone());
+            debug!("Constructing server...");
+            let server = Interface::construct_server(config.clone());
 
-    debug!("Constructing engine...");
-    let engine = Interface::construct_engine(config, server);
+            debug!("Constructing engine...");
+            let engine = Interface::construct_engine(config, server);
 
-    debug!("Starting engine");
-    engine.start().await;
+            debug!("Starting engine");
+            engine.start().await;
+        }
+    }
     Ok(())
 }
 
@@ -53,7 +63,7 @@ where
 {
     fn initialize_logging();
     fn get_cli() -> Cli;
-    fn construct_config(cli: &Cli) -> Arc<ConfigType>;
+    fn construct_config(cli: &ServeArgs) -> Arc<ConfigType>;
     fn construct_server(config: Arc<ConfigType>) -> impl WebServer;
     fn construct_engine(config: Arc<ConfigType>, server: impl WebServer) -> impl Engine;
 }
@@ -69,7 +79,7 @@ impl MainInterface<Config> for CoreInterface {
         Cli::parse()
     }
 
-    fn construct_config(cli: &Cli) -> Arc<Config> {
+    fn construct_config(cli: &ServeArgs) -> Arc<Config> {
         Config::new(cli)
     }
 
@@ -260,10 +270,7 @@ mod tests {
 
     fn empty_cli() -> Cli {
         Cli {
-            command: None,
-            config: None,
-            exit_after: None,
-            port: None,
+            command: Serve(ServeArgs::default()),
         }
     }
 
@@ -333,7 +340,7 @@ mod tests {
 
     macro_rules! with_test_config {
         () => {
-            fn construct_config(_cli: &Cli) -> Arc<TestConfig> {
+            fn construct_config(_serve_args: &ServeArgs) -> Arc<TestConfig> {
                 note_called!(CONFIG_CONSTRUCTOR);
                 TEST_CONFIG.clone()
             }
@@ -357,7 +364,7 @@ mod tests {
 
     macro_rules! with_insane_config {
         () => {
-            fn construct_config(_cli: &Cli) -> Arc<InsaneConfig> {
+            fn construct_config(_serve_args: &ServeArgs) -> Arc<InsaneConfig> {
                 note_called!(CONFIG_CONSTRUCTOR);
                 INSANE_CONFIG.clone()
             }
