@@ -2,8 +2,8 @@ use crate::core::cli::{Cli, Command, ServeArgs};
 use crate::core::config::Config;
 use crate::core::engine::{Engine, EngineImpl};
 use crate::domain::config::Config as DomainConfig;
-use crate::root_password::create_root_password;
 use clap::Parser;
+use core::root_password::create_root_password;
 use log::debug;
 use server::WebServer;
 use std::sync::Arc;
@@ -13,7 +13,6 @@ pub mod core;
 mod domain;
 mod integration;
 mod macros;
-mod root_password;
 mod server;
 mod static_init;
 
@@ -38,6 +37,15 @@ where
             create_root_password().await?;
         }
         Serve(serve_args) => {
+            debug!("Checking root password...");
+            if !core::root_password::root_password_exists().await {
+                return Err(
+                    "Root password not set. Use root-password to create a password before running \
+                    serve."
+                        .to_string(),
+                );
+            }
+
             debug!("Reading config...");
             let config = Interface::construct_config(serve_args);
 
@@ -94,6 +102,7 @@ impl MainInterface<Config> for CoreInterface {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::core::engine::MockEngine;
     use crate::domain::config::tests::TestConfig;
     use crate::domain::config::PipelineConfig;
@@ -107,8 +116,6 @@ mod tests {
     use std::sync::atomic::AtomicBool;
     use std::sync::Once;
     use std::sync::{Arc, Mutex};
-
-    use super::*;
 
     static mut LOGGER: Option<Logger> = None;
 
@@ -386,65 +393,88 @@ mod tests {
         };
     }
 
+    use crate::core::root_password::test::with_test_root_password_scope;
+
+    macro_rules! with_password_file {
+        ($b:block) => {
+            let _scope = block_on!(with_test_root_password_scope());
+            $b
+        };
+    }
+
     #[test]
     fn test_main_impl() {
-        with_verifiers!(MockMainInterface);
-        impl MainInterface<TestConfig> for MockMainInterface {
-            with_empty_logging!();
-            with_empty_cli!();
-            with_test_config!();
-        }
-        block_on!(main_impl::<TestConfig, MockMainInterface>()).unwrap();
+        with_password_file!({
+            with_verifiers!(MockMainInterface);
+            impl MainInterface<TestConfig> for MockMainInterface {
+                with_empty_logging!();
+                with_empty_cli!();
+                with_test_config!();
+            }
+            let _ = block_on!(main_impl::<TestConfig, MockMainInterface>());
+
+            assert_eq!(MockMainInterface::is_log_initializer_called(), true);
+            assert_eq!(MockMainInterface::is_cli_getter_called(), true);
+            assert_eq!(MockMainInterface::is_config_constructor_called(), true);
+            assert_eq!(MockMainInterface::is_server_constructor_called(), true);
+            assert_eq!(MockMainInterface::is_engine_constructor_called(), true);
+        });
     }
 
     #[test]
     fn test_main_impl_calls_log_initializer() {
-        with_verifiers!(MockMainInterface);
-        impl MainInterface<TestConfig> for MockMainInterface {
-            with_empty_logging!();
-            with_empty_cli!();
-            with_test_config!();
-        }
-        block_on!(main_impl::<TestConfig, MockMainInterface>()).unwrap();
+        with_password_file!({
+            with_verifiers!(MockMainInterface);
+            impl MainInterface<TestConfig> for MockMainInterface {
+                with_empty_logging!();
+                with_empty_cli!();
+                with_test_config!();
+            }
+            block_on!(main_impl::<TestConfig, MockMainInterface>()).unwrap();
 
-        assert_eq!(MockMainInterface::is_log_initializer_called(), true);
-        assert_eq!(MockMainInterface::is_cli_getter_called(), true);
-        assert_eq!(MockMainInterface::is_config_constructor_called(), true);
-        assert_eq!(MockMainInterface::is_server_constructor_called(), true);
-        assert_eq!(MockMainInterface::is_engine_constructor_called(), true);
+            assert_eq!(MockMainInterface::is_log_initializer_called(), true);
+            assert_eq!(MockMainInterface::is_cli_getter_called(), true);
+            assert_eq!(MockMainInterface::is_config_constructor_called(), true);
+            assert_eq!(MockMainInterface::is_server_constructor_called(), true);
+            assert_eq!(MockMainInterface::is_engine_constructor_called(), true);
+        });
     }
 
     #[test]
     fn test_main_impl_logs() {
-        with_verifiers!(MockMainInterface);
-        impl MainInterface<TestConfig> for MockMainInterface {
-            fn initialize_logging() {
-                Logger::init()
+        with_password_file!({
+            with_verifiers!(MockMainInterface);
+            impl MainInterface<TestConfig> for MockMainInterface {
+                fn initialize_logging() {
+                    Logger::init()
+                }
+                with_empty_cli!();
+                with_test_config!();
             }
-            with_empty_cli!();
-            with_test_config!();
-        }
 
-        Logger::use_in(|logger| {
-            block_on!(main_impl::<TestConfig, MockMainInterface>()).unwrap();
-            assert_eq!(
-                logger.log_entry_exists(&LogEntry::debug("Starting engine")),
-                true
-            );
+            Logger::use_in(|logger| {
+                block_on!(main_impl::<TestConfig, MockMainInterface>()).unwrap();
+                assert_eq!(
+                    logger.log_entry_exists(&LogEntry::debug("Starting engine")),
+                    true
+                );
+            });
         });
     }
 
     #[test]
     fn test_barfs_insane_config() {
-        with_verifiers!(MockMainInterface);
-        impl MainInterface<InsaneConfig> for MockMainInterface {
-            with_empty_logging!();
-            with_empty_cli!();
-            with_insane_config!();
-        }
+        with_password_file!({
+            with_verifiers!(MockMainInterface);
+            impl MainInterface<InsaneConfig> for MockMainInterface {
+                with_empty_logging!();
+                with_empty_cli!();
+                with_insane_config!();
+            }
 
-        let result = block_on!(main_impl::<InsaneConfig, MockMainInterface>());
+            let result = block_on!(main_impl::<InsaneConfig, MockMainInterface>());
 
-        assert!(result.is_err());
+            assert!(result.is_err());
+        });
     }
 }
