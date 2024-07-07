@@ -1,12 +1,13 @@
 mod acme;
+mod routes;
 mod site_state;
 
 use crate::domain::config::Config;
 use async_trait::async_trait;
 use std::sync::Arc;
-use warp::Filter;
 
 use crate::server::acme::{Acme, AcmeImpl};
+use crate::server::routes::router;
 #[cfg(test)]
 use mockall::automock;
 
@@ -90,25 +91,5 @@ where
         };
 
         Ok(())
-    }
-}
-
-fn router() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-    warp::path::end().map(move || "This is the root stub.")
-}
-
-#[cfg(test)]
-mod tests {
-    use warp::http::StatusCode;
-    use warp::test::request;
-
-    use super::*;
-
-    #[tokio::test]
-    async fn test_filter() {
-        let filter = router();
-        let res = request().method("GET").path("/").reply(&filter).await;
-
-        assert_eq!(res.status(), StatusCode::OK);
     }
 }
