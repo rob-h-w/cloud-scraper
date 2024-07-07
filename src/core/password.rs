@@ -19,9 +19,9 @@ pub struct Password {
 }
 
 impl Password {
-    pub fn new(password: String, salt_length: u16) -> Self {
+    pub fn new(password: &str, salt_length: u16) -> Self {
         let salt = make_salt(salt_length);
-        let hash = hash_password(&password, &salt);
+        let hash = hash_password(password, &salt);
         Self { hash, salt }
     }
 
@@ -51,7 +51,7 @@ mod tests {
 
     #[test]
     fn test_password() {
-        let password = "password".to_string();
+        let password = "password";
         let salt_length = 16;
         let password = Password::new(password, salt_length);
         assert!(password.verify("password"));
