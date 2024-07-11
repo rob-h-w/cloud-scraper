@@ -1,17 +1,17 @@
 mod acme;
+mod page;
 mod routes;
 mod site_state;
 
 use crate::domain::config::Config;
-use async_trait::async_trait;
-use std::sync::Arc;
-
 use crate::server::acme::{Acme, AcmeImpl};
 use crate::server::routes::router;
+use async_trait::async_trait;
 #[cfg(test)]
 use mockall::automock;
+use std::sync::Arc;
 
-pub(crate) fn new<ConfigType>(config: Arc<ConfigType>) -> impl WebServer
+pub fn new<ConfigType>(config: Arc<ConfigType>) -> impl WebServer
 where
     ConfigType: Config,
 {
@@ -23,11 +23,11 @@ where
 
 #[async_trait]
 #[cfg_attr(test, automock)]
-pub(crate) trait WebServer: Send + Sync {
+pub trait WebServer: Send + Sync {
     async fn serve(&self, stop_rx: tokio::sync::broadcast::Receiver<bool>) -> Result<(), String>;
 }
 
-pub(crate) struct WebServerImpl<AcmeType, ConfigType>
+pub struct WebServerImpl<AcmeType, ConfigType>
 where
     AcmeType: Acme,
     ConfigType: Config,
