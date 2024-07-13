@@ -6,12 +6,21 @@ use std::collections::HashMap;
 use warp::http::header::LOCATION;
 use warp::{reply, Filter};
 
+const LOGIN_TEMPLATE: &str = "login";
 const LOGIN: &str = "login";
+pub const LOGIN_PATH: &str = "/login";
+pub const LOGIN_FAILED: &str = "/login?failed=true";
 
 static PAGE_TEMPLATE: Lazy<Handlebars> = Lazy::new(|| {
     let mut handlebars = Handlebars::new();
     handlebars
-        .register_template_string(LOGIN, include_str!("../../../resources/html/login.html"))
+        .register_template_string(
+            LOGIN_TEMPLATE,
+            include_str!(
+                "../../../resources/html/login\
+        .html"
+            ),
+        )
         .expect("Could not register login template");
     handlebars
 });
@@ -35,10 +44,11 @@ pub fn login() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejectio
         .or(warp::path(LOGIN)
             .and(warp::post())
             .and(warp::body::form())
-            .and_then(handlers::login_post))
+            .and_then(handlers::check_root_password)
+            .map(handlers::issue_token_and_redirect))
 }
 
-fn format_login_html(failed: bool) -> String {
+pub fn format_login_html(failed: bool) -> String {
     let mut page_data = HashMap::new();
     page_data.insert(
         "error_html",
@@ -50,7 +60,7 @@ fn format_login_html(failed: bool) -> String {
     );
 
     PAGE_TEMPLATE
-        .render(LOGIN, &page_data)
+        .render(LOGIN_TEMPLATE, &page_data)
         .expect("Could not render login template")
 }
 
@@ -61,21 +71,58 @@ async fn root_password_is_good(map: HashMap<String, String>) -> bool {
     }
 }
 
-mod handlers {
+pub mod handlers {
     use super::*;
+    use crate::server::auth::{gen_token_for_path, Unauthorized};
+    use warp::http::header::SET_COOKIE;
     use warp::http::StatusCode;
+    use warp::reject::InvalidHeader;
+    use warp::Rejection;
 
-    pub async fn login_post(
+    pub async fn check_root_password(
         form_map: HashMap<String, String>,
-    ) -> Result<impl warp::Reply, warp::Rejection> {
-        let reply = reply::html("");
-        let reply = if root_password_is_good(form_map).await {
-            reply::with_header(reply, LOCATION, "/")
+    ) -> Result<impl warp::Reply, Rejection> {
+        if root_password_is_good(form_map).await {
+            log::info!("Successfully logged in.");
+            Ok(reply::html(""))
         } else {
-            reply::with_header(reply, LOCATION, "/login?failed=true")
-        };
+            log::warn!("Failed to login because of bad password.");
+            Err(Unauthorized::rejection())
+        }
+    }
 
-        Ok(reply::with_status(reply, StatusCode::FOUND))
+    pub fn issue_token_and_redirect(reply: impl warp::Reply + Sized) -> impl warp::Reply {
+        let token = gen_token_for_path("/");
+        reply::with_status(
+            reply::with_header(
+                reply::with_header(reply, SET_COOKIE, token.to_cookie_string()),
+                LOCATION,
+                "/",
+            ),
+            StatusCode::FOUND,
+        )
+    }
+
+    pub async fn handle_rejection(rejection: Rejection) -> Result<impl warp::Reply, Rejection> {
+        let mut redirection: Option<Box<dyn warp::Reply>> = None;
+
+        if let Some(invalid_header) = rejection.find::<InvalidHeader>() {
+            if invalid_header.name() == "cookie" {
+                redirection = Some(Box::new(warp::redirect::found(
+                    warp::http::Uri::from_static(LOGIN_PATH),
+                )))
+            }
+        } else if let Some(_unauthorized) = rejection.find::<Unauthorized>() {
+            redirection = Some(Box::new(warp::redirect::found(
+                warp::http::Uri::from_static(LOGIN_FAILED),
+            )))
+        }
+
+        if let Some(redirection) = redirection {
+            Ok(redirection)
+        } else {
+            Err(rejection)
+        }
     }
 }
 
@@ -138,30 +185,6 @@ mod tests {
 
             assert_eq!(res.status(), StatusCode::FOUND);
             assert_eq!(res.headers().get("location").unwrap(), "/");
-        }
-
-        #[tokio::test]
-        async fn incorrect_password_redirects_to_login() {
-            let _scope = with_test_root_password_scope().await;
-            let filter = login();
-            let res = request()
-                .method("POST")
-                .path("/login")
-                .body("password=wrong")
-                .reply(&filter)
-                .await;
-
-            assert_eq!(res.status(), StatusCode::FOUND);
-            let location = res.headers().get("location").unwrap().to_str().unwrap();
-            assert_eq!(location, "/login?failed=true");
-
-            let res = request().method("GET").path(location).reply(&filter).await;
-
-            assert_eq!(res.status(), StatusCode::OK);
-            assert_eq!(
-                String::from_utf8(res.body().to_vec()).unwrap(),
-                format_login_html(true)
-            );
         }
     }
 

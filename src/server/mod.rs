@@ -1,4 +1,5 @@
 mod acme;
+mod auth;
 mod page;
 mod routes;
 mod site_state;
