@@ -1,4 +1,5 @@
 use crate::core::root_password::check_root_password;
+use crate::server::auth::auth_validation;
 use handlebars::Handlebars;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -39,8 +40,12 @@ impl LoginQuery {
 pub fn login() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     warp::path(LOGIN)
         .and(warp::get())
-        .and(warp::query::<LoginQuery>())
-        .map(move |query: LoginQuery| reply::html(format_login_html(query.failed())))
+        .and(auth_validation())
+        .map(|| warp::redirect::found(warp::http::Uri::from_static("/")))
+        .or(warp::path(LOGIN)
+            .and(warp::get())
+            .and(warp::query::<LoginQuery>())
+            .map(move |query: LoginQuery| reply::html(format_login_html(query.failed()))))
         .or(warp::path(LOGIN)
             .and(warp::post())
             .and(warp::body::form())
@@ -150,6 +155,8 @@ mod tests {
 
     mod get_login {
         use super::*;
+        use crate::server::auth::gen_token_for_path;
+        use warp::http::header::COOKIE;
 
         #[tokio::test]
         async fn shows_the_page() {
@@ -164,6 +171,24 @@ mod tests {
             assert_eq!(
                 res.headers().get("content-type").unwrap(),
                 "text/html; charset=utf-8"
+            );
+        }
+
+        #[tokio::test]
+        async fn with_auth_cookie_redirects_to_root() {
+            let token = gen_token_for_path("/");
+            let filter = login();
+            let res = request()
+                .method("GET")
+                .header(COOKIE, token.to_cookie_string())
+                .path("/login")
+                .reply(&filter)
+                .await;
+
+            assert_eq!(res.status(), StatusCode::FOUND);
+            assert_eq!(
+                res.headers().get("location").unwrap().to_str().unwrap(),
+                "/"
             );
         }
     }
@@ -199,6 +224,30 @@ mod tests {
             let mut map = HashMap::new();
             map.insert("password".to_string(), TEST_PASSWORD.to_string());
             assert!(root_password_is_good(map).await);
+        }
+
+        #[tokio::test]
+        async fn bad_password_fails() {
+            let _scope = with_test_root_password_scope().await;
+
+            let mut map = HashMap::new();
+            map.insert("password".to_string(), "bad".to_string());
+            assert!(!root_password_is_good(map).await);
+        }
+
+        #[tokio::test]
+        async fn no_password_saved_fails() {
+            let mut map = HashMap::new();
+            map.insert("password".to_string(), "missing".to_string());
+            assert!(!root_password_is_good(map).await);
+        }
+
+        #[tokio::test]
+        async fn no_password_fails() {
+            let _scope = with_test_root_password_scope().await;
+
+            let map = HashMap::new();
+            assert!(!root_password_is_good(map).await);
         }
     }
 }
