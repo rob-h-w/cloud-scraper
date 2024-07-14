@@ -1,16 +1,8 @@
+use crate::core::hash::hash_sha256;
 use hex;
-use hmac::Hmac;
-use pbkdf2::pbkdf2;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
-use sha2::Sha256;
-
-// Number of rounds to hash the password. Use a lower number for tests.
-#[cfg(test)]
-static ROUNDS: u32 = 2;
-#[cfg(not(test))]
-static ROUNDS: u32 = 600_000;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Password {
@@ -31,10 +23,7 @@ impl Password {
 }
 
 fn hash_password(password: &str, salt: &str) -> String {
-    let mut hash = [0u8; 20];
-    pbkdf2::<Hmac<Sha256>>(password.as_bytes(), salt.as_bytes(), ROUNDS, &mut hash)
-        .expect("Hashing failed");
-    hex::encode(hash)
+    hex::encode(hash_sha256(password, salt))
 }
 
 fn make_salt(length: u16) -> String {

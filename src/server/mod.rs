@@ -1,16 +1,18 @@
 mod acme;
+mod auth;
+mod page;
+mod routes;
 mod site_state;
 
 use crate::domain::config::Config;
-use async_trait::async_trait;
-use std::sync::Arc;
-use warp::Filter;
-
 use crate::server::acme::{Acme, AcmeImpl};
+use crate::server::routes::router;
+use async_trait::async_trait;
 #[cfg(test)]
 use mockall::automock;
+use std::sync::Arc;
 
-pub(crate) fn new<ConfigType>(config: Arc<ConfigType>) -> impl WebServer
+pub fn new<ConfigType>(config: Arc<ConfigType>) -> impl WebServer
 where
     ConfigType: Config,
 {
@@ -22,11 +24,11 @@ where
 
 #[async_trait]
 #[cfg_attr(test, automock)]
-pub(crate) trait WebServer: Send + Sync {
+pub trait WebServer: Send + Sync {
     async fn serve(&self, stop_rx: tokio::sync::broadcast::Receiver<bool>) -> Result<(), String>;
 }
 
-pub(crate) struct WebServerImpl<AcmeType, ConfigType>
+pub struct WebServerImpl<AcmeType, ConfigType>
 where
     AcmeType: Acme,
     ConfigType: Config,
@@ -90,25 +92,5 @@ where
         };
 
         Ok(())
-    }
-}
-
-fn router() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-    warp::path::end().map(move || "This is the root stub.")
-}
-
-#[cfg(test)]
-mod tests {
-    use warp::http::StatusCode;
-    use warp::test::request;
-
-    use super::*;
-
-    #[tokio::test]
-    async fn test_filter() {
-        let filter = router();
-        let res = request().method("GET").path("/").reply(&filter).await;
-
-        assert_eq!(res.status(), StatusCode::OK);
     }
 }
