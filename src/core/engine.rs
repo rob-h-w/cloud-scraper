@@ -281,6 +281,10 @@ pub(crate) mod tests {
             None
         }
 
+        fn email(&self) -> Option<&str> {
+            None
+        }
+
         fn exit_after(&self) -> Option<Duration> {
             Some(Duration::from_millis(10))
         }
