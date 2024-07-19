@@ -16,6 +16,7 @@ const DEFAULT_SITE_FOLDER: &str = ".site";
 #[derive(Debug, Deserialize)]
 pub(crate) struct Config {
     domain_config: Option<crate::domain::config::DomainConfig>,
+    email: Option<String>,
     exit_after: Option<u64>,
     sinks: HashMap<String, Value>,
     sources: HashMap<String, Value>,
@@ -38,6 +39,7 @@ impl Config {
             }
             None => Self {
                 domain_config: None,
+                email: None,
                 exit_after: serve_args.exit_after,
                 sinks: Self::sinks(),
                 sources: Self::sources(),
@@ -52,6 +54,7 @@ impl Config {
     pub(crate) fn new_test() -> Arc<Self> {
         Arc::new(Self {
             domain_config: None,
+            email: None,
             exit_after: None,
             sinks: Self::sinks(),
             sources: Self::sources(),
@@ -93,6 +96,10 @@ impl Config {
 impl DomainConfig for Config {
     fn domain_config(&self) -> Option<&crate::domain::config::DomainConfig> {
         self.domain_config.as_ref()
+    }
+
+    fn email(&self) -> Option<&str> {
+        self.email.as_deref()
     }
 
     fn exit_after(&self) -> Option<Duration> {
@@ -150,6 +157,7 @@ mod tests {
     fn test_instantiate() {
         let config = Config {
             domain_config: None,
+            email: None,
             exit_after: None,
             sinks: Default::default(),
             sources: Default::default(),

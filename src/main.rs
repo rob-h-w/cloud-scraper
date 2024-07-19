@@ -238,6 +238,10 @@ mod tests {
             None
         }
 
+        fn email(&self) -> Option<&str> {
+            None
+        }
+
         fn sink(&self, _sink_identifier: &str) -> Option<&Value> {
             None
         }
