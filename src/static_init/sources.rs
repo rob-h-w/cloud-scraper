@@ -1,7 +1,6 @@
 use std::error::Error;
 use std::sync::Arc;
 
-use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
 use crate::domain::config::Config;
@@ -26,17 +25,17 @@ pub(crate) fn create_sources<ConfigType>(config: &ConfigType) -> Vec<Sources>
 where
     ConfigType: Config,
 {
-    Sources::iter()
-        .flat_map(|source_type| match source_type {
-            Sources::Stub(_instance) => optional_init(config, StubSource::identifier(), || {
-                Ok(Sources::Stub(Some(Arc::new(StubSource::new()))))
-            }),
-        })
-        .collect()
+    vec![optional_init(config, StubSource::identifier(), || {
+        Ok(Sources::Stub(Some(Arc::new(StubSource::new()))))
+    })]
+    .into_iter()
+    .filter(|it| it.is_some())
+    .map(|it| it.unwrap())
+    .collect()
 }
 
 fn optional_init<ConfigType, Closure>(
-    config: &ConfigType,
+    _config: &ConfigType,
     source_identifier: &SourceIdentifier,
     initializer: Closure,
 ) -> Option<Sources>
@@ -44,16 +43,12 @@ where
     ConfigType: Config,
     Closure: Fn() -> Result<Sources, Box<dyn Error>>,
 {
-    if !config.source_configured(source_identifier.unique_name()) {
-        None
-    } else {
-        Some(initializer().unwrap_or_else(|_| {
-            panic!(
-                "Failed to initialize source {src}",
-                src = source_identifier.unique_name()
-            )
-        }))
-    }
+    Some(initializer().unwrap_or_else(|_| {
+        panic!(
+            "Failed to initialize source {src}",
+            src = source_identifier.unique_name()
+        )
+    }))
 }
 
 #[cfg(test)]
@@ -69,11 +64,11 @@ mod tests {
 
     #[test]
     fn test_create_sources_with_empty_config() {
-        let config = Rc::new(TestConfig::new(None));
+        let config = Rc::new(TestConfig::new_domain_email(None, None));
 
         let sources = create_sources(config.as_ref());
 
-        assert_eq!(sources.len(), 0);
+        assert_eq!(sources.len(), 1);
     }
 
     #[test]

@@ -105,13 +105,10 @@ mod tests {
     use super::*;
     use crate::core::engine::MockEngine;
     use crate::domain::config::tests::TestConfig;
-    use crate::domain::config::PipelineConfig;
-    use crate::domain::source_identifier::SourceIdentifier;
     use crate::server::MockWebServer;
     use log::{Log, Metadata, Record};
     use once_cell::sync::Lazy;
     use parking_lot::ReentrantMutex;
-    use serde_yaml::Value;
     use std::cell::RefCell;
     use std::sync::atomic::AtomicBool;
     use std::sync::Once;
@@ -229,9 +226,7 @@ mod tests {
         fn flush(&self) {}
     }
 
-    struct InsaneConfig {
-        pipelines: Vec<PipelineConfig>,
-    }
+    struct InsaneConfig {}
 
     impl DomainConfig for InsaneConfig {
         fn domain_config(&self) -> Option<&domain::config::DomainConfig> {
@@ -242,36 +237,12 @@ mod tests {
             None
         }
 
-        fn sink(&self, _sink_identifier: &str) -> Option<&Value> {
-            None
-        }
-
-        fn source(&self, _source_identifier: &SourceIdentifier) -> Option<&Value> {
-            None
-        }
-
-        fn pipelines(&self) -> &Vec<PipelineConfig> {
-            &self.pipelines
-        }
-
         fn port(&self) -> u16 {
             80
         }
 
-        fn sink_names(&self) -> Vec<String> {
-            vec![]
-        }
-
-        fn sink_configured(&self, _name: &str) -> bool {
-            false
-        }
-
         fn site_folder(&self) -> &str {
             "insane_site_folder"
-        }
-
-        fn source_configured(&self, _name: &str) -> bool {
-            false
         }
 
         fn sanity_check(&self) -> Result<(), String> {
@@ -347,7 +318,8 @@ mod tests {
         };
     }
 
-    static TEST_CONFIG: Lazy<Arc<TestConfig>> = Lazy::new(|| Arc::new(TestConfig::new(None)));
+    static TEST_CONFIG: Lazy<Arc<TestConfig>> =
+        Lazy::new(|| Arc::new(TestConfig::new_domain_email(None, None)));
 
     macro_rules! with_test_config {
         () => {
@@ -370,8 +342,7 @@ mod tests {
         };
     }
 
-    static INSANE_CONFIG: Lazy<Arc<InsaneConfig>> =
-        Lazy::new(|| Arc::new(InsaneConfig { pipelines: vec![] }));
+    static INSANE_CONFIG: Lazy<Arc<InsaneConfig>> = Lazy::new(|| Arc::new(InsaneConfig {}));
 
     macro_rules! with_insane_config {
         () => {
