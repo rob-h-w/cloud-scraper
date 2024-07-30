@@ -1,123 +1,90 @@
-use async_trait::async_trait;
-use std::any::TypeId;
-use std::cell::RefCell;
-use std::cmp::{max, min};
-use std::error::Error;
-use std::fmt::Debug;
-use std::sync::Mutex;
-
-use chrono::{DateTime, TimeDelta, Utc};
-use once_cell::sync::Lazy;
-use uuid::Uuid;
-
+use crate::domain::channel_handle::{ChannelHandle, Readonly};
 use crate::domain::entity::Entity;
-use crate::domain::entity_user::EntityUser;
-use crate::domain::source::Source;
-use crate::domain::source_identifier::SourceIdentifier;
+use crate::domain::stop_task::stop_task;
+use std::fmt::Debug;
+use std::time::Duration;
+use tokio::task;
+use tokio::time::sleep;
+use uuid::Uuid;
 
 #[derive(Debug)]
 pub(crate) struct StubSource {
-    last: Mutex<RefCell<Option<DateTime<Utc>>>>,
+    channel_handle: ChannelHandle<Entity<Uuid>>,
+    stop_handle: Readonly<bool>,
 }
 
 impl StubSource {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(stop_handle: Readonly<bool>) -> Self {
         Self {
-            last: Mutex::new(RefCell::new(None)),
+            channel_handle: ChannelHandle::new(),
+            stop_handle,
         }
     }
-}
 
-impl EntityUser for StubSource {
-    fn supported_entity_data() -> Vec<TypeId> {
-        vec![TypeId::of::<Uuid>()]
-    }
-}
-
-#[async_trait]
-impl Source<Uuid> for StubSource {
-    fn identifier() -> &'static SourceIdentifier {
-        static SOURCE_IDENTIFIER: Lazy<SourceIdentifier> =
-            Lazy::new(|| SourceIdentifier::new("stub"));
-        &SOURCE_IDENTIFIER
+    #[cfg(test)]
+    pub fn get_channel_handle(&self) -> ChannelHandle<Entity<Uuid>> {
+        self.channel_handle.clone()
     }
 
-    async fn get(&self, since: &DateTime<Utc>) -> Result<Vec<Entity<Uuid>>, Box<dyn Error>> {
-        let cell = self.last.lock().unwrap();
-        let prior_state = cell.borrow().is_some();
-        let now = Utc::now();
-        let last = min(cell.borrow().unwrap_or(now), *since);
-        let diff = now - last;
+    pub fn get_readonly_channel_handle(&self) -> Readonly<Entity<Uuid>> {
+        self.channel_handle.read_only()
+    }
 
-        if prior_state && diff.num_seconds() < 1 {
-            return Ok(vec![]);
-        }
+    pub(crate) async fn run(&mut self) {
+        let mut sender = self.channel_handle.clone();
+        let task = task::spawn(async move {
+            loop {
+                match sender.send(Entity::new_now(
+                    Uuid::new_v4(),
+                    &format!("stub {:?}", Uuid::new_v4()),
+                )) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        log::error!("Error while sending: {}", e);
+                    }
+                }
 
-        cell.replace(Some(now));
+                sleep(Duration::from_secs(1)).await;
+            }
+        });
 
-        let results = (0..diff.num_seconds())
-            .map(|i| {
-                let created = *since + TimeDelta::try_seconds(i).unwrap();
-                let updated = max(*since + TimeDelta::try_seconds(i + 1).unwrap(), last);
-                Entity::new::<Self>(
-                    &created,
-                    Box::new(Uuid::new_v4()),
-                    format!("uuid at {}", created.to_rfc3339().to_string().as_str()).as_str(),
-                    &updated,
-                )
-            })
-            .collect();
+        let stop_task = stop_task(&self.stop_handle, &task);
 
-        Ok(results)
+        let (_task_result, _stop_result) = tokio::join!(task, stop_task);
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::block_on;
-    use chrono::{TimeDelta, Utc};
-
-    use crate::domain::source::Source;
-
     use super::*;
+    use chrono::Utc;
+    use tokio::task::JoinSet;
 
-    #[test]
-    fn test_stub_source_new() {
-        assert_eq!(StubSource::identifier(), &SourceIdentifier::new("stub"));
-    }
+    #[tokio::test]
+    async fn test_stub_source_run() {
+        let mut stop_handle = ChannelHandle::new();
+        let mut join_set = JoinSet::new();
+        let mut source = StubSource::new(stop_handle.read_only());
 
-    #[test]
-    fn test_stub_source_get() {
-        let source = StubSource::new();
-        let now = Utc::now();
-        let since = now - TimeDelta::try_seconds(1).unwrap();
-        let entities = block_on!(source.get(&since)).unwrap();
-        assert_eq!(entities.len(), 1);
-        assert_eq!(entities[0].created_at(), &since);
-        assert_eq!(
-            entities[0].updated_at(),
-            &(since + TimeDelta::try_seconds(1).unwrap())
-        );
+        let mut read_receiver = source.get_readonly_channel_handle().get_receiver();
+        let _source_run = join_set.spawn(async move { source.run().await });
+        let _receive_future = join_set.spawn(async move {
+            let event = read_receiver.recv().await.unwrap();
+            let diff = Utc::now().timestamp_millis() - event.created_at().timestamp_millis();
 
-        let since = now + TimeDelta::try_seconds(2).unwrap();
-        assert_eq!(block_on!(source.get(&since)).unwrap().len(), 0);
+            assert!(diff < 100);
+        });
+        let _stop_abort_handle = join_set.spawn(async move {
+            stop_handle.send(true).unwrap();
+        });
 
-        let since = now - TimeDelta::try_seconds(2).unwrap();
-        let entities = block_on!(source.get(&since)).unwrap();
-        assert_eq!(entities.len(), 2);
-        let last = &entities[1];
-        assert_eq!(
-            last.created_at(),
-            &(now - TimeDelta::try_seconds(1).unwrap())
-        );
-        assert_eq!(last.updated_at(), &now);
-    }
-
-    #[test]
-    fn test_stub_source_get_empty() {
-        let source = StubSource::new();
-        let since = Utc::now();
-        let entities = block_on!(source.get(&since)).unwrap();
-        assert_eq!(entities.len(), 0);
+        while let Some(res) = join_set.join_next().await {
+            match res {
+                Ok(_) => {}
+                Err(e) => {
+                    log::error!("Error while running task: {}", e);
+                }
+            }
+        }
     }
 }

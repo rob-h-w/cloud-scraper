@@ -6,13 +6,15 @@ use tokio::time::sleep;
 
 use crate::domain::config::Config;
 use crate::server::WebServer;
-use crate::static_init::sinks::create_sinks;
-use crate::static_init::sources::create_sources;
 
+use crate::domain::channel_handle::ChannelHandle;
+use crate::integration::log::Sink as LogSink;
+use crate::integration::stub::source::StubSource;
 #[cfg(test)]
 use mockall::automock;
 use tokio::join;
 
+#[macro_export]
 macro_rules! do_until_stop {
     ($stop_rx:expr, $f:expr) => {
         loop {
@@ -47,7 +49,7 @@ where
 {
     config: Arc<ConfigType>,
     server: ServerType,
-    stop: tokio::sync::broadcast::Sender<bool>,
+    stop: ChannelHandle<bool>,
 }
 
 #[async_trait]
@@ -57,7 +59,7 @@ where
     ServerType: WebServer,
 {
     async fn start(&self) {
-        let (server_result, _) = join!(self.server.serve(self.stop.subscribe()), self.run());
+        let (server_result, _) = join!(self.server.serve(self.stop.get_receiver()), self.run());
 
         if let Err(e) = server_result {
             log::error!("Error while serving: {}", e);
@@ -71,73 +73,48 @@ where
     ServerType: WebServer,
 {
     pub(crate) fn new(config: Arc<ConfigType>, server: ServerType) -> Self {
-        let (stop_tx, _) = tokio::sync::broadcast::channel(32);
         Self {
             config,
             server,
-            stop: stop_tx,
+            stop: ChannelHandle::new(),
         }
     }
 
     async fn run(&self) {
-        let _sources = create_sources(self.config.as_ref());
-        let _sinks = create_sinks(self.config.as_ref());
-
-        let (_error_tx, mut error_rx) = tokio::sync::mpsc::channel::<bool>(16);
-        let wait_stop_tx = self.stop.clone();
-        let mut wait_stop_rx = self.stop.subscribe();
+        let mut wait_channel_handle = self.stop.clone();
         let mut join_set = JoinSet::new();
 
         let wait = self.config.exit_after();
-        let timer = join_set.spawn(async move {
+        let _timer = join_set.spawn(async move {
             match wait {
                 Some(duration) => {
                     sleep(duration).await;
-                    match wait_stop_tx.send(true) {
+                    match wait_channel_handle.send(true) {
                         Ok(_) => {
                             log::trace!("Wait sent stop signal after {:?}", duration);
                         }
                         Err(e) => {
-                            panic!("Wait error while sending stop signal: {}", e);
+                            panic!("Wait error while sending stop signal: {:?}", e);
                         }
                     }
                 }
-                None => match wait_stop_rx.recv().await {
-                    Ok(stop) => {
-                        log::trace!("Wait received stop signal: {}", stop);
-                    }
-                    Err(e) => {
-                        log::error!("Wait error while waiting for stop signal: {}", e);
-                    }
-                },
+                None => {}
             }
         });
-        let mut error_stop = self.stop.subscribe();
-        let error = tokio::spawn(async move {
-            do_until_stop!(error_stop, {
-                match error_rx.recv().await {
-                    Some(e) => log::error!("Error while running pipeline: {}", e),
-                    None => break,
-                }
-            });
-        });
-        let mut cancelled = false;
+
+        let mut stub_source = StubSource::new(self.stop.read_only());
+        let mut log_sink = LogSink::new(&self.stop, &stub_source.get_readonly_channel_handle());
+
+        join_set.spawn(async move { log_sink.run().await });
+        join_set.spawn(async move { stub_source.run().await });
+
         while let Some(res) = join_set.join_next().await {
             match res {
                 Ok(_) => {}
                 Err(e) => {
-                    log::error!("Error while running pipeline: {}", e);
-                    if !cancelled {
-                        cancelled = true;
-                        timer.abort();
-                        error.abort();
-                    }
+                    log::error!("Error while running task: {}", e);
                 }
             }
-        }
-
-        if !error.is_finished() {
-            error.abort();
         }
     }
 }

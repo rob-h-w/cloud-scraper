@@ -2,8 +2,6 @@ use std::time::Duration;
 use std::vec;
 
 use serde::Deserialize;
-#[cfg(test)]
-use serde_yaml::Value;
 
 pub(crate) trait Config: Send + Sync {
     fn domain_config(&self) -> Option<&DomainConfig>;
@@ -54,8 +52,6 @@ pub struct DomainConfig {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use serde_yaml::Mapping;
-
     use super::*;
 
     #[test]
@@ -77,7 +73,6 @@ pub(crate) mod tests {
     pub(crate) struct TestConfig {
         domain_config: Option<DomainConfig>,
         email: Option<String>,
-        value: Value,
     }
 
     impl TestConfig {
@@ -88,7 +83,6 @@ pub(crate) mod tests {
             Self {
                 domain_config,
                 email,
-                value: Value::Mapping(Mapping::new()),
             }
         }
     }

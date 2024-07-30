@@ -40,17 +40,6 @@ impl Config {
         })
     }
 
-    #[cfg(test)]
-    pub(crate) fn new_test() -> Arc<Self> {
-        Arc::new(Self {
-            domain_config: None,
-            email: None,
-            exit_after: None,
-            port: None,
-            site_state_folder: None,
-        })
-    }
-
     fn merge_exit_after(&mut self, exit_after: Option<u64>) {
         if exit_after.is_some() {
             self.exit_after = exit_after;

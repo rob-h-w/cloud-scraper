@@ -14,7 +14,6 @@ mod domain;
 mod integration;
 mod macros;
 mod server;
-mod static_init;
 
 #[tokio::main]
 async fn main() -> Result<(), String> {
