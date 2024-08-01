@@ -1,7 +1,7 @@
 use crate::domain;
-use crate::domain::channel_handle::{ChannelHandle, Readonly};
+use crate::domain::channel_handle::Readonly;
 use crate::domain::entity::Entity;
-use crate::domain::stop_task::stop_task;
+use crate::domain::node::{Manager, ReadonlyManager};
 use log::info;
 use std::fmt::Debug;
 use tokio::join;
@@ -10,17 +10,14 @@ use uuid::Uuid;
 
 #[derive(Debug)]
 pub(crate) struct Sink {
-    stop_handle: ChannelHandle<bool>,
+    manager: ReadonlyManager,
     stub_receiver: Readonly<Entity<Uuid>>,
 }
 
 impl Sink {
-    pub(crate) fn new(
-        stop_handle: &ChannelHandle<bool>,
-        stub_receiver: &Readonly<Entity<Uuid>>,
-    ) -> Self {
+    pub(crate) fn new(manager: &Manager, stub_receiver: &Readonly<Entity<Uuid>>) -> Self {
         Self {
-            stop_handle: stop_handle.clone(),
+            manager: manager.readonly(),
             stub_receiver: stub_receiver.clone(),
         }
     }
@@ -35,9 +32,9 @@ impl Sink {
             }
         });
 
-        let stop_task = stop_task(&self.stop_handle.read_only(), &task);
+        let stop_handle = self.manager.abort_on_stop(&task);
 
-        let (_task_result, _stop_result) = join!(task, stop_task);
+        let (_task_result, _stop_result) = join!(task, stop_handle);
     }
 }
 
@@ -58,8 +55,10 @@ fn stringify<T: domain::entity_data::EntityData>(entity: Entity<T>) -> String {
 mod tests {
     use super::*;
     use crate::block_on;
+    use crate::domain::node::LifecycleChannelHandle;
     use crate::integration::stub::Source;
     use crate::tests::Logger;
+    use log::trace;
     use tokio::task::JoinSet;
 
     #[test]
@@ -69,10 +68,11 @@ mod tests {
             logger.reset();
 
             async fn do_the_async_stuff() {
-                let mut stop_handle: ChannelHandle<bool> = ChannelHandle::new();
-                let stub_source = Source::new(stop_handle.read_only());
+                let lifecycle_channel_handle = LifecycleChannelHandle::new();
+                let mut manager = Manager::new(lifecycle_channel_handle);
+                let stub_source = Source::new(&manager);
 
-                let mut sink = Sink::new(&stop_handle, &stub_source.get_readonly_channel_handle());
+                let mut sink = Sink::new(&manager, &stub_source.get_readonly_channel_handle());
 
                 let mut stub_source_handle = stub_source.get_channel_handle();
 
@@ -89,7 +89,7 @@ mod tests {
                     .send(Entity::new_now(Uuid::new_v4(), "2"))
                     .unwrap();
 
-                stop_handle.send(true).unwrap();
+                manager.send_stop().unwrap();
 
                 while let Some(result) = join_set.join_next().await {
                     result.expect("Error in run_future.");
@@ -100,7 +100,7 @@ mod tests {
 
             let log_entries = logger.log_entries();
 
-            println!("log entries: {:?}", log_entries);
+            trace!("log entries: {:?}", log_entries);
 
             assert_eq!(log_entries.len(), 2);
         });

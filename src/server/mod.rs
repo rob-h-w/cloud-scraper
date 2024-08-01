@@ -1,15 +1,18 @@
 mod acme;
-mod auth;
+pub mod auth;
+pub mod errors;
 mod page;
 mod routes;
 mod site_state;
 
+use crate::core::node_handles::NodeHandles;
 use crate::domain::config::Config;
+use crate::domain::node::LifecycleAware;
 use crate::server::acme::{Acme, AcmeImpl};
 use crate::server::routes::router;
 use async_trait::async_trait;
 #[cfg(test)]
-use mockall::automock;
+use mockall::mock;
 use std::sync::Arc;
 
 pub fn new<ConfigType>(config: Arc<ConfigType>) -> impl WebServer
@@ -17,15 +20,28 @@ where
     ConfigType: Config,
 {
     WebServerImpl {
-        acme: AcmeImpl::new(config.clone()),
+        acme: Arc::new(AcmeImpl::new(config.clone())),
         config: config.clone(),
     }
 }
 
 #[async_trait]
-#[cfg_attr(test, automock)]
-pub trait WebServer: Send + Sync {
-    async fn serve(&self, stop_rx: tokio::sync::broadcast::Receiver<bool>) -> Result<(), String>;
+pub trait WebServer: 'static + Clone + Send + Sync {
+    async fn serve(&self, node_handles: &NodeHandles) -> Result<(), String>;
+}
+
+#[cfg(test)]
+mock! {
+    pub WebServer {}
+
+    impl Clone for WebServer {
+        fn clone(&self) -> Self;
+    }
+
+    #[async_trait]
+    impl WebServer for WebServer {
+        async fn serve(&self, node_handles: &NodeHandles) -> Result<(), String>;
+    }
 }
 
 pub struct WebServerImpl<AcmeType, ConfigType>
@@ -33,7 +49,7 @@ where
     AcmeType: Acme,
     ConfigType: Config,
 {
-    acme: AcmeType,
+    acme: Arc<AcmeType>,
     config: Arc<ConfigType>,
 }
 
@@ -44,33 +60,38 @@ where
 {
 }
 
+impl<AcmeType, ConfigType> Clone for WebServerImpl<AcmeType, ConfigType>
+where
+    AcmeType: Acme,
+    ConfigType: Config,
+{
+    fn clone(&self) -> Self {
+        Self {
+            acme: self.acme.clone(),
+            config: self.config.clone(),
+        }
+    }
+}
+
 #[async_trait]
 impl<AcmeType, ConfigType> WebServer for WebServerImpl<AcmeType, ConfigType>
 where
     AcmeType: Acme,
     ConfigType: Config,
 {
-    async fn serve(
-        &self,
-        mut stop_rx: tokio::sync::broadcast::Receiver<bool>,
-    ) -> Result<(), String> {
+    async fn serve(&self, node_handles: &NodeHandles) -> Result<(), String> {
         if self.config.domain_is_defined() {
             self.acme.ensure_certs().await?;
         }
 
-        let routes = router();
+        let routes = router(node_handles);
+        let mut lifecycle_rx = node_handles.lifecycle_manager().readonly().get_receiver();
         let shutdown_binding = async move {
-            if !stop_rx.is_empty() {
-                match stop_rx.try_recv() {
-                    Ok(_) => {}
-                    Err(_) => {
-                        log::error!("Failed to receive stop signal");
-                    }
+            loop {
+                if lifecycle_rx.recv().await.is_stop() {
+                    break;
                 }
-                return;
             }
-
-            stop_rx.recv().await.expect("Failed to listen for stop");
         };
         let path_params = ([0, 0, 0, 0], self.config.port());
         let server = warp::serve(routes);
