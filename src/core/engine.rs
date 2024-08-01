@@ -9,7 +9,7 @@ use crate::server::WebServer;
 
 use crate::domain::channel_handle::ChannelHandle;
 use crate::integration::log::Sink as LogSink;
-use crate::integration::stub::source::StubSource;
+use crate::integration::stub::Source as StubSource;
 #[cfg(test)]
 use mockall::automock;
 use tokio::join;

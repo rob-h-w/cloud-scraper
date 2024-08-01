@@ -58,7 +58,7 @@ fn stringify<T: domain::entity_data::EntityData>(entity: Entity<T>) -> String {
 mod tests {
     use super::*;
     use crate::block_on;
-    use crate::integration::stub::source::StubSource;
+    use crate::integration::stub::Source;
     use crate::tests::Logger;
     use tokio::task::JoinSet;
 
@@ -70,7 +70,7 @@ mod tests {
 
             async fn do_the_async_stuff() {
                 let mut stop_handle: ChannelHandle<bool> = ChannelHandle::new();
-                let stub_source = StubSource::new(stop_handle.read_only());
+                let stub_source = Source::new(stop_handle.read_only());
 
                 let mut sink = Sink::new(&stop_handle, &stub_source.get_readonly_channel_handle());
 
