@@ -1,62 +1,66 @@
-use async_trait::async_trait;
-use std::any::TypeId;
-use std::error::Error;
-use std::fmt::Debug;
-
-use log::info;
-
+use crate::domain;
+use crate::domain::channel_handle::{ChannelHandle, Readonly};
 use crate::domain::entity::Entity;
-use crate::domain::entity_data::EntityData;
-use crate::domain::entity_user::EntityUser;
-use crate::domain::identifiable_sink::IdentifiableSink;
-use crate::domain::sink::Sink as SinkTrait;
+use crate::domain::stop_task::stop_task;
+use log::info;
+use std::fmt::Debug;
+use tokio::join;
+use tokio::task;
+use uuid::Uuid;
 
 #[derive(Debug)]
-pub(crate) struct Sink;
+pub(crate) struct Sink {
+    stop_handle: ChannelHandle<bool>,
+    stub_receiver: Readonly<Entity<Uuid>>,
+}
 
 impl Sink {
-    pub(crate) fn new() -> Self {
-        Self {}
+    pub(crate) fn new(
+        stop_handle: &ChannelHandle<bool>,
+        stub_receiver: &Readonly<Entity<Uuid>>,
+    ) -> Self {
+        Self {
+            stop_handle: stop_handle.clone(),
+            stub_receiver: stub_receiver.clone(),
+        }
+    }
+
+    pub async fn run(&mut self) {
+        let mut stub_receiver = self.stub_receiver.get_receiver();
+        let task = task::spawn(async move {
+            loop {
+                if let Ok(entity) = stub_receiver.recv().await {
+                    info!("{}", stringify(entity));
+                }
+            }
+        });
+
+        let stop_task = stop_task(&self.stop_handle.read_only(), &task);
+
+        let (_task_result, _stop_result) = join!(task, stop_task);
     }
 }
 
-impl EntityUser for Sink {
-    fn supported_entity_data() -> Vec<TypeId>
-    where
-        Self: Sized,
-    {
-        vec![TypeId::of::<String>()]
+fn stringify<T: domain::entity_data::EntityData>(entity: Entity<T>) -> String {
+    match serde_yaml::to_string(&entity) {
+        Ok(stringified) => stringified,
+        Err(e) => {
+            format!(
+                "Error {} while stringifying entity with id: {}",
+                e,
+                entity.id()
+            )
+        }
     }
-}
-
-impl IdentifiableSink for Sink {
-    const SINK_ID: &'static str = "log";
-}
-
-#[async_trait]
-impl SinkTrait<String> for Sink {
-    async fn put(&self, entities: &[Entity<String>]) -> Result<(), Box<dyn Error>> {
-        put(entities)
-    }
-}
-
-fn put<T>(entities: &[Entity<T>]) -> Result<(), Box<dyn Error>>
-where
-    T: EntityData,
-{
-    entities.iter().for_each(|entity| {
-        info!("{}", serde_yaml::to_string(&entity).unwrap());
-    });
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::block_on;
-    use crate::domain::source::tests::TestSource;
-    use crate::tests::Logger;
-
     use super::*;
+    use crate::block_on;
+    use crate::integration::stub::Source;
+    use crate::tests::Logger;
+    use tokio::task::JoinSet;
 
     #[test]
     fn test_log_sink() {
@@ -64,16 +68,35 @@ mod tests {
         Logger::use_in(|logger| {
             logger.reset();
 
-            let sink = Sink::new();
-            assert_eq!(Sink::SINK_ID, "log");
+            async fn do_the_async_stuff() {
+                let mut stop_handle: ChannelHandle<bool> = ChannelHandle::new();
+                let stub_source = Source::new(stop_handle.read_only());
 
-            let entities = vec![
-                Entity::new_now::<TestSource>(Box::new("data 1".to_string()), "1"),
-                Entity::new_now::<TestSource>(Box::new("data 2".to_string()), "2"),
-            ];
+                let mut sink = Sink::new(&stop_handle, &stub_source.get_readonly_channel_handle());
 
-            assert_eq!(logger.log_entries().len(), 0);
-            block_on!(sink.put(&entities)).unwrap();
+                let mut stub_source_handle = stub_source.get_channel_handle();
+
+                let mut join_set = JoinSet::new();
+
+                let _abort_handle = join_set.spawn(async move { sink.run().await });
+
+                tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+
+                stub_source_handle
+                    .send(Entity::new_now(Uuid::new_v4(), "1"))
+                    .unwrap();
+                stub_source_handle
+                    .send(Entity::new_now(Uuid::new_v4(), "2"))
+                    .unwrap();
+
+                stop_handle.send(true).unwrap();
+
+                while let Some(result) = join_set.join_next().await {
+                    result.expect("Error in run_future.");
+                }
+            }
+
+            block_on!(do_the_async_stuff());
 
             let log_entries = logger.log_entries();
 
