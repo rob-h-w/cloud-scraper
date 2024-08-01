@@ -13,7 +13,7 @@ async-trait = "0.1.77"
 chrono = { version = "0.4.35", features = ["serde"] }
 clap = { version = "4.0", features = ["derive"] }
 env_logger = "0.11.1"
-handlebars = "5.1.2"
+handlebars = "6.0.0"
 hex = "0.4.3"
 hmac = "0.12.1"
 log = "0.4.20"
