@@ -1,11 +1,16 @@
+use crate::core::node_handles::NodeHandles;
+use crate::integration::google::auth::web::config_google;
 use crate::server::auth::auth_validation;
 use crate::server::page::login;
 use crate::server::page::login::login;
 use warp::{reply, Filter, Rejection};
 
-pub fn router() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+pub fn router(
+    handles: &NodeHandles,
+) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     root()
         .or(login())
+        .or(config_google(handles))
         .recover(login::handlers::handle_rejection)
         .with(warp::log("api"))
 }
@@ -27,6 +32,7 @@ mod tests {
 
         mod auth {
             use super::*;
+            use crate::core::node_handles::test::get_test_node_handles;
             use crate::core::root_password::test::with_test_root_password_scope;
             use crate::server::auth::gen_token_for_path;
             use crate::server::page::login::{LOGIN_FAILED, LOGIN_PATH};
@@ -34,7 +40,8 @@ mod tests {
 
             #[tokio::test]
             async fn authorized_root_serves_page() {
-                let filter = router();
+                let node_handles = get_test_node_handles();
+                let filter = router(&node_handles);
                 let token = gen_token_for_path("/");
                 let res = request()
                     .method("GET")
@@ -53,7 +60,8 @@ mod tests {
 
             #[tokio::test]
             async fn missing_token_redirects_to_login() {
-                let filter = router();
+                let node_handles = get_test_node_handles();
+                let filter = router(&node_handles);
                 let res = request().method("GET").path("/").reply(&filter).await;
 
                 assert_eq!(res.status(), StatusCode::FOUND);
@@ -65,7 +73,8 @@ mod tests {
 
             #[tokio::test]
             async fn bad_token_redirects_to_login() {
-                let filter = router();
+                let node_handles = get_test_node_handles();
+                let filter = router(&node_handles);
                 let res = request()
                     .method("GET")
                     .header(COOKIE, "token=bad_token")
@@ -83,7 +92,8 @@ mod tests {
             #[tokio::test]
             async fn incorrect_password_redirects_to_login() {
                 let _scope = with_test_root_password_scope().await;
-                let filter = router();
+                let node_handles = get_test_node_handles();
+                let filter = router(&node_handles);
                 let res = request()
                     .method("POST")
                     .path("/login")

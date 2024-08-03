@@ -19,7 +19,7 @@ use x509_parser::pem::parse_x509_pem;
 const LETS_ENCRYPT_URL: &str = "https://acme-v02.api.letsencrypt.org/directory";
 
 #[async_trait]
-pub trait Acme: Send + Sync {
+pub trait Acme: 'static + Send + Sync {
     fn cert_path(&self) -> &str;
     async fn ensure_certs(&self) -> Result<(), String>;
     fn key_path(&self) -> &str;

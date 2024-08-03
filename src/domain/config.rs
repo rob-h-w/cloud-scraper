@@ -3,7 +3,7 @@ use std::vec;
 
 use serde::Deserialize;
 
-pub(crate) trait Config: Send + Sync {
+pub(crate) trait Config: 'static + Send + Sync {
     fn domain_config(&self) -> Option<&DomainConfig>;
     fn domain_is_defined(&self) -> bool {
         self.domain_config().is_some()

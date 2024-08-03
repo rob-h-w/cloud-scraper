@@ -1,6 +1,6 @@
 use crate::domain::channel_handle::{ChannelHandle, Readonly};
 use crate::domain::entity::Entity;
-use crate::domain::stop_task::stop_task;
+use crate::domain::node::{Manager, ReadonlyManager};
 use std::fmt::Debug;
 use std::time::Duration;
 use tokio::task;
@@ -10,14 +10,14 @@ use uuid::Uuid;
 #[derive(Debug)]
 pub(crate) struct Source {
     channel_handle: ChannelHandle<Entity<Uuid>>,
-    stop_handle: Readonly<bool>,
+    lifecycle_manager: ReadonlyManager,
 }
 
 impl Source {
-    pub(crate) fn new(stop_handle: Readonly<bool>) -> Self {
+    pub(crate) fn new(lifecycle_manager: &Manager) -> Self {
         Self {
             channel_handle: ChannelHandle::new(),
-            stop_handle,
+            lifecycle_manager: lifecycle_manager.readonly(),
         }
     }
 
@@ -48,7 +48,7 @@ impl Source {
             }
         });
 
-        let stop_task = stop_task(&self.stop_handle, &task);
+        let stop_task = self.lifecycle_manager.abort_on_stop(&task);
 
         let (_task_result, _stop_result) = tokio::join!(task, stop_task);
     }
@@ -57,14 +57,16 @@ impl Source {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::node::LifecycleChannelHandle;
     use chrono::Utc;
     use tokio::task::JoinSet;
 
     #[tokio::test]
     async fn test_stub_source_run() {
-        let mut stop_handle = ChannelHandle::new();
+        let lifecycle_channel_handle = LifecycleChannelHandle::new();
+        let manager = Manager::new(lifecycle_channel_handle.clone());
         let mut join_set = JoinSet::new();
-        let mut source = Source::new(stop_handle.read_only());
+        let mut source = Source::new(&manager);
 
         let mut read_receiver = source.get_readonly_channel_handle().get_receiver();
         let _source_run = join_set.spawn(async move { source.run().await });
@@ -74,8 +76,9 @@ mod tests {
 
             assert!(diff < 100);
         });
+        let mut stop_manager = manager.clone();
         let _stop_abort_handle = join_set.spawn(async move {
-            stop_handle.send(true).unwrap();
+            stop_manager.send_stop().unwrap();
         });
 
         while let Some(res) = join_set.join_next().await {

@@ -1,6 +1,9 @@
-mod auth;
 mod config;
-pub mod error;
 pub(crate) mod google_keep;
 mod hub;
 pub(crate) mod source;
+
+#[derive(Clone, Debug)]
+pub enum Events {
+    OauthRedirectUrl(String),
+}
