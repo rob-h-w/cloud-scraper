@@ -1,3 +1,4 @@
+use crate::integration::google::auth::web::config_google;
 use crate::server::auth::auth_validation;
 use crate::server::page::login;
 use crate::server::page::login::login;
@@ -6,6 +7,7 @@ use warp::{reply, Filter, Rejection};
 pub fn router() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     root()
         .or(login())
+        .or(config_google())
         .recover(login::handlers::handle_rejection)
         .with(warp::log("api"))
 }
