@@ -7,34 +7,13 @@ use tokio::time::sleep;
 use crate::domain::config::Config;
 use crate::server::WebServer;
 
-use crate::domain::channel_handle::ChannelHandle;
+use crate::domain::node::{LifecycleChannelHandle, Manager};
+use crate::integration::google::keep::source::Source as GoogleSource;
 use crate::integration::log::Sink as LogSink;
 use crate::integration::stub::Source as StubSource;
 #[cfg(test)]
 use mockall::automock;
 use tokio::join;
-
-#[macro_export]
-macro_rules! do_until_stop {
-    ($stop_rx:expr, $f:expr) => {
-        loop {
-            if !$stop_rx.is_empty() {
-                match $stop_rx.try_recv() {
-                    Ok(stop) => {
-                        if stop {
-                            log::trace!("Received stop signal");
-                            break;
-                        }
-                    }
-                    Err(e) => {
-                        log::error!("Error while receiving stop signal: {}", e);
-                    }
-                }
-            }
-            $f;
-        }
-    };
-}
 
 #[async_trait]
 #[cfg_attr(test, automock)]
@@ -48,8 +27,8 @@ where
     ServerType: WebServer,
 {
     config: Arc<ConfigType>,
+    manager: Manager,
     server: ServerType,
-    stop: ChannelHandle<bool>,
 }
 
 #[async_trait]
@@ -59,7 +38,10 @@ where
     ServerType: WebServer,
 {
     async fn start(&self) {
-        let (server_result, _) = join!(self.server.serve(self.stop.get_receiver()), self.run());
+        let (server_result, _) = join!(
+            self.server.serve(self.manager.readonly().get_receiver()),
+            self.run()
+        );
 
         if let Err(e) = server_result {
             log::error!("Error while serving: {}", e);
@@ -75,26 +57,26 @@ where
     pub(crate) fn new(config: Arc<ConfigType>, server: ServerType) -> Self {
         Self {
             config,
+            manager: Manager::new(LifecycleChannelHandle::new()),
             server,
-            stop: ChannelHandle::new(),
         }
     }
 
     async fn run(&self) {
-        let mut wait_channel_handle = self.stop.clone();
         let mut join_set = JoinSet::new();
 
         let wait = self.config.exit_after();
+        let mut wait_manager = self.manager.clone();
         let _timer = join_set.spawn(async move {
             match wait {
                 Some(duration) => {
                     sleep(duration).await;
-                    match wait_channel_handle.send(true) {
+                    match wait_manager.stop() {
                         Ok(_) => {
-                            log::trace!("Wait sent stop signal after {:?}", duration);
+                            log::trace!("Lifecycle sent stop signal after {:?}", duration);
                         }
                         Err(e) => {
-                            panic!("Wait error while sending stop signal: {:?}", e);
+                            panic!("Lifecycle error while sending stop signal: {:?}", e);
                         }
                     }
                 }
@@ -102,11 +84,13 @@ where
             }
         });
 
-        let mut stub_source = StubSource::new(self.stop.read_only());
-        let mut log_sink = LogSink::new(&self.stop, &stub_source.get_readonly_channel_handle());
+        let mut stub_source = StubSource::new(&self.manager);
+        let google_source = GoogleSource::new(&self.manager);
+        let mut log_sink = LogSink::new(&self.manager, &stub_source.get_readonly_channel_handle());
 
         join_set.spawn(async move { log_sink.run().await });
         join_set.spawn(async move { stub_source.run().await });
+        join_set.spawn(async move { google_source.run().await });
 
         while let Some(res) = join_set.join_next().await {
             match res {
