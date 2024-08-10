@@ -17,8 +17,7 @@ impl Config {
     pub fn from_yaml(value: Value) -> Result<Self, Error> {
         let value = Self::set_default_redirect_uri(value)?;
 
-        serde_yaml::from_value(Value::from(value))
-            .map_err(|e| e.to_bad_service_account_key_yaml_error())
+        serde_yaml::from_value(value).map_err(|e| e.to_bad_service_account_key_yaml_error())
     }
 
     fn set_default_redirect_uri(value: Value) -> Result<Value, Error> {

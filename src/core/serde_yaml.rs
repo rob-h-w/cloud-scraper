@@ -127,10 +127,12 @@ pub trait FluentMutable: Debug + MappingExtension {
         if self.contains_key(key) {
             Ok(Value::Mapping(
                 self.as_mapping()
-                    .expect(&format!(
-                        "{:?} was not a mapping despite containing key {:?}",
-                        self, key
-                    ))
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "{:?} was not a mapping despite containing key {:?}",
+                            self, key
+                        )
+                    })
                     .clone(),
             ))
         } else {

@@ -68,6 +68,6 @@ impl ChallengeTokenServer {
         lock.take()
             .expect("No stop signal sender found. Is this server already stopped?")
             .send(true)
-            .unwrap();
+            .expect("Could not send stop event in challenge token server.");
     }
 }

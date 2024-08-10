@@ -146,7 +146,9 @@ async fn format_config_google_html(config: &Option<ConfigQuery>) -> String {
         ConfigQuery::empty_page_data()
     };
 
-    PAGE_TEMPLATE.render(CONFIG_TEMPLATE, &page_data).unwrap()
+    PAGE_TEMPLATE
+        .render(CONFIG_TEMPLATE, &page_data)
+        .expect("Could not render Google config page.")
 }
 
 async fn update_config(
@@ -191,10 +193,9 @@ async fn put_config(config_query: &ConfigQuery) -> Result<(), Error> {
     let serialized =
         serde_yaml::to_string(config_query).map_err(|e| e.to_yaml_serialization_error())?;
 
-    let wrote = fs::write(&config_path, serialized)
+    fs::write(&config_path, serialized)
         .await
         .map_err(|e| e.to_source_creation_builder_error())?;
-    debug!("Wrote: {:?}", wrote);
 
     Ok(())
 }

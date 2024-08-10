@@ -171,11 +171,11 @@ impl ListNotesResponseExtension for ListNotesResponse {
             .iter()
             .filter(|note| note.title.is_some() && note.create_time.is_some())
             .map(|note| {
-                let create_time = note.create_time.unwrap();
+                let create_time = note.create_time.expect("Create time is missing");
                 Entity::new(
                     create_time,
                     GoogleKeep {},
-                    &note.title.as_ref().unwrap(),
+                    note.title.as_ref().expect("Title is missing"),
                     note.update_time.unwrap_or(create_time),
                 )
             })

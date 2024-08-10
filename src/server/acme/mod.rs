@@ -85,7 +85,9 @@ where
             log::debug!("Authorization: {:?}", auth);
             // Get an http-01 challenge for this authorization (or panic
             // if it doesn't exist).
-            let challenge = auth.get_challenge("http-01").unwrap();
+            let challenge = auth
+                .get_challenge("http-01")
+                .expect("Could not get ACME challenge for http-01");
 
             // At this point in time, you must configure your webserver to serve
             // a file at `http://example.com/.well-known/${challenge.token}` or
@@ -100,9 +102,9 @@ where
             }
 
             let challenge_token_server = challenge_token_server::ChallengeTokenServer::new(
-                key_authorization.unwrap(),
+                key_authorization.expect("Could not get ACME key authorization."),
                 domain_config.domain_name.clone(),
-                challenge_token.unwrap(),
+                challenge_token.expect("Could not get ACME challenge token."),
             );
             log::debug!("Challenge token server created");
 
@@ -116,9 +118,15 @@ where
                 let challenge = challenge
                     .wait_done(
                         Duration::from_secs(
-                            self.config.domain_config().unwrap().poll_interval_seconds,
+                            self.config
+                                .domain_config()
+                                .expect("Could not get domain config for poll interval seconds.")
+                                .poll_interval_seconds,
                         ),
-                        self.config.domain_config().unwrap().poll_attempts,
+                        self.config
+                            .domain_config()
+                            .expect("Could not get domain config for poll attempts.")
+                            .poll_attempts,
                     )
                     .await?;
                 log::debug!(
@@ -139,8 +147,16 @@ where
             // `valid` or `invalid` state.
             let authorization = auth
                 .wait_done(
-                    Duration::from_secs(self.config.domain_config().unwrap().poll_interval_seconds),
-                    self.config.domain_config().unwrap().poll_attempts,
+                    Duration::from_secs(
+                        self.config
+                            .domain_config()
+                            .expect("Could not get domain config for poll interval seconds.")
+                            .poll_interval_seconds,
+                    ),
+                    self.config
+                        .domain_config()
+                        .expect("Could not get domain config for poll attempts.")
+                        .poll_attempts,
                 )
                 .await?;
             assert_eq!(authorization.status, AuthorizationStatus::Valid)
@@ -151,8 +167,16 @@ where
         // for finalization (certificate creation).
         let order = order
             .wait_ready(
-                Duration::from_secs(self.config.domain_config().unwrap().poll_interval_seconds),
-                self.config.domain_config().unwrap().poll_attempts,
+                Duration::from_secs(
+                    self.config
+                        .domain_config()
+                        .expect("Could not get domain config for poll interval seconds.")
+                        .poll_interval_seconds,
+                ),
+                self.config
+                    .domain_config()
+                    .expect("Could not get domain config for poll attempts.")
+                    .poll_attempts,
             )
             .await?;
         log::debug!("Stopped waiting for order ready");
@@ -173,8 +197,16 @@ where
         // has been provisioned, and is now ready for download.
         let order = order
             .wait_done(
-                Duration::from_secs(self.config.domain_config().unwrap().poll_interval_seconds),
-                self.config.domain_config().unwrap().poll_attempts,
+                Duration::from_secs(
+                    self.config
+                        .domain_config()
+                        .expect("Could not get domain config for poll interval seconds.")
+                        .poll_interval_seconds,
+                ),
+                self.config
+                    .domain_config()
+                    .expect("Could not get domain config for poll attempts.")
+                    .poll_attempts,
             )
             .await?;
         log::debug!("Stopped waiting for order completion");
@@ -182,7 +214,10 @@ where
         assert_eq!(order.status, OrderStatus::Valid);
 
         // Download the certificate, and panic if it doesn't exist.
-        let cert = order.certificate().await?.unwrap();
+        let cert = order
+            .certificate()
+            .await?
+            .expect("Could not get X509 certificate.");
         log::debug!("Certificate downloaded");
         assert!(cert.len() > 1);
 
