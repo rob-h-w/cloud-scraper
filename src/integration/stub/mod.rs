@@ -3,8 +3,8 @@ use crate::domain::entity::Entity;
 use crate::domain::node::{Manager, ReadonlyManager};
 use std::fmt::Debug;
 use std::time::Duration;
-use tokio::task;
 use tokio::time::sleep;
+use tokio::{join, task};
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -50,21 +50,23 @@ impl Source {
 
         let stop_task = self.lifecycle_manager.abort_on_stop(&task);
 
-        let (_task_result, _stop_result) = tokio::join!(task, stop_task);
+        let (_task_result, _stop_result) = join!(task, stop_task);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::engine::tests::stub_config;
     use crate::domain::node::LifecycleChannelHandle;
     use chrono::Utc;
     use tokio::task::JoinSet;
 
     #[tokio::test]
     async fn test_stub_source_run() {
+        let config = stub_config();
         let lifecycle_channel_handle = LifecycleChannelHandle::new();
-        let manager = Manager::new(lifecycle_channel_handle.clone());
+        let manager = Manager::new(&config, lifecycle_channel_handle.clone());
         let mut join_set = JoinSet::new();
         let mut source = Source::new(&manager);
 

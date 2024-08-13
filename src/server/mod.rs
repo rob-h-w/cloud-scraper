@@ -1,26 +1,27 @@
 mod acme;
 pub mod auth;
 pub mod errors;
+mod oauth_installed_flow_delegate;
 mod page;
 mod routes;
 mod site_state;
 
 use crate::core::node_handles::NodeHandles;
 use crate::domain::config::Config;
-use crate::domain::node::LifecycleAware;
-use crate::server::acme::{Acme, AcmeImpl};
+use crate::domain::node::{LifecycleAware, Manager};
+use crate::server::acme::Acme;
 use crate::server::routes::router;
 use async_trait::async_trait;
 #[cfg(test)]
 use mockall::mock;
 use std::sync::Arc;
 
-pub fn new<ConfigType>(config: Arc<ConfigType>) -> impl WebServer
-where
-    ConfigType: Config,
-{
+pub use oauth_installed_flow_delegate::OauthFlowDelegateFactory;
+pub use oauth_installed_flow_delegate::OauthInstalledFlowDelegate;
+
+pub fn new(config: Arc<Config>) -> impl WebServer {
     WebServerImpl {
-        acme: Arc::new(AcmeImpl::new(config.clone())),
+        acme: Arc::new(Acme::new(&config)),
         config: config.clone(),
     }
 }
@@ -28,6 +29,7 @@ where
 #[async_trait]
 pub trait WebServer: 'static + Clone + Send + Sync {
     async fn serve(&self, node_handles: &NodeHandles) -> Result<(), String>;
+    fn get_flow_delegate_factory(&self, manager: &Manager) -> OauthFlowDelegateFactory;
 }
 
 #[cfg(test)]
@@ -41,30 +43,16 @@ mock! {
     #[async_trait]
     impl WebServer for WebServer {
         async fn serve(&self, node_handles: &NodeHandles) -> Result<(), String>;
+        fn get_flow_delegate_factory(&self, manager: &Manager) -> OauthFlowDelegateFactory;
     }
 }
 
-pub struct WebServerImpl<AcmeType, ConfigType>
-where
-    AcmeType: Acme,
-    ConfigType: Config,
-{
-    acme: Arc<AcmeType>,
-    config: Arc<ConfigType>,
+pub struct WebServerImpl {
+    acme: Arc<Acme>,
+    config: Arc<Config>,
 }
 
-impl<AcmeType, ConfigType> WebServerImpl<AcmeType, ConfigType>
-where
-    AcmeType: Acme,
-    ConfigType: Config,
-{
-}
-
-impl<AcmeType, ConfigType> Clone for WebServerImpl<AcmeType, ConfigType>
-where
-    AcmeType: Acme,
-    ConfigType: Config,
-{
+impl Clone for WebServerImpl {
     fn clone(&self) -> Self {
         Self {
             acme: self.acme.clone(),
@@ -74,11 +62,7 @@ where
 }
 
 #[async_trait]
-impl<AcmeType, ConfigType> WebServer for WebServerImpl<AcmeType, ConfigType>
-where
-    AcmeType: Acme,
-    ConfigType: Config,
-{
+impl WebServer for WebServerImpl {
     async fn serve(&self, node_handles: &NodeHandles) -> Result<(), String> {
         if self.config.domain_is_defined() {
             self.acme.ensure_certs().await?;
@@ -113,5 +97,9 @@ where
         };
 
         Ok(())
+    }
+
+    fn get_flow_delegate_factory(&self, manager: &Manager) -> OauthFlowDelegateFactory {
+        OauthFlowDelegateFactory::new(manager)
     }
 }

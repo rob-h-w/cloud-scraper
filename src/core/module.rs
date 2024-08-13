@@ -13,11 +13,11 @@ impl ModuleState for State {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::integration::google::auth::Google;
+    use crate::integration::google::Source;
 
     #[tokio::test]
     async fn test_path_for() {
         assert_eq!(State::path(), "state");
-        assert_eq!(State::path_for::<Google>().await.unwrap(), "state/google")
+        assert_eq!(State::path_for::<Source>().await.unwrap(), "state/google")
     }
 }

@@ -28,6 +28,8 @@ impl Sink {
             loop {
                 if let Ok(entity) = stub_receiver.recv().await {
                     info!("{}", stringify(entity));
+                } else {
+                    break;
                 }
             }
         });
@@ -55,6 +57,7 @@ fn stringify<T: domain::entity_data::EntityData>(entity: Entity<T>) -> String {
 mod tests {
     use super::*;
     use crate::block_on;
+    use crate::domain::config::tests::test_config;
     use crate::domain::node::LifecycleChannelHandle;
     use crate::integration::stub::Source;
     use crate::tests::Logger;
@@ -68,8 +71,9 @@ mod tests {
             logger.reset();
 
             async fn do_the_async_stuff() {
+                let config = test_config();
                 let lifecycle_channel_handle = LifecycleChannelHandle::new();
-                let mut manager = Manager::new(lifecycle_channel_handle);
+                let mut manager = Manager::new(&config, lifecycle_channel_handle);
                 let stub_source = Source::new(&manager);
 
                 let mut sink = Sink::new(&manager, &stub_source.get_readonly_channel_handle());

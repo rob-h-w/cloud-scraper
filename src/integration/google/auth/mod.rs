@@ -1,27 +1,28 @@
 pub mod web;
 
-use crate::domain::module_state::NamedModule;
+use crate::server::auth::get_token_path;
+use crate::server::OauthInstalledFlowDelegate;
 use crate::static_init::error::{Error, IoErrorExt};
 use hyper_util::client::legacy::connect::HttpConnector;
 use yup_oauth2::authenticator::Authenticator;
 use yup_oauth2::hyper_rustls::HttpsConnector;
-use yup_oauth2::ApplicationSecret;
-use yup_oauth2::DeviceFlowAuthenticator;
-
-pub(crate) struct Google {}
-
-impl NamedModule for Google {
-    fn name() -> &'static str {
-        "google"
-    }
-}
+use yup_oauth2::{ApplicationSecret, InstalledFlowAuthenticator, InstalledFlowReturnMethod};
 
 pub(crate) async fn get_authenticator(
+    delegate: OauthInstalledFlowDelegate,
     secret: &ApplicationSecret,
 ) -> Result<Authenticator<HttpsConnector<HttpConnector>>, Error> {
-    let auth = DeviceFlowAuthenticator::builder(secret.clone())
-        .build()
+    let token_path = get_token_path()
         .await
         .map_err(|e| e.to_source_creation_builder_error())?;
+    let auth = InstalledFlowAuthenticator::builder(
+        secret.clone(),
+        InstalledFlowReturnMethod::HTTPRedirect,
+    )
+    .flow_delegate(Box::new(delegate))
+    .persist_tokens_to_disk(token_path)
+    .build()
+    .await
+    .map_err(|e| e.to_source_creation_builder_error())?;
     Ok(auth)
 }

@@ -1,3 +1,6 @@
+use crate::core::module::State;
+use crate::domain::module_state::ModuleState;
+use crate::integration::google::Source;
 use chrono::{DateTime, TimeDelta, Utc};
 use once_cell::sync::Lazy;
 use rand::distributions::Alphanumeric;
@@ -5,6 +8,7 @@ use rand::{thread_rng, Rng};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::ops::Add;
+use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::Duration;
 use warp::reject::Reject;
@@ -53,6 +57,12 @@ pub fn auth_validation() -> impl Filter<Extract = (), Error = warp::Rejection> +
             }
         })
         .untuple_one()
+}
+
+pub async fn get_token_path() -> Result<PathBuf, std::io::Error> {
+    let root = State::path_for::<Source>().await?;
+
+    Ok(PathBuf::from(root).join("token.json"))
 }
 
 #[derive(Clone, Debug)]

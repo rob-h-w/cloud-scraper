@@ -8,7 +8,6 @@ use acme2::{
     gen_ec_p256_private_key, AccountBuilder, AuthorizationStatus, ChallengeStatus, Csr,
     DirectoryBuilder, Error, OrderBuilder, OrderStatus,
 };
-use async_trait::async_trait;
 use chrono::Utc;
 use std::sync::Arc;
 use std::time::Duration;
@@ -18,23 +17,13 @@ use x509_parser::pem::parse_x509_pem;
 
 const LETS_ENCRYPT_URL: &str = "https://acme-v02.api.letsencrypt.org/directory";
 
-#[async_trait]
-pub trait Acme: 'static + Send + Sync {
-    fn cert_path(&self) -> &str;
-    async fn ensure_certs(&self) -> Result<(), String>;
-    fn key_path(&self) -> &str;
-}
-
-pub struct AcmeImpl<ConfigType> {
-    config: Arc<ConfigType>,
+pub struct Acme {
+    config: Arc<Config>,
     site_state: SiteState,
 }
 
-impl<ConfigType> AcmeImpl<ConfigType>
-where
-    ConfigType: Config,
-{
-    pub fn new(config: Arc<ConfigType>) -> Self {
+impl Acme {
+    pub fn new(config: &Arc<Config>) -> Self {
         Self {
             config: config.clone(),
             site_state: SiteState::new(config.as_ref()),
@@ -44,6 +33,27 @@ where
     async fn cert_is_valid(&self) -> bool {
         let path = self.site_state.cert_path();
         fs::metadata(path).await.is_ok() && cert_is_not_expired(path).await
+    }
+
+    pub(crate) fn cert_path(&self) -> &str {
+        self.site_state.cert_path()
+    }
+
+    pub(crate) async fn ensure_certs(&self) -> Result<(), String> {
+        if self.cert_is_valid().await {
+            return Ok(());
+        }
+
+        let cert_and_private_key = self
+            .get_cert()
+            .await
+            .map_err(|e| format!("Failed to get certificate: {}", e))?;
+
+        self.write_key_and_cert_to_files(cert_and_private_key)
+            .await
+            .map_err(|e| format!("Failed to write key and certificate to files: {}", e))?;
+
+        Ok(())
     }
 
     async fn get_cert(&self) -> Result<CertAndPrivateKey, Error> {
@@ -231,6 +241,10 @@ where
         })
     }
 
+    pub(crate) fn key_path(&self) -> &str {
+        self.site_state.key_path()
+    }
+
     async fn write_key_and_cert_to_files(
         &self,
         cert_and_private_key: CertAndPrivateKey,
@@ -249,37 +263,6 @@ where
         fs::write(self.cert_path(), cert).await?;
 
         Ok(())
-    }
-}
-
-#[async_trait]
-impl<ConfigType> Acme for AcmeImpl<ConfigType>
-where
-    ConfigType: Config,
-{
-    fn cert_path(&self) -> &str {
-        self.site_state.cert_path()
-    }
-
-    async fn ensure_certs(&self) -> Result<(), String> {
-        if self.cert_is_valid().await {
-            return Ok(());
-        }
-
-        let cert_and_private_key = self
-            .get_cert()
-            .await
-            .map_err(|e| format!("Failed to get certificate: {}", e))?;
-
-        self.write_key_and_cert_to_files(cert_and_private_key)
-            .await
-            .map_err(|e| format!("Failed to write key and certificate to files: {}", e))?;
-
-        Ok(())
-    }
-
-    fn key_path(&self) -> &str {
-        self.site_state.key_path()
     }
 }
 

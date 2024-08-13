@@ -18,6 +18,7 @@ use core::time::Duration;
 use mockall::automock;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering::SeqCst;
+use tokio::sync::Semaphore;
 use tokio::{join, task};
 
 #[async_trait]
@@ -26,21 +27,18 @@ pub(crate) trait Engine {
     async fn start(&self);
 }
 
-pub(crate) struct EngineImpl<ConfigType, ServerType>
+pub(crate) struct EngineImpl<ServerType>
 where
-    ConfigType: Config,
     ServerType: WebServer,
 {
-    config: Arc<ConfigType>,
     manager: Manager,
     server: ServerType,
     stopped: Arc<AtomicBool>,
 }
 
 #[async_trait]
-impl<ConfigType, ServerType> Engine for EngineImpl<ConfigType, ServerType>
+impl<ServerType> Engine for EngineImpl<ServerType>
 where
-    ConfigType: Config,
     ServerType: WebServer,
 {
     async fn start(&self) {
@@ -48,15 +46,13 @@ where
     }
 }
 
-impl<ConfigType, ServerType> EngineImpl<ConfigType, ServerType>
+impl<ServerType> EngineImpl<ServerType>
 where
-    ConfigType: Config,
     ServerType: WebServer,
 {
-    pub(crate) fn new(config: Arc<ConfigType>, server: ServerType) -> Self {
+    pub(crate) fn new(config: &Arc<Config>, server: ServerType) -> Self {
         Self {
-            config,
-            manager: Manager::new(LifecycleChannelHandle::new()),
+            manager: Manager::new(config, LifecycleChannelHandle::new()),
             server,
             stopped: Arc::new(AtomicBool::new(false)),
         }
@@ -67,10 +63,13 @@ where
         let mut join_set = JoinSet::new();
         let mut abort_handles = Vec::new();
 
-        let wait = self.config.exit_after();
+        let wait_duration = self.manager.core_config().exit_after();
 
         let mut stub_source = StubSource::new(&self.manager);
-        let google_source = GoogleSource::new(&self.manager);
+        let google_source = GoogleSource::new(
+            &self.manager,
+            &self.server.get_flow_delegate_factory(&self.manager),
+        );
         let mut log_sink = LogSink::new(&self.manager, &stub_source.get_readonly_channel_handle());
 
         let node_handles = NodeHandles::new(&self.manager, google_source.control_events());
@@ -91,7 +90,7 @@ where
         abort_handles.push(abort_handle);
         let join_set = self.send_init(join_set, sender);
 
-        let join_set = self.wait_for_timeout(join_set, wait).await;
+        let join_set = self.wait_for_timeout(join_set, wait_duration).await;
 
         join!(Self::join(join_set), self.stop_checker(abort_handles));
         trace!("run completed");
@@ -115,13 +114,17 @@ where
         let readonly_manager = self.manager.readonly();
         let (sender, mut receiver) = one_shot();
         let expected = join_set.len();
-        let waiting = Arc::new(AtomicBool::new(false));
-        let moved_waiting = waiting.clone();
+        let semaphore = Arc::new(Semaphore::new(1));
+        let permit = semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("Could not acquire semaphore");
         let abort_handle = join_set.spawn(async move {
             trace!("init wait outer start");
             let task = task::spawn(async move {
                 trace!("init wait inner start");
-                moved_waiting.store(true, SeqCst);
+                drop(permit);
                 let mut count = 0;
                 while count < expected {
                     receiver
@@ -140,10 +143,10 @@ where
             trace!("init wait outer complete");
         });
 
-        while !waiting.load(SeqCst) {
-            trace!("waiting init start");
-            sleep(Duration::from_millis(0)).await;
-        }
+        let _permit = semaphore
+            .acquire()
+            .await
+            .expect("Could not acquire semaphore");
 
         (sender, join_set, abort_handle)
     }
@@ -154,20 +157,23 @@ where
         wait: Option<Duration>,
     ) -> &mut JoinSet<()> {
         let mut wait_manager = self.manager.clone();
-        let timer_started = Arc::new(AtomicBool::new(false));
-        let moved_timer_started = timer_started.clone();
+        let semaphore = Arc::new(Semaphore::new(1));
+        let permit = semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("Could not acquire semaphore");
         let stopped = self.stopped.clone();
 
         join_set.spawn(async move {
+            drop(permit);
             match wait {
                 Some(duration) => {
                     trace!("timeout starting sleep");
-                    moved_timer_started.store(true, SeqCst);
                     sleep(duration).await;
                     trace!("timeout sleep over");
                     match wait_manager.send_stop() {
                         Ok(_) => {
-                            trace!("Lifecycle sent stop signal after {:?}", duration);
                             trace!("Lifecycle sent stop signal after {:?}", duration);
                         }
                         Err(e) => {
@@ -176,16 +182,14 @@ where
                     }
                     stopped.store(true, SeqCst);
                 }
-                None => {
-                    moved_timer_started.store(true, SeqCst);
-                }
+                None => {}
             }
         });
 
-        while !timer_started.load(SeqCst) {
-            trace!("waiting for timeout started start");
-            sleep(Duration::from_millis(0)).await;
-        }
+        let _permit = semaphore
+            .acquire()
+            .await
+            .expect("Could not acquire semaphore");
 
         join_set
     }
@@ -221,36 +225,19 @@ where
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::time::Duration;
-
     use crate::block_on;
-    use crate::domain::config::DomainConfig;
-    use crate::server::MockWebServer;
+    use crate::server::{MockWebServer, OauthFlowDelegateFactory};
 
     use super::*;
 
-    pub(crate) struct StubConfig {}
-
-    impl Config for StubConfig {
-        fn domain_config(&self) -> Option<&DomainConfig> {
-            None
-        }
-
-        fn email(&self) -> Option<&str> {
-            None
-        }
-
-        fn exit_after(&self) -> Option<Duration> {
-            Some(Duration::from_millis(10))
-        }
-
-        fn port(&self) -> u16 {
-            80
-        }
-
-        fn site_folder(&self) -> &str {
-            "./stub_site_folder"
-        }
+    pub fn stub_config() -> Arc<Config> {
+        Arc::new(Config::with_all_properties(
+            None,
+            None,
+            Some(1),
+            Some(80),
+            Some("./stub_site_folder".to_string()),
+        ))
     }
 
     #[test]
@@ -264,7 +251,10 @@ pub(crate) mod tests {
                 .returning(|_| Ok(()));
             returned_mock_web_server
         });
+        mock_web_server
+            .expect_get_flow_delegate_factory()
+            .returning(move |manager| OauthFlowDelegateFactory::new(manager));
 
-        block_on!(EngineImpl::new(Arc::new(StubConfig {}), mock_web_server).start());
+        block_on!(EngineImpl::new(&stub_config(), mock_web_server).start());
     }
 }

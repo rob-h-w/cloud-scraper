@@ -1,8 +1,12 @@
 use crate::core::module::State;
 use crate::core::node_handles::NodeHandles;
+#[cfg(not(test))]
+use crate::domain::config::Config;
+#[cfg(test)]
+use crate::domain::config::{Config, DomainConfig};
 use crate::domain::module_state::ModuleState;
 use crate::domain::node::Manager;
-use crate::integration::google::auth::Google;
+use crate::integration::google::Source;
 use crate::server::auth::auth_validation;
 use crate::server::errors::Rejectable;
 use crate::static_init::error::{Error, IoErrorExt, SerdeErrorExt};
@@ -16,6 +20,7 @@ use std::io;
 use std::path::PathBuf;
 use tokio::fs;
 use warp::{reply, Filter, Rejection, Reply};
+use yup_oauth2::ApplicationSecret;
 
 const CONFIG_TEMPLATE: &str = "config/google";
 const ROOT_PATH: &str = "/";
@@ -111,6 +116,37 @@ ConfigQuery,
     token_uri, "https://oauth2.googleapis.com/token"
 });
 
+impl ConfigQuery {
+    pub fn to_application_secret(&self, config: &Config) -> ApplicationSecret {
+        ApplicationSecret {
+            client_id: self.client_id(),
+            client_secret: self.client_secret(),
+            auth_uri: self.auth_uri(),
+            auth_provider_x509_cert_url: Some(self.auth_provider_x509_cert_url()),
+            token_uri: self.token_uri(),
+            redirect_uris: Self::make_redirect_uris(config),
+            project_id: Some(self.project_id()),
+            client_email: None,
+            client_x509_cert_url: None,
+        }
+    }
+
+    fn make_redirect_uris(config: &Config) -> Vec<String> {
+        let scheme = if config.uses_tls() { "https" } else { "http" };
+        let first_uri_element = if let Some(domain_config) = config.domain_config() {
+            format!("{}://{}", scheme, domain_config.domain_name())
+        } else {
+            format!("{}://localhost", scheme)
+        };
+        let redirect_uri = format!(
+            "{}:{:?}/sessions/auth/google",
+            first_uri_element,
+            config.port()
+        );
+        vec![redirect_uri]
+    }
+}
+
 pub fn config_google(
     handles: &NodeHandles,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
@@ -160,7 +196,7 @@ async fn update_config(
     match put_config(&config).await {
         Ok(_) => {
             let mut sender: Manager = handles.lifecycle_manager().clone();
-            match sender.send_read_config::<Google>() {
+            match sender.send_read_config::<Source>() {
                 Ok(_) => {
                     debug!("Google config update sent");
                     Ok(warp::redirect::found(warp::http::Uri::from_static(
@@ -178,7 +214,7 @@ async fn update_config(
 }
 
 async fn config_path() -> Result<PathBuf, io::Error> {
-    let root = State::path_for::<Google>().await?;
+    let root = State::path_for::<Source>().await?;
     debug!("Root: {:?}", root);
     Ok(PathBuf::from(root).join("config.yaml"))
 }
@@ -383,6 +419,73 @@ mod tests {
                 ROOT_PATH
             );
             lifecycle_abort_handle.await;
+        }
+
+        mod to_application_secret {
+            use super::*;
+
+            #[test]
+            fn returns_application_secret() {
+                let config = test_config();
+                let core_config = Config::with_all_properties(None, None, None, None, None);
+                let application_secret = config.to_application_secret(&core_config);
+                assert_eq!(application_secret.client_id, "test_client_id");
+                assert_eq!(application_secret.client_secret, "test_client_secret");
+                assert_eq!(application_secret.auth_uri, "test_auth_uri");
+                assert_eq!(
+                    application_secret.auth_provider_x509_cert_url,
+                    Some("test_auth_provider_x509_cert_url".to_string())
+                );
+                assert_eq!(application_secret.token_uri, "test_token_uri");
+                assert_eq!(
+                    application_secret.redirect_uris,
+                    vec!["https://localhost:443/sessions/auth/google"]
+                );
+                assert_eq!(
+                    application_secret.project_id,
+                    Some("test_project_id".to_string())
+                );
+                assert_eq!(application_secret.client_email, None);
+                assert_eq!(application_secret.client_x509_cert_url, None);
+            }
+        }
+
+        mod make_redirect_uris {
+            use super::*;
+
+            #[test]
+            fn with_domain_config_returns_https() {
+                let config = Config::with_all_properties(
+                    Some(DomainConfig::new("test_domain".to_string())),
+                    None,
+                    None,
+                    Some(8080),
+                    Some("test".to_string()),
+                );
+                let redirect_uris = ConfigQuery::make_redirect_uris(&config);
+                assert_eq!(redirect_uris.len(), 1);
+                assert_eq!(
+                    redirect_uris[0],
+                    "https://test_domain:8080/sessions/auth/google"
+                );
+            }
+
+            #[test]
+            fn without_domain_config_returns_http() {
+                let config = Config::with_all_properties(
+                    None,
+                    None,
+                    None,
+                    Some(8080),
+                    Some("test_domain".to_string()),
+                );
+                let redirect_uris = ConfigQuery::make_redirect_uris(&config);
+                assert_eq!(redirect_uris.len(), 1);
+                assert_eq!(
+                    redirect_uris[0],
+                    "http://localhost:8080/sessions/auth/google"
+                );
+            }
         }
     }
 }

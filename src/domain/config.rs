@@ -1,22 +1,105 @@
+use crate::core::cli::ServeArgs;
+use derive_getters::Getters;
+use serde::Deserialize;
+use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 
-use serde::Deserialize;
+const TLS_PORT: u16 = 443;
+const DEFAULT_SITE_FOLDER: &str = ".site";
 
-pub(crate) trait Config: 'static + Send + Sync {
-    fn domain_config(&self) -> Option<&DomainConfig>;
-    fn domain_is_defined(&self) -> bool {
-        self.domain_config().is_some()
+#[derive(Clone, Debug, Deserialize)]
+pub struct Config {
+    domain_config: Option<DomainConfig>,
+    email: Option<String>,
+    exit_after: Option<u64>,
+    port: Option<u16>,
+    site_state_folder: Option<String>,
+}
+
+impl Config {
+    pub(crate) fn new(serve_args: &ServeArgs) -> Arc<Self> {
+        Arc::new(match serve_args.config.as_ref() {
+            Some(config_file) => {
+                let config_file =
+                    std::fs::read_to_string(config_file).expect("Could not open $config_file");
+                let mut config: Config =
+                    serde_yaml::from_str(&config_file).expect("Could not parse config");
+                config.merge_exit_after(serve_args.exit_after);
+                config.merge_port(serve_args.port);
+                config
+            }
+            None => Self {
+                domain_config: None,
+                email: None,
+                exit_after: serve_args.exit_after,
+                port: serve_args.port,
+                site_state_folder: None,
+            },
+        })
     }
-    fn email(&self) -> Option<&str>;
-    fn exit_after(&self) -> Option<Duration> {
-        None
+
+    #[cfg(test)]
+    pub fn with_all_properties(
+        domain_config: Option<DomainConfig>,
+        email: Option<String>,
+        exit_after: Option<u64>,
+        port: Option<u16>,
+        site_state_folder: Option<String>,
+    ) -> Self {
+        Self {
+            domain_config,
+            email,
+            exit_after,
+            port,
+            site_state_folder,
+        }
     }
-    fn port(&self) -> u16;
 
-    fn site_folder(&self) -> &str;
+    pub(crate) fn domain_config(&self) -> Option<&crate::domain::config::DomainConfig> {
+        self.domain_config.as_ref()
+    }
 
-    fn sanity_check(&self) -> Result<(), String> {
+    pub fn domain_is_defined(&self) -> bool {
+        self.domain_config.is_some()
+    }
+
+    fn email(&self) -> Option<&str> {
+        self.email.as_deref()
+    }
+
+    pub(crate) fn exit_after(&self) -> Option<Duration> {
+        self.exit_after.map(Duration::from_secs)
+    }
+
+    pub(crate) fn port(&self) -> u16 {
+        self.port.unwrap_or(TLS_PORT)
+    }
+
+    pub(crate) fn site_folder(&self) -> &str {
+        match self.site_state_folder {
+            Some(ref folder) => folder.as_str(),
+            None => DEFAULT_SITE_FOLDER,
+        }
+    }
+
+    pub(crate) fn uses_tls(&self) -> bool {
+        self.port() == TLS_PORT || self.domain_is_defined()
+    }
+
+    fn merge_exit_after(&mut self, exit_after: Option<u64>) {
+        if exit_after.is_some() {
+            self.exit_after = exit_after;
+        }
+    }
+
+    fn merge_port(&mut self, port: Option<u16>) {
+        if let Some(p) = port {
+            self.port = Some(p);
+        }
+    }
+
+    pub(crate) fn sanity_check(&self) -> Result<(), String> {
         let mut errors = vec![];
 
         if self.domain_is_defined() {
@@ -42,7 +125,7 @@ pub(crate) trait Config: 'static + Send + Sync {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Getters)]
 pub struct DomainConfig {
     pub builder_contacts: Vec<String>,
     pub domain_name: String,
@@ -51,57 +134,75 @@ pub struct DomainConfig {
 }
 
 #[cfg(test)]
+impl DomainConfig {
+    pub fn new(domain_name: String) -> Self {
+        Self {
+            builder_contacts: vec![],
+            domain_name,
+            poll_attempts: 0,
+            poll_interval_seconds: 0,
+        }
+    }
+}
+
+#[cfg(test)]
 pub(crate) mod tests {
     use super::*;
 
-    #[test]
-    fn test_config_sanity_check() {
-        let domain_config = Some(DomainConfig {
-            builder_contacts: vec!["builder@contact.com".to_string()],
-            domain_name: "the.domain".to_string(),
-            poll_attempts: 0,
-            poll_interval_seconds: 0,
-        });
-
-        let bad_config = TestConfig::new_domain_email(domain_config.clone(), None);
-        assert!(bad_config.sanity_check().is_err());
-
-        let config = TestConfig::new_domain_email(domain_config, Some("the@email.com".to_string()));
-        assert!(config.sanity_check().is_ok());
+    pub fn test_config() -> Arc<Config> {
+        Arc::new(Config {
+            domain_config: None,
+            email: None,
+            exit_after: None,
+            port: None,
+            site_state_folder: None,
+        })
     }
 
-    pub(crate) struct TestConfig {
+    pub fn test_config_with(
         domain_config: Option<DomainConfig>,
         email: Option<String>,
+    ) -> Arc<Config> {
+        Arc::new(Config {
+            domain_config,
+            email,
+            exit_after: None,
+            port: None,
+            site_state_folder: None,
+        })
     }
 
-    impl TestConfig {
-        pub fn new_domain_email(
-            domain_config: Option<DomainConfig>,
-            email: Option<String>,
-        ) -> Self {
-            Self {
-                domain_config,
-                email,
-            }
-        }
-    }
+    mod config {
+        use super::*;
 
-    impl Config for TestConfig {
-        fn domain_config(&self) -> Option<&DomainConfig> {
-            self.domain_config.as_ref()
-        }
+        #[test]
+        fn test_instantiate() {
+            let config = Config {
+                domain_config: None,
+                email: None,
+                exit_after: None,
+                port: None,
+                site_state_folder: Some("test_site_folder".to_string()),
+            };
 
-        fn email(&self) -> Option<&str> {
-            self.email.as_deref()
+            assert_eq!(config.port(), TLS_PORT);
+            assert!(config.sanity_check().is_ok());
         }
 
-        fn port(&self) -> u16 {
-            80
-        }
+        #[test]
+        fn test_config_sanity_check() {
+            let domain_config = Some(DomainConfig {
+                builder_contacts: vec!["builder@contact.com".to_string()],
+                domain_name: "the.domain".to_string(),
+                poll_attempts: 0,
+                poll_interval_seconds: 0,
+            });
 
-        fn site_folder(&self) -> &str {
-            "test_site_folder"
+            let bad_config = test_config_with(domain_config.clone(), None);
+            assert!(bad_config.sanity_check().is_err());
+
+            let config = test_config_with(domain_config, Some("the@email.com".to_string()));
+            assert!(config.sanity_check().is_ok());
         }
     }
 }

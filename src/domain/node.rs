@@ -1,8 +1,11 @@
-use crate::domain::channel_handle::{ChannelHandle, Readonly};
+use crate::domain::channel_handle::ChannelHandle;
+use crate::domain::config::Config;
 use crate::domain::mpsc_handle::OneshotMpscSenderHandle;
-use crate::domain::node::Lifecycle::{Init, ReadConfig};
-use log::{error, trace};
+use crate::domain::node::Lifecycle::{Init, ReadConfig, Redirect};
+use async_trait::async_trait;
+use log::error;
 use std::any::TypeId;
+use std::sync::Arc;
 use tokio::sync::broadcast::error::SendError;
 use tokio::sync::broadcast::Receiver;
 use tokio::task;
@@ -13,16 +16,27 @@ use Lifecycle::Stop;
 pub enum Lifecycle {
     Init(OneshotMpscSenderHandle<()>),
     ReadConfig(TypeId),
+    Redirect(String, OneshotMpscSenderHandle<String>),
     Stop,
 }
 
 pub trait LifecycleAware {
     fn is_stop(&self) -> bool;
+    fn is_this<T>(&self) -> bool
+    where
+        T: 'static;
 }
 
 impl LifecycleAware for Lifecycle {
     fn is_stop(&self) -> bool {
         self == &Stop
+    }
+
+    fn is_this<T: 'static>(&self) -> bool {
+        match self {
+            ReadConfig(type_id) => type_id == &TypeId::of::<T>(),
+            _ => false,
+        }
     }
 }
 
@@ -34,6 +48,17 @@ impl LifecycleAware for Option<Lifecycle> {
             false
         }
     }
+
+    fn is_this<T>(&self) -> bool
+    where
+        T: 'static,
+    {
+        if let Some(it) = self {
+            it.is_this::<T>()
+        } else {
+            false
+        }
+    }
 }
 
 impl<E: std::fmt::Debug> LifecycleAware for Result<Lifecycle, E> {
@@ -41,25 +66,57 @@ impl<E: std::fmt::Debug> LifecycleAware for Result<Lifecycle, E> {
         match self {
             Ok(lifecycle) => lifecycle.is_stop(),
             Err(e) => {
-                panic!("Could not get lifecycle event because of {:?}", e)
+                panic!("Could not get if stop lifecycle event because of {:?}", e)
+            }
+        }
+    }
+
+    fn is_this<T>(&self) -> bool
+    where
+        T: 'static,
+    {
+        match self {
+            Ok(lifecycle) => lifecycle.is_this::<T>(),
+            Err(e) => {
+                panic!("Could not get if init lifecycle event because of {:?}", e)
             }
         }
     }
 }
 
-pub type LifecycleChannelHandle = ChannelHandle<Lifecycle>;
-pub type ReadonlyLifecycleChannelHandle = Readonly<Lifecycle>;
+#[async_trait]
+pub trait InitReplier<T> {
+    async fn reply_to_init_with(&self, value: T, sent_in: &str);
+    async fn send(&self, value: T) -> Result<(), ()>;
+}
 
-#[derive(Clone, Debug)]
+pub type LifecycleChannelHandle = ChannelHandle<Lifecycle>;
+
+#[derive(Debug)]
 pub struct Manager {
+    config: Arc<Config>,
     lifecycle_channel_handle: LifecycleChannelHandle,
 }
 
-impl Manager {
-    pub fn new(lifecycle_channel_handle: LifecycleChannelHandle) -> Self {
+impl Clone for Manager {
+    fn clone(&self) -> Self {
         Self {
+            config: self.config.clone(),
+            lifecycle_channel_handle: self.lifecycle_channel_handle.clone(),
+        }
+    }
+}
+
+impl Manager {
+    pub fn new(config: &Arc<Config>, lifecycle_channel_handle: LifecycleChannelHandle) -> Self {
+        Self {
+            config: config.clone(),
             lifecycle_channel_handle,
         }
+    }
+
+    pub fn core_config(&self) -> &Config {
+        self.config.as_ref()
     }
 
     pub fn readonly(&self) -> ReadonlyManager {
@@ -74,6 +131,16 @@ impl Manager {
         Ok(())
     }
 
+    pub fn send_oauth2_redirect_url(
+        &mut self,
+        url: &str,
+        _need_code: bool,
+        sender: OneshotMpscSenderHandle<String>,
+    ) -> Result<usize, SendError<Lifecycle>> {
+        self.lifecycle_channel_handle
+            .send(Redirect(url.to_string(), sender))
+    }
+
     pub fn send_read_config<T: 'static>(&mut self) -> Result<usize, SendError<Lifecycle>> {
         self.lifecycle_channel_handle
             .send(ReadConfig(TypeId::of::<T>()))
@@ -86,22 +153,26 @@ impl Manager {
 
 #[derive(Clone, Debug)]
 pub struct ReadonlyManager {
-    lifecycle_channel_handle: ReadonlyLifecycleChannelHandle,
+    manager: Manager,
 }
 
 impl ReadonlyManager {
     fn new(manager: &Manager) -> Self {
         Self {
-            lifecycle_channel_handle: manager.lifecycle_channel_handle.read_only(),
+            manager: manager.clone(),
         }
     }
 
     pub fn abort_on_stop<T>(&self, task: &JoinHandle<T>) -> JoinHandle<()> {
-        abort_on_stop::<T>(self.lifecycle_channel_handle.get_receiver(), task)
+        abort_on_stop::<T>(self.manager.lifecycle_channel_handle.get_receiver(), task)
+    }
+
+    pub fn core_config(&self) -> &Config {
+        self.manager.core_config()
     }
 
     pub fn get_receiver(&self) -> Receiver<Lifecycle> {
-        self.lifecycle_channel_handle.get_receiver()
+        self.manager.lifecycle_channel_handle.get_receiver()
     }
 }
 
@@ -114,19 +185,12 @@ pub fn abort_on_stop<T>(
         loop {
             match event_receiver.recv().await {
                 Ok(event) => match event {
-                    Init(event) => match event.send(()).await {
-                        Ok(_) => {
-                            trace!("Init signal sent in abort_on_stop.");
-                        }
-                        Err(_) => {
-                            error!("Error while sending init signal in abort_on_stop.");
-                        }
-                    },
-                    ReadConfig(_) => {}
+                    Init(event) => event.reply_to_init_with((), "abort_on_stop").await,
                     Stop => {
                         task_abort_handle.abort();
                         break;
                     }
+                    _ => {}
                 },
                 Err(_) => {
                     error!("Error while receiving signal in abort_on_stop.");
@@ -140,11 +204,12 @@ pub fn abort_on_stop<T>(
 pub mod test {
     use super::*;
 
-    pub fn get_test_manager() -> Manager {
-        let lifecycle_handle = LifecycleChannelHandle::new();
-        Manager::new(lifecycle_handle)
-    }
+    use crate::domain::config::tests::test_config;
 
+    pub fn get_test_manager(config: &Arc<Config>) -> Manager {
+        let lifecycle_handle = LifecycleChannelHandle::new();
+        Manager::new(config, lifecycle_handle)
+    }
     mod readonly_manager {
         use super::*;
         use crate::domain::mpsc_handle::one_shot;
@@ -152,7 +217,8 @@ pub mod test {
 
         #[tokio::test]
         async fn test_abort_on_stop_with_init_and_stop() {
-            let mut manager = get_test_manager();
+            let config = test_config();
+            let mut manager = get_test_manager(&config);
             let readonly_manager = manager.readonly();
             let task = task::spawn(async {});
             let stop_handle = readonly_manager.abort_on_stop(&task);
@@ -167,7 +233,8 @@ pub mod test {
 
         #[tokio::test]
         async fn test_abort_on_stop_with_stop() {
-            let mut manager = get_test_manager();
+            let config = test_config();
+            let mut manager = get_test_manager(&config);
             let readonly_manager = manager.readonly();
             let task = task::spawn(async {});
             let stop_handle = readonly_manager.abort_on_stop(&task);
@@ -177,7 +244,8 @@ pub mod test {
 
         #[tokio::test]
         async fn test_get_receiver() {
-            let mut manager = get_test_manager();
+            let config = test_config();
+            let mut manager = get_test_manager(&config);
             let readonly_manager = manager.readonly();
             let receiver = readonly_manager.get_receiver();
             assert_eq!(receiver.len(), 0);
@@ -193,7 +261,8 @@ pub mod test {
 
     #[tokio::test]
     async fn test_send_read_config() {
-        let mut manager = get_test_manager();
+        let config = test_config();
+        let mut manager = get_test_manager(&config);
         let receiver = manager.readonly().get_receiver();
         let result = manager.send_read_config::<u32>();
         assert!(result.is_ok());

@@ -1,4 +1,6 @@
-use log::error;
+use crate::domain::node::InitReplier;
+use async_trait::async_trait;
+use log::{error, trace};
 use std::sync::Arc;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{mpsc, Mutex};
@@ -31,8 +33,25 @@ impl<T> OneshotMpscSenderHandle<T> {
             inner: sender,
         }
     }
+}
 
-    pub async fn send(&self, value: T) -> Result<(), ()> {
+#[async_trait]
+impl<T> InitReplier<T> for OneshotMpscSenderHandle<T>
+where
+    T: Send,
+{
+    async fn reply_to_init_with(&self, value: T, sent_in: &str) {
+        match self.send(value).await {
+            Ok(_) => {
+                trace!("Init signal sent in {}.", sent_in);
+            }
+            Err(_) => {
+                error!("Error while sending init signal in {}.", sent_in);
+            }
+        }
+    }
+
+    async fn send(&self, value: T) -> Result<(), ()> {
         if let Err(e) = self.inner.send(value).await.map_err(|_| ()) {
             error!("Error while sending message: {:?}", e);
             Err(())

@@ -21,10 +21,12 @@ impl NodeHandles {
 #[cfg(test)]
 pub mod test {
     use super::*;
+    use crate::domain::config::tests::test_config;
     use crate::domain::node::test::get_test_manager;
 
     pub fn get_test_node_handles() -> NodeHandles {
-        let manager = get_test_manager();
+        let config = test_config();
+        let manager = get_test_manager(&config);
         let google_control_events = ChannelHandle::new();
         NodeHandles::new(&manager, &google_control_events)
     }
