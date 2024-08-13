@@ -11,7 +11,6 @@ Boundary(cloud_data_sources, "Cloud Data Sources") {
     System_Ext(google, "Google") {
         Component_Ext(google_drive, "Google Drive")
         Component_Ext(google_docs, "Google Docs")
-        Component_Ext(google_keep, "Google Keep")
         Component_Ext(google_sheets, "Google Sheets")
         Component_Ext(google_slides, "Google Slides")
     }
@@ -31,7 +30,7 @@ end note
 Person(you, "You")
 
 Rel(you, cloud_scraper, "Configuration", "Via CLI")
-Rel(google_keep, cloud_scraper, "Scraped content", "Via API")
+Rel(google_docs, cloud_scraper, "Scraped content", "Via API")
 Rel(cloud_scraper, cloud_scraper_db, "Saves")
 
 @enduml
