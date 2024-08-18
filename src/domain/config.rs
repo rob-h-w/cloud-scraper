@@ -64,6 +64,14 @@ impl Config {
         self.domain_config.is_some()
     }
 
+    pub fn domain_name(&self) -> &str {
+        if let Some(domain_config) = self.domain_config() {
+            &domain_config.domain_name
+        } else {
+            "localhost"
+        }
+    }
+
     fn email(&self) -> Option<&str> {
         self.email.as_deref()
     }

@@ -110,6 +110,10 @@ mod tests {
     use std::sync::Once;
     use std::sync::{Arc, Mutex};
 
+    use crate::core::root_password::test::with_test_root_password_scope;
+    use crate::domain::config::tests::{test_config, test_config_with};
+    use crate::domain::config::DomainConfig;
+
     static mut LOGGER: Option<Logger> = None;
 
     #[derive(Clone, Debug, PartialEq)]
@@ -340,10 +344,6 @@ mod tests {
             }
         };
     }
-
-    use crate::core::root_password::test::with_test_root_password_scope;
-    use crate::domain::config::tests::{test_config, test_config_with};
-    use crate::domain::config::DomainConfig;
 
     macro_rules! with_password_file {
         ($b:block) => {

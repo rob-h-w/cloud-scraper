@@ -2,7 +2,7 @@ use crate::core::module::State;
 use crate::domain::module_state::ModuleState;
 use crate::integration::google::Source;
 use chrono::{DateTime, TimeDelta, Utc};
-use once_cell::sync::Lazy;
+use lazy_static::lazy_static;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use std::collections::HashMap;
@@ -17,7 +17,9 @@ use warp::Filter;
 const KEY_BYTES: usize = 16;
 const MAX_TOKEN_AGE_SECONDS: u64 = 24 * 60 * 60;
 
-static TOKEN_MANAGER: Lazy<Mutex<TokenManager>> = Lazy::new(|| Mutex::new(TokenManager::new()));
+lazy_static! {
+    static ref TOKEN_MANAGER: Mutex<TokenManager> = Mutex::new(TokenManager::new());
+}
 
 pub fn gen_token_for_path(path: &str) -> Token {
     TOKEN_MANAGER

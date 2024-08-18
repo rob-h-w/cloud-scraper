@@ -1,7 +1,7 @@
 use crate::core::root_password::check_root_password;
 use crate::server::auth::auth_validation;
 use handlebars::Handlebars;
-use once_cell::sync::Lazy;
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use warp::http::header::LOCATION;
@@ -12,19 +12,18 @@ const LOGIN: &str = "login";
 pub const LOGIN_PATH: &str = "/login";
 pub const LOGIN_FAILED: &str = "/login?failed=true";
 
-static PAGE_TEMPLATE: Lazy<Handlebars> = Lazy::new(|| {
-    let mut handlebars = Handlebars::new();
-    handlebars
-        .register_template_string(
-            LOGIN_TEMPLATE,
-            include_str!(
-                "../../../resources/html/login\
-        .html"
-            ),
-        )
-        .expect("Could not register login template");
-    handlebars
-});
+lazy_static! {
+    pub static ref PAGE_TEMPLATE: Handlebars<'static> = {
+        let mut handlebars = Handlebars::new();
+        handlebars
+            .register_template_string(
+                LOGIN_TEMPLATE,
+                include_str!("../../../resources/html/login.html"),
+            )
+            .expect("Could not register login template");
+        handlebars
+    };
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 struct LoginQuery {

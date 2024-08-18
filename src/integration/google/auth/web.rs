@@ -9,10 +9,11 @@ use crate::domain::node::Manager;
 use crate::integration::google::Source;
 use crate::server::auth::auth_validation;
 use crate::server::errors::Rejectable;
+use crate::server::javascript::WithRedirect;
 use crate::static_init::error::{Error, IoErrorExt, SerdeErrorExt};
 use handlebars::Handlebars;
+use lazy_static::lazy_static;
 use log::{debug, error};
-use once_cell::sync::Lazy;
 use paste::paste;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -25,16 +26,18 @@ use yup_oauth2::ApplicationSecret;
 const CONFIG_TEMPLATE: &str = "config/google";
 const ROOT_PATH: &str = "/";
 
-static PAGE_TEMPLATE: Lazy<Handlebars> = Lazy::new(|| {
-    let mut handlebars = Handlebars::new();
-    handlebars
-        .register_template_string(
-            CONFIG_TEMPLATE,
-            include_str!("../../../../resources/html/config/google.html"),
-        )
-        .expect("Could not register Google config template");
-    handlebars
-});
+lazy_static! {
+    pub static ref PAGE_TEMPLATE: Handlebars<'static> = {
+        let mut handlebars = Handlebars::new();
+        handlebars
+            .register_template_string(
+                CONFIG_TEMPLATE,
+                include_str!("../../../../resources/html/config/google.html"),
+            )
+            .expect("Could not register Google config template");
+        handlebars
+    };
+}
 
 macro_rules! make_config_query {
     ($struct:ident, { $($e:ident),* }, { $($d:ident, $v:literal),* }) => {
@@ -150,37 +153,44 @@ impl ConfigQuery {
 pub fn config_google(
     handles: &NodeHandles,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-    let node_handles = handles.clone();
+    let get_node_handles = handles.clone();
+    let post_node_handles = handles.clone();
     warp::path("config")
         .and(warp::path("google"))
         .and(warp::get())
         .and(auth_validation())
-        .and_then(format_response)
+        .map(move || {
+            let node_handles = get_node_handles.clone();
+            format_response(node_handles)
+        })
+        .and_then(|future| future)
         .or(warp::path("config")
             .and(warp::path("google"))
             .and(warp::post())
             .and(auth_validation())
             .and(warp::body::form())
             .map(move |form_map| {
-                let node_handles = node_handles.clone();
+                let node_handles = post_node_handles.clone();
                 update_config(form_map, node_handles)
             })
             .and_then(|future| future))
 }
 
-async fn format_response() -> Result<impl Reply, Rejection> {
+async fn format_response(handles: NodeHandles) -> Result<impl Reply, Rejection> {
     let existing_config = get_config().await;
     Ok(reply::html(
-        format_config_google_html(&existing_config).await,
+        format_config_google_html(handles, &existing_config).await,
     ))
 }
 
-async fn format_config_google_html(config: &Option<ConfigQuery>) -> String {
+async fn format_config_google_html(handles: NodeHandles, config: &Option<ConfigQuery>) -> String {
     let page_data = if let Some(config) = config {
         config.to_page_data()
     } else {
         ConfigQuery::empty_page_data()
     };
+
+    let page_data = page_data.with_redirect_script(&handles);
 
     PAGE_TEMPLATE
         .render(CONFIG_TEMPLATE, &page_data)
@@ -335,7 +345,7 @@ mod tests {
                 .reply(&filter)
                 .await;
 
-            let expected = format_config_google_html(&None).await;
+            let expected = format_config_google_html(node_handles, &None).await;
             let actual = String::from_utf8(res.body().to_vec()).unwrap();
 
             assert_eq!(res.status(), StatusCode::OK);
@@ -372,7 +382,7 @@ mod tests {
                 .reply(&filter)
                 .await;
 
-            let expected = format_config_google_html(&Some(config)).await;
+            let expected = format_config_google_html(node_handles, &Some(config)).await;
             let actual = String::from_utf8(res.body().to_vec()).unwrap();
 
             assert_eq!(res.status(), StatusCode::OK);
