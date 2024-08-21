@@ -94,3 +94,4 @@ Cargo.lock
 *.json
 config*.yaml
 state/
+*password*
