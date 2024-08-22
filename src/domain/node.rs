@@ -3,10 +3,10 @@ use crate::domain::config::Config;
 use crate::domain::mpsc_handle::OneshotMpscSenderHandle;
 use crate::domain::node::Lifecycle::{Init, ReadConfig, Redirect};
 use async_trait::async_trait;
-use log::error;
+use log::{debug, error};
 use std::any::TypeId;
 use std::sync::Arc;
-use tokio::sync::broadcast::error::SendError;
+use tokio::sync::broadcast::error::{RecvError, SendError};
 use tokio::sync::broadcast::Receiver;
 use tokio::task;
 use tokio::task::JoinHandle;
@@ -192,9 +192,14 @@ pub fn abort_on_stop<T>(
                     }
                     _ => {}
                 },
-                Err(_) => {
-                    error!("Error while receiving signal in abort_on_stop.");
-                }
+                Err(e) => match e {
+                    RecvError::Closed => {
+                        debug!("Channel closed in abort_on_stop.");
+                    }
+                    RecvError::Lagged(amount) => {
+                        error!("Lagged amount of {} in abort_on_stop.", amount);
+                    }
+                },
             }
         }
     })

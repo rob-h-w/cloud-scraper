@@ -52,7 +52,7 @@ async fn present_user_url(
     url: &str,
     need_code: bool,
 ) -> Result<String, String> {
-    debug!("Presenting user url: {}", url);
+    debug!("Presenting user url: {}, need_code: {}", url, need_code);
     let (sender, mut receiver) = one_shot();
     let semaphore = Arc::new(Semaphore::new(1));
     let permit = semaphore

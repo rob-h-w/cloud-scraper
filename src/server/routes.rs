@@ -11,7 +11,7 @@ pub fn router(
     root(handles)
         .or(login())
         .or(config_google(handles))
-        .or(websocket())
+        .or(websocket(handles))
         .recover(handlers::handle_rejection)
         .with(warp::log("api"))
 }

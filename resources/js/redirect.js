@@ -11,10 +11,12 @@ function createWebSocketConnection(url) {
     socket.addEventListener('message', function (event) {
         console.log('Message from server:', event.data);
 
+        var event = JSON.parse(event.data);
+
         // Check if the message contains the event that should trigger a redirect
-        if (event.data === 'redirect_event') {
+        if (event.type === 'redirect_event') {
             // Redirect to the new page
-            window.location.href = 'http://your-new-page-url';
+            window.location.href = event.url;
         }
     });
 
