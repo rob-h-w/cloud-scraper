@@ -6,6 +6,7 @@ use std::time::Duration;
 use std::vec;
 
 const TLS_PORT: u16 = 443;
+const REDIRECT_PORT: u16 = 8081;
 const DEFAULT_SITE_FOLDER: &str = ".site";
 
 #[derive(Clone, Debug, Deserialize)]
@@ -14,6 +15,7 @@ pub struct Config {
     email: Option<String>,
     exit_after: Option<u64>,
     port: Option<u16>,
+    redirect_port: Option<u16>,
     site_state_folder: Option<String>,
 }
 
@@ -34,6 +36,7 @@ impl Config {
                 email: None,
                 exit_after: serve_args.exit_after,
                 port: serve_args.port,
+                redirect_port: serve_args.redirect_port,
                 site_state_folder: None,
             },
         })
@@ -45,6 +48,7 @@ impl Config {
         email: Option<String>,
         exit_after: Option<u64>,
         port: Option<u16>,
+        redirect_port: Option<u16>,
         site_state_folder: Option<String>,
     ) -> Self {
         Self {
@@ -52,6 +56,7 @@ impl Config {
             email,
             exit_after,
             port,
+            redirect_port,
             site_state_folder,
         }
     }
@@ -82,6 +87,25 @@ impl Config {
 
     pub(crate) fn port(&self) -> u16 {
         self.port.unwrap_or(TLS_PORT)
+    }
+
+    pub(crate) fn redirect_port(&self) -> u16 {
+        self.redirect_port.unwrap_or(REDIRECT_PORT)
+    }
+
+    pub(crate) fn redirect_uri(&self) -> String {
+        let scheme = if self.uses_tls() { "https" } else { "http" };
+        let first_uri_element = if let Some(domain_config) = self.domain_config() {
+            format!("{}://{}", scheme, domain_config.domain_name())
+        } else {
+            format!("{}://localhost", scheme)
+        };
+
+        format!(
+            "{}:{:?}/auth/google",
+            first_uri_element,
+            self.redirect_port()
+        )
     }
 
     pub(crate) fn site_folder(&self) -> &str {
@@ -163,6 +187,7 @@ pub(crate) mod tests {
             email: None,
             exit_after: None,
             port: None,
+            redirect_port: None,
             site_state_folder: None,
         })
     }
@@ -176,6 +201,7 @@ pub(crate) mod tests {
             email,
             exit_after: None,
             port: None,
+            redirect_port: None,
             site_state_folder: None,
         })
     }
@@ -190,6 +216,7 @@ pub(crate) mod tests {
                 email: None,
                 exit_after: None,
                 port: None,
+                redirect_port: None,
                 site_state_folder: Some("test_site_folder".to_string()),
             };
 
@@ -211,6 +238,38 @@ pub(crate) mod tests {
 
             let config = test_config_with(domain_config, Some("the@email.com".to_string()));
             assert!(config.sanity_check().is_ok());
+        }
+
+        mod redirect_uris {
+            use super::*;
+
+            #[test]
+            fn with_domain_config_returns_https() {
+                let config = Config::with_all_properties(
+                    Some(DomainConfig::new("test_domain".to_string())),
+                    None,
+                    None,
+                    Some(8080),
+                    Some(8081),
+                    Some("test".to_string()),
+                );
+                let redirect_uri = config.redirect_uri();
+                assert_eq!(redirect_uri, "https://test_domain:8081/auth/google");
+            }
+
+            #[test]
+            fn without_domain_config_returns_http() {
+                let config = Config::with_all_properties(
+                    None,
+                    None,
+                    None,
+                    Some(8080),
+                    Some(8081),
+                    Some("test_domain".to_string()),
+                );
+                let redirect_uri = config.redirect_uri();
+                assert_eq!(redirect_uri, "http://localhost:8081/auth/google");
+            }
         }
     }
 }

@@ -3,7 +3,7 @@ use crate::core::node_handles::NodeHandles;
 #[cfg(not(test))]
 use crate::domain::config::Config;
 #[cfg(test)]
-use crate::domain::config::{Config, DomainConfig};
+use crate::domain::config::Config;
 use crate::domain::module_state::ModuleState;
 use crate::domain::node::Manager;
 use crate::integration::google::Source;
@@ -127,26 +127,11 @@ impl ConfigQuery {
             auth_uri: self.auth_uri(),
             auth_provider_x509_cert_url: Some(self.auth_provider_x509_cert_url()),
             token_uri: self.token_uri(),
-            redirect_uris: Self::make_redirect_uris(config),
+            redirect_uris: vec![config.redirect_uri()],
             project_id: Some(self.project_id()),
             client_email: None,
             client_x509_cert_url: None,
         }
-    }
-
-    fn make_redirect_uris(config: &Config) -> Vec<String> {
-        let scheme = if config.uses_tls() { "https" } else { "http" };
-        let first_uri_element = if let Some(domain_config) = config.domain_config() {
-            format!("{}://{}", scheme, domain_config.domain_name())
-        } else {
-            format!("{}://localhost", scheme)
-        };
-        let redirect_uri = format!(
-            "{}:{:?}/sessions/auth/google",
-            first_uri_element,
-            config.port()
-        );
-        vec![redirect_uri]
     }
 }
 
@@ -174,6 +159,11 @@ pub fn config_google(
                 update_config(form_map, node_handles)
             })
             .and_then(|future| future))
+}
+
+#[derive(Deserialize)]
+struct AuthCode {
+    code: String,
 }
 
 async fn format_response(handles: NodeHandles) -> Result<impl Reply, Rejection> {
@@ -437,7 +427,7 @@ mod tests {
             #[test]
             fn returns_application_secret() {
                 let config = test_config();
-                let core_config = Config::with_all_properties(None, None, None, None, None);
+                let core_config = Config::with_all_properties(None, None, None, None, None, None);
                 let application_secret = config.to_application_secret(&core_config);
                 assert_eq!(application_secret.client_id, "test_client_id");
                 assert_eq!(application_secret.client_secret, "test_client_secret");
@@ -449,7 +439,7 @@ mod tests {
                 assert_eq!(application_secret.token_uri, "test_token_uri");
                 assert_eq!(
                     application_secret.redirect_uris,
-                    vec!["https://localhost:443/sessions/auth/google"]
+                    vec!["https://localhost:8081/auth/google"]
                 );
                 assert_eq!(
                     application_secret.project_id,
@@ -457,44 +447,6 @@ mod tests {
                 );
                 assert_eq!(application_secret.client_email, None);
                 assert_eq!(application_secret.client_x509_cert_url, None);
-            }
-        }
-
-        mod make_redirect_uris {
-            use super::*;
-
-            #[test]
-            fn with_domain_config_returns_https() {
-                let config = Config::with_all_properties(
-                    Some(DomainConfig::new("test_domain".to_string())),
-                    None,
-                    None,
-                    Some(8080),
-                    Some("test".to_string()),
-                );
-                let redirect_uris = ConfigQuery::make_redirect_uris(&config);
-                assert_eq!(redirect_uris.len(), 1);
-                assert_eq!(
-                    redirect_uris[0],
-                    "https://test_domain:8080/sessions/auth/google"
-                );
-            }
-
-            #[test]
-            fn without_domain_config_returns_http() {
-                let config = Config::with_all_properties(
-                    None,
-                    None,
-                    None,
-                    Some(8080),
-                    Some("test_domain".to_string()),
-                );
-                let redirect_uris = ConfigQuery::make_redirect_uris(&config);
-                assert_eq!(redirect_uris.len(), 1);
-                assert_eq!(
-                    redirect_uris[0],
-                    "http://localhost:8080/sessions/auth/google"
-                );
             }
         }
     }

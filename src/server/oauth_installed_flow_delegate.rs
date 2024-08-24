@@ -8,36 +8,66 @@ use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 use tokio::task;
+use tokio::time::sleep;
 use yup_oauth2::authenticator_delegate::InstalledFlowDelegate;
 
 #[derive(Clone, Debug)]
 pub struct OauthFlowDelegateFactory {
     node_manager: Manager,
+    redirect_port: u16,
+    redirect_uri: String,
     web_channel_handle: WebEventChannelHandle,
 }
 
 impl OauthFlowDelegateFactory {
-    pub fn new(manager: &Manager, web_channel_handle: &WebEventChannelHandle) -> Self {
+    pub fn new(
+        manager: &Manager,
+        redirect_port: u16,
+        redirect_uri: &str,
+        web_channel_handle: &WebEventChannelHandle,
+    ) -> Self {
         Self {
             node_manager: manager.clone(),
+            redirect_port,
+            redirect_uri: redirect_uri.to_string(),
             web_channel_handle: web_channel_handle.clone(),
         }
     }
 
     pub fn get_installed_flow_delegate(&self) -> OauthInstalledFlowDelegate {
-        OauthInstalledFlowDelegate::new(&self.node_manager, &self.web_channel_handle)
+        OauthInstalledFlowDelegate::new(
+            &self.node_manager,
+            self.redirect_port,
+            &self.redirect_uri,
+            &self.web_channel_handle,
+        )
     }
 }
 
 pub struct OauthInstalledFlowDelegate {
     node_manager: Manager,
+    redirect_port: u16,
+    redirect_uri: String,
     web_channel_handle: WebEventChannelHandle,
 }
 
 impl OauthInstalledFlowDelegate {
-    pub fn new(manager: &Manager, web_channel_handle: &WebEventChannelHandle) -> Self {
+    pub(crate) fn redirect_port(&self) -> u16 {
+        self.redirect_port
+    }
+}
+
+impl OauthInstalledFlowDelegate {
+    pub fn new(
+        manager: &Manager,
+        redirect_port: u16,
+        redirect_uri: &str,
+        web_channel_handle: &WebEventChannelHandle,
+    ) -> Self {
         Self {
             node_manager: manager.clone(),
+            redirect_uri: redirect_uri.to_string(),
+            redirect_port,
             web_channel_handle: web_channel_handle.clone(),
         }
     }
@@ -56,6 +86,10 @@ impl InstalledFlowDelegate for OauthInstalledFlowDelegate {
             need_code,
         ))
     }
+
+    fn redirect_uri(&self) -> Option<&str> {
+        Some(&self.redirect_uri)
+    }
 }
 
 async fn present_user_url(
@@ -72,8 +106,11 @@ async fn present_user_url(
         .acquire_owned()
         .await
         .expect("Could not acquire semaphore");
+    debug!("Acquired semaphore");
     let task = task::spawn(async move {
+        debug!("Dropping permit");
         drop(permit);
+        debug!("Waiting for redirect url");
         receiver.recv().await
     });
     let stop_task = node_manager.readonly().abort_on_stop(&task);
@@ -83,11 +120,28 @@ async fn present_user_url(
         .await
         .expect("Could not acquire semaphore");
 
-    web_channel_handle
-        .clone()
-        .send(Redirect(url.to_string(), sender))
-        .map_err(|e| format!("Failed to send oauth2 redirect url: {}", e))?;
+    loop {
+        debug!("Sending oauth2 redirect url");
+        match web_channel_handle
+            .clone()
+            .send(Redirect(url.to_string(), sender.clone()))
+            .map_err(|e| format!("Failed to send oauth2 redirect url: {}", e))
+        {
+            Ok(subscriber_count) => {
+                debug!(
+                    "Sent oauth2 redirect url to {} subscribers",
+                    subscriber_count
+                );
+                break;
+            }
+            Err(e) => {
+                debug!("Failed to send oauth2 redirect url: {:?}", e);
+                sleep(std::time::Duration::from_secs(1)).await;
+            }
+        };
+    }
 
+    debug!("Waiting for task to complete");
     let result = task.await;
     stop_task.abort();
 

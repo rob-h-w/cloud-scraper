@@ -240,6 +240,7 @@ pub(crate) mod tests {
             None,
             Some(1),
             Some(80),
+            Some(81),
             Some("./stub_site_folder".to_string()),
         ))
     }
@@ -259,7 +260,9 @@ pub(crate) mod tests {
         });
         mock_web_server
             .expect_get_flow_delegate_factory()
-            .returning(move |manager| OauthFlowDelegateFactory::new(manager, &web_channel_handle));
+            .returning(move |manager| {
+                OauthFlowDelegateFactory::new(manager, 81, "http://localhost", &web_channel_handle)
+            });
         mock_web_server
             .expect_get_web_channel_handle()
             .return_const(cloned_web_channel_handle.clone());

@@ -15,6 +15,8 @@ function createWebSocketConnection(url) {
 
         // Check if the message contains the event that should trigger a redirect
         if (event.type === 'redirect_event') {
+            console.log('Received redirect event:', event);
+            socket.send('Received redirect event');
             // Redirect to the new page
             window.location.href = event.url;
         }

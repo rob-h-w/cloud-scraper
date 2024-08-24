@@ -23,6 +23,9 @@ pub struct ServeArgs {
     /// Port to listen on
     #[arg(short, long)]
     pub port: Option<u16>,
+    // Redirect port
+    #[arg(short, long)]
+    pub redirect_port: Option<u16>,
 }
 
 #[cfg(test)]
@@ -32,6 +35,7 @@ impl ServeArgs {
             config: None,
             exit_after: None,
             port: Some(8080),
+            redirect_port: Some(8081),
         }
     }
 }

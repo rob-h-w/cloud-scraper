@@ -17,7 +17,7 @@ pub(crate) async fn get_authenticator(
         .map_err(|e| e.to_source_creation_builder_error())?;
     let auth = InstalledFlowAuthenticator::builder(
         secret.clone(),
-        InstalledFlowReturnMethod::HTTPRedirect,
+        InstalledFlowReturnMethod::HTTPPortRedirect(delegate.redirect_port()),
     )
     .flow_delegate(Box::new(delegate))
     .persist_tokens_to_disk(token_path)

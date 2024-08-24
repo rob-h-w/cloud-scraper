@@ -96,7 +96,12 @@ impl WebServer for WebServerImpl {
     }
 
     fn get_flow_delegate_factory(&self, manager: &Manager) -> OauthFlowDelegateFactory {
-        OauthFlowDelegateFactory::new(manager, &self.web_channel_handle)
+        OauthFlowDelegateFactory::new(
+            manager,
+            self.config.redirect_port(),
+            &self.config.redirect_uri(),
+            &self.web_channel_handle,
+        )
     }
 
     fn get_web_channel_handle(&self) -> &WebEventChannelHandle {
