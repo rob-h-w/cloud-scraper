@@ -120,9 +120,6 @@ impl Source {
                                 send_load!();
                             }
                         }
-                        Lifecycle::Redirect(_, _) => {
-                            trace!("Redirect event ignored");
-                        }
                     },
                     Err(e) => {
                         error!("Error while receiving event: {}", e);

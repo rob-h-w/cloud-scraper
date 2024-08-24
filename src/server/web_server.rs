@@ -1,4 +1,4 @@
-use crate::server::OauthFlowDelegateFactory;
+use crate::server::{OauthFlowDelegateFactory, WebEventChannelHandle};
 
 use crate::core::node_handles::NodeHandles;
 use crate::domain::config::Config;
@@ -14,6 +14,7 @@ pub fn new(config: Arc<Config>) -> impl WebServer {
     WebServerImpl {
         acme: Arc::new(Acme::new(&config)),
         config: config.clone(),
+        web_channel_handle: WebEventChannelHandle::new(),
     }
 }
 
@@ -21,6 +22,7 @@ pub fn new(config: Arc<Config>) -> impl WebServer {
 pub trait WebServer: 'static + Clone + Send + Sync {
     async fn serve(&self, node_handles: &NodeHandles) -> Result<(), String>;
     fn get_flow_delegate_factory(&self, manager: &Manager) -> OauthFlowDelegateFactory;
+    fn get_web_channel_handle(&self) -> &WebEventChannelHandle;
 }
 
 #[cfg(test)]
@@ -35,12 +37,14 @@ mock! {
     impl WebServer for WebServer {
         async fn serve(&self, node_handles: &NodeHandles) -> Result<(), String>;
         fn get_flow_delegate_factory(&self, manager: &Manager) -> OauthFlowDelegateFactory;
+        fn get_web_channel_handle(&self) -> &WebEventChannelHandle;
     }
 }
 
 pub struct WebServerImpl {
     acme: Arc<Acme>,
     config: Arc<Config>,
+    web_channel_handle: WebEventChannelHandle,
 }
 
 impl Clone for WebServerImpl {
@@ -48,6 +52,7 @@ impl Clone for WebServerImpl {
         Self {
             acme: self.acme.clone(),
             config: self.config.clone(),
+            web_channel_handle: self.web_channel_handle.clone(),
         }
     }
 }
@@ -91,6 +96,10 @@ impl WebServer for WebServerImpl {
     }
 
     fn get_flow_delegate_factory(&self, manager: &Manager) -> OauthFlowDelegateFactory {
-        OauthFlowDelegateFactory::new(manager)
+        OauthFlowDelegateFactory::new(manager, &self.web_channel_handle)
+    }
+
+    fn get_web_channel_handle(&self) -> &WebEventChannelHandle {
+        &self.web_channel_handle
     }
 }

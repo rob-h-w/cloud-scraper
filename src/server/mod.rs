@@ -1,6 +1,7 @@
 mod acme;
 pub mod auth;
 pub mod errors;
+mod events;
 pub mod javascript;
 mod oauth_installed_flow_delegate;
 mod page;
@@ -9,6 +10,8 @@ mod routes;
 mod site_state;
 mod web_server;
 mod websocket;
+
+pub use events::{Event, WebEventChannelHandle};
 
 pub use oauth_installed_flow_delegate::OauthFlowDelegateFactory;
 pub use oauth_installed_flow_delegate::OauthInstalledFlowDelegate;

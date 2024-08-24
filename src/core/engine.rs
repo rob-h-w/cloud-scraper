@@ -72,7 +72,11 @@ where
         );
         let mut log_sink = LogSink::new(&self.manager, &stub_source.get_readonly_channel_handle());
 
-        let node_handles = NodeHandles::new(&self.manager, google_source.control_events());
+        let node_handles = NodeHandles::new(
+            &self.manager,
+            google_source.control_events(),
+            &self.server.get_web_channel_handle(),
+        );
 
         abort_handles.push(join_set.spawn(async move { log_sink.run().await }));
         abort_handles.push(join_set.spawn(async move { stub_source.run().await }));
@@ -226,7 +230,7 @@ where
 #[cfg(test)]
 pub(crate) mod tests {
     use crate::block_on;
-    use crate::server::{MockWebServer, OauthFlowDelegateFactory};
+    use crate::server::{MockWebServer, OauthFlowDelegateFactory, WebEventChannelHandle};
 
     use super::*;
 
@@ -242,6 +246,8 @@ pub(crate) mod tests {
 
     #[test]
     fn test_engine_start() {
+        let web_channel_handle = WebEventChannelHandle::new();
+        let cloned_web_channel_handle = web_channel_handle.clone();
         let mut mock_web_server = MockWebServer::new();
         mock_web_server.expect_clone().times(1).returning(|| {
             let mut returned_mock_web_server = MockWebServer::new();
@@ -253,7 +259,10 @@ pub(crate) mod tests {
         });
         mock_web_server
             .expect_get_flow_delegate_factory()
-            .returning(move |manager| OauthFlowDelegateFactory::new(manager));
+            .returning(move |manager| OauthFlowDelegateFactory::new(manager, &web_channel_handle));
+        mock_web_server
+            .expect_get_web_channel_handle()
+            .return_const(cloned_web_channel_handle.clone());
 
         block_on!(EngineImpl::new(&stub_config(), mock_web_server).start());
     }
