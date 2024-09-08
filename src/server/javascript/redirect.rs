@@ -1,4 +1,5 @@
 use crate::core::node_handles::NodeHandles;
+use crate::domain::config::Config;
 use handlebars::Handlebars;
 use lazy_static::lazy_static;
 use std::collections::HashMap;
@@ -19,14 +20,14 @@ lazy_static! {
     };
 }
 
-fn redirect(domain: &str, port: u16) -> String {
+fn redirect(config: &Config) -> String {
     let mut map = HashMap::new();
 
     map.insert(
         "script",
         include_str!("../../../resources/js/redirect.js").to_string(),
     );
-    map.insert("url", format!("ws://{}:{}/ws", domain, port).to_string());
+    map.insert("url", config.websocket_uri());
 
     SCRIPT_TEMPLATE
         .render(JS_TEMPLATE_NAME, &map)
@@ -40,10 +41,7 @@ pub trait WithRedirect {
 impl WithRedirect for HashMap<&str, String> {
     fn with_redirect_script(mut self, handles: &NodeHandles) -> Self {
         let core_config = handles.lifecycle_manager().core_config();
-        self.insert(
-            "redirect_script",
-            redirect(core_config.domain_name(), core_config.port()),
-        );
+        self.insert("redirect_script", redirect(core_config));
         self
     }
 }

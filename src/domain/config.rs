@@ -65,11 +65,11 @@ impl Config {
         self.domain_config.as_ref()
     }
 
-    pub fn domain_is_defined(&self) -> bool {
+    pub(crate) fn domain_is_defined(&self) -> bool {
         self.domain_config.is_some()
     }
 
-    pub fn domain_name(&self) -> &str {
+    pub(crate) fn domain_name(&self) -> &str {
         if let Some(domain_config) = self.domain_config() {
             &domain_config.domain_name
         } else {
@@ -85,38 +85,12 @@ impl Config {
         self.exit_after.map(Duration::from_secs)
     }
 
-    pub(crate) fn port(&self) -> u16 {
-        self.port.unwrap_or(TLS_PORT)
-    }
-
-    pub(crate) fn redirect_port(&self) -> u16 {
-        self.redirect_port.unwrap_or(REDIRECT_PORT)
-    }
-
-    pub(crate) fn redirect_uri(&self) -> String {
-        let scheme = if self.uses_tls() { "https" } else { "http" };
-        let first_uri_element = if let Some(domain_config) = self.domain_config() {
-            format!("{}://{}", scheme, domain_config.domain_name())
+    fn http_scheme(&self) -> &str {
+        if self.uses_tls() {
+            "https"
         } else {
-            format!("{}://localhost", scheme)
-        };
-
-        format!(
-            "{}:{:?}/auth/google",
-            first_uri_element,
-            self.redirect_port()
-        )
-    }
-
-    pub(crate) fn site_folder(&self) -> &str {
-        match self.site_state_folder {
-            Some(ref folder) => folder.as_str(),
-            None => DEFAULT_SITE_FOLDER,
+            "http"
         }
-    }
-
-    pub(crate) fn uses_tls(&self) -> bool {
-        self.port() == TLS_PORT || self.domain_is_defined()
     }
 
     fn merge_exit_after(&mut self, exit_after: Option<u64>) {
@@ -129,6 +103,23 @@ impl Config {
         if let Some(p) = port {
             self.port = Some(p);
         }
+    }
+
+    pub(crate) fn port(&self) -> u16 {
+        self.port.unwrap_or(TLS_PORT)
+    }
+
+    pub(crate) fn redirect_port(&self) -> u16 {
+        self.redirect_port.unwrap_or(REDIRECT_PORT)
+    }
+
+    pub(crate) fn redirect_uri(&self) -> String {
+        format!(
+            "{}://{}:{}/auth/google",
+            self.http_scheme(),
+            self.domain_name(),
+            self.redirect_port()
+        )
     }
 
     pub(crate) fn sanity_check(&self) -> Result<(), String> {
@@ -153,6 +144,34 @@ impl Config {
             Ok(())
         } else {
             Err(errors.join(", "))
+        }
+    }
+
+    pub(crate) fn site_folder(&self) -> &str {
+        match self.site_state_folder {
+            Some(ref folder) => folder.as_str(),
+            None => DEFAULT_SITE_FOLDER,
+        }
+    }
+
+    pub(crate) fn uses_tls(&self) -> bool {
+        self.port() == TLS_PORT || self.domain_is_defined()
+    }
+
+    pub(crate) fn websocket_uri(&self) -> String {
+        format!(
+            "{}://{}:{}/ws",
+            self.ws_scheme(),
+            self.domain_name(),
+            self.port()
+        )
+    }
+
+    fn ws_scheme(&self) -> &str {
+        if self.uses_tls() {
+            "wss"
+        } else {
+            "ws"
         }
     }
 }
@@ -240,7 +259,7 @@ pub(crate) mod tests {
             assert!(config.sanity_check().is_ok());
         }
 
-        mod redirect_uris {
+        mod redirect_uri {
             use super::*;
 
             #[test]
@@ -269,6 +288,38 @@ pub(crate) mod tests {
                 );
                 let redirect_uri = config.redirect_uri();
                 assert_eq!(redirect_uri, "http://localhost:8081/auth/google");
+            }
+        }
+
+        mod websocket_uri {
+            use super::*;
+
+            #[test]
+            fn with_domain_config_returns_https() {
+                let config = Config::with_all_properties(
+                    Some(DomainConfig::new("test_domain".to_string())),
+                    None,
+                    None,
+                    Some(8080),
+                    Some(8081),
+                    Some("test".to_string()),
+                );
+                let websocket_uri = config.websocket_uri();
+                assert_eq!(websocket_uri, "wss://test_domain:8080/ws");
+            }
+
+            #[test]
+            fn without_domain_config_returns_http() {
+                let config = Config::with_all_properties(
+                    None,
+                    None,
+                    None,
+                    Some(8080),
+                    Some(8081),
+                    Some("test_domain".to_string()),
+                );
+                let websocket_uri = config.websocket_uri();
+                assert_eq!(websocket_uri, "ws://localhost:8080/ws");
             }
         }
     }
