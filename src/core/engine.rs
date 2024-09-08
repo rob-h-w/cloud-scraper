@@ -75,7 +75,7 @@ where
         let node_handles = NodeHandles::new(
             &self.manager,
             google_source.control_events(),
-            &self.server.get_web_channel_handle(),
+            self.server.get_web_channel_handle(),
         );
 
         abort_handles.push(join_set.spawn(async move { log_sink.run().await }));

@@ -1,3 +1,3 @@
-mod websocket;
+mod socket;
 
-pub use websocket::websocket;
+pub use socket::websocket;
