@@ -47,13 +47,18 @@ flow applies to any cloud service.
 
 ### Extensibility
 
-The plan is to introduce pluggable modules for each cloud service, and a pluggable module for each
-data store. This will allow the user to choose which cloud service they want to use, and which data
-store they want to use.
+The plan is to introduce modules for each cloud service, data store or data transformation.
+These each have configuration controllable by the user.
 
-I intend to implement Google Keep initially because this is the service I think is the biggest risk
-for me. By risk, I mean the combination of probability and impact for me of my Keep notes
-becoming unavailable.
+The modules are to be implemented as nodes that pass events to each other.
+
+I intend to implement Google Docs and Tasks initially because this is the service I think is the
+biggest risk for me. By risk, I mean the combination of probability and impact for me of tasks
+and documents becoming unavailable.
+
+Originally, I wanted to do this with Keep, but that API is restricted to enterprise users, and
+building a scraper that uses headless web pages to pull the information is a large taks for a
+first implementation.
 
 ## Building
 
@@ -73,7 +78,79 @@ cargo build # build
 cargo test # run tests
 ```
 
+### Configuration
+
+Cloud Scraper can be configured by a yaml file. You can either use the default `config.yaml` or
+specify a file name by command line argument.
+
+```bash
+cargo run -- -c my-config.yaml
+```
+
+The service only requires a `config.yaml` file if you're going to configure a domain. The minimum
+contents are:
+
+```yaml
+email: your@email.address
+```
+
+But this is only required if you add a domain configuration:
+
+```yaml
+domain_config:
+  builder_contacts: [ "an@other.email", "your@email.address" ]
+  domain_name: your.domain.name
+  poll_attempts: 10
+  poll_interval_seconds: 10
+email: your@email.address
+```
+
+If a domain is configured, the service will check for a root certificate, and if a valid one is
+not found, it will request one from Let's Encrypt. The poll attempts and poll interval
+parameters are used to manage how the service retries attempts to retrieve a certificate.
+
+#### Ports
+
+##### Web Interface
+
+By default, the service listens on port 443. You can change this in the configuration file.
+
+```yaml
+port: 1234
+```
+
+Or by command line argument.
+
+```bash
+cargo run -- -p 1234
+```
+
+##### Redirects
+
+For Oauth2, a redirect path is needed. This is implemented on another port, defaulting to `8081`.
+
+This can be configured in the configuration file.
+
+```yaml
+redirect_port: 1231
+```
+
+Or by command line argument.
+
+```bash
+cargo run -- -r 1231
+```
+
 ### Running
+
+First, you should set a root password. There is only one, and no user because this system is
+single-tenant by design.
+
+```bash
+cargo run root-password
+```
+
+You can then run the service.
 
 ```bash
 cargo run
