@@ -1,5 +1,6 @@
 use crate::core::node_handles::NodeHandles;
 use crate::integration::google::auth::web::config_google;
+use crate::server::oauth2::oauth2_callback;
 use crate::server::page::{handlers, login};
 use crate::server::root::root;
 use crate::server::websocket::websocket;
@@ -12,6 +13,7 @@ pub fn router(
         .or(login())
         .or(config_google(handles))
         .or(websocket(handles))
+        .or(oauth2_callback!(handles, "auth" / "google"))
         .recover(handlers::handle_rejection)
         .with(warp::log("api"))
 }

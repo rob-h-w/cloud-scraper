@@ -1,8 +1,8 @@
-use crate::server::{OauthFlowDelegateFactory, WebEventChannelHandle};
+use crate::server::WebEventChannelHandle;
 
 use crate::core::node_handles::NodeHandles;
 use crate::domain::config::Config;
-use crate::domain::node::{LifecycleAware, Manager};
+use crate::domain::node::LifecycleAware;
 use crate::server::acme::Acme;
 use crate::server::routes::router;
 use async_trait::async_trait;
@@ -21,7 +21,6 @@ pub fn new(config: Arc<Config>) -> impl WebServer {
 #[async_trait]
 pub trait WebServer: 'static + Clone + Send + Sync {
     async fn serve(&self, node_handles: &NodeHandles) -> Result<(), String>;
-    fn get_flow_delegate_factory(&self, manager: &Manager) -> OauthFlowDelegateFactory;
     fn get_web_channel_handle(&self) -> &WebEventChannelHandle;
 }
 
@@ -36,7 +35,6 @@ mock! {
     #[async_trait]
     impl WebServer for WebServer {
         async fn serve(&self, node_handles: &NodeHandles) -> Result<(), String>;
-        fn get_flow_delegate_factory(&self, manager: &Manager) -> OauthFlowDelegateFactory;
         fn get_web_channel_handle(&self) -> &WebEventChannelHandle;
     }
 }
@@ -93,15 +91,6 @@ impl WebServer for WebServerImpl {
         };
 
         Ok(())
-    }
-
-    fn get_flow_delegate_factory(&self, manager: &Manager) -> OauthFlowDelegateFactory {
-        OauthFlowDelegateFactory::new(
-            manager,
-            self.config.redirect_port(),
-            &self.config.redirect_uri(),
-            &self.web_channel_handle,
-        )
     }
 
     fn get_web_channel_handle(&self) -> &WebEventChannelHandle {

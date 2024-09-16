@@ -1,6 +1,5 @@
 use crate::core::module::State;
-use crate::domain::module_state::ModuleState;
-use crate::integration::google::Source;
+use crate::domain::module_state::{ModuleState, NamedModule};
 use chrono::{DateTime, TimeDelta, Utc};
 use lazy_static::lazy_static;
 use rand::distributions::Alphanumeric;
@@ -61,8 +60,11 @@ pub fn auth_validation() -> impl Filter<Extract = (), Error = warp::Rejection> +
         .untuple_one()
 }
 
-pub async fn get_token_path() -> Result<PathBuf, std::io::Error> {
-    let root = State::path_for::<Source>().await?;
+pub async fn get_token_path<Module>() -> Result<PathBuf, std::io::Error>
+where
+    Module: NamedModule,
+{
+    let root = State::path_for::<Module>().await?;
 
     Ok(PathBuf::from(root).join("token.json"))
 }

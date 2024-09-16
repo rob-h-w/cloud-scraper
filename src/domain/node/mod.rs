@@ -96,6 +96,8 @@ pub mod test {
     use crate::domain::config::tests::test_config;
     use crate::domain::node::manager::test::get_test_manager;
 
+    pub struct TestNode;
+
     mod readonly_manager {
         use super::*;
         use crate::domain::mpsc_handle::one_shot;

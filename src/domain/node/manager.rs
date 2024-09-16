@@ -122,4 +122,24 @@ pub mod test {
         let lifecycle_handle = LifecycleChannelHandle::new();
         Manager::new(config, lifecycle_handle)
     }
+
+    mod send_read_config {
+        use super::*;
+        use crate::domain::config::tests::test_config;
+        use crate::domain::node::manager::test::get_test_manager;
+        use crate::domain::node::test::TestNode;
+        use tokio_test::assert_ok;
+
+        #[tokio::test]
+        async fn test_send_read_config() {
+            let config = test_config();
+            let mut manager = get_test_manager(&config);
+            let mut lifecycle_receiver = manager.readonly().get_receiver();
+            let result = manager.send_read_config::<TestNode>();
+            assert_ok!(result);
+
+            let event = lifecycle_receiver.recv().await.unwrap();
+            assert_eq!(event, ReadConfig(TypeId::of::<TestNode>()));
+        }
+    }
 }

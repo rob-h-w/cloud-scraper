@@ -1,12 +1,12 @@
-use crate::domain::channel_handle::ChannelHandle;
 use crate::domain::module_state::NamedModule;
-use crate::domain::node::{InitReplier, Lifecycle, LifecycleAware, Manager};
-use crate::integration::google::auth::get_authenticator;
+use crate::domain::node::{InitReplier, Lifecycle, Manager};
+use crate::domain::oauth2::Client;
 use crate::integration::google::auth::web::get_config;
-use crate::integration::google::Events;
-use crate::server::OauthFlowDelegateFactory;
+use crate::server::auth::get_token_path;
+use crate::server::WebEventChannelHandle;
 use derive_getters::Getters;
 use log::{debug, error, info, trace};
+use std::any::TypeId;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Semaphore};
 use tokio::{join, task};
@@ -19,9 +19,8 @@ const SCOPES: [&str; 2] = [
 
 #[derive(Clone, Debug, Getters)]
 pub struct Source {
-    control_events: ChannelHandle<Events>,
     lifecycle_manager: Manager,
-    flow_delegate_factory: OauthFlowDelegateFactory,
+    web_channel_handle: WebEventChannelHandle,
 }
 
 impl NamedModule for Source {
@@ -31,11 +30,10 @@ impl NamedModule for Source {
 }
 
 impl Source {
-    pub fn new(manager: &Manager, flow_delegate_factory: &OauthFlowDelegateFactory) -> Self {
+    pub fn new(manager: &Manager, web_channel_handle: &WebEventChannelHandle) -> Self {
         Self {
-            control_events: ChannelHandle::new(),
             lifecycle_manager: manager.clone(),
-            flow_delegate_factory: flow_delegate_factory.clone(),
+            web_channel_handle: web_channel_handle.clone(),
         }
     }
 
@@ -48,12 +46,13 @@ impl Source {
             .acquire_owned()
             .await
             .expect("Could not acquire semaphore");
-        let flow_delegate_factory = self.flow_delegate_factory.clone();
+        let lifecycle_manager = self.lifecycle_manager.clone();
+        let web_channel_handle = self.web_channel_handle.clone();
+
         let task = task::spawn(async move {
             drop(permit);
 
             loop {
-                let installed_flow_delegate = flow_delegate_factory.get_installed_flow_delegate();
                 match load_receiver.recv().await {
                     Some(_) => {
                         info!("Loading google source");
@@ -68,16 +67,25 @@ impl Source {
                 } else {
                     continue;
                 };
-                let authenticator =
-                    match get_authenticator(installed_flow_delegate, &application_secret).await {
-                        Ok(authenticator) => authenticator,
-                        Err(e) => {
-                            error!("Error while getting authenticator: {:?}", e);
-                            continue;
-                        }
-                    };
-
-                let token = authenticator.token(&SCOPES).await;
+                let token_path = match get_token_path::<Self>().await {
+                    Ok(path) => path,
+                    Err(e) => {
+                        error!("Problem getting or creating the token path: {}", e);
+                        continue;
+                    }
+                };
+                let client = Client::new(
+                    application_secret,
+                    &lifecycle_manager,
+                    &token_path,
+                    &web_channel_handle,
+                );
+                let token = match client.get_token(&SCOPES).await {
+                    Ok(token) => token,
+                    Err(_) => {
+                        continue;
+                    }
+                };
                 debug!("Token: {:?}", token);
             }
         });
@@ -115,8 +123,8 @@ impl Source {
                             send_load!();
                             event.reply_to_init_with((), "google_source").await
                         }
-                        ReadConfig(_) => {
-                            if event.is_this::<Source>() {
+                        ReadConfig(type_id) => {
+                            if type_id == TypeId::of::<Source>() {
                                 send_load!();
                             }
                         }

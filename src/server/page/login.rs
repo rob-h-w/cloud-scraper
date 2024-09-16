@@ -38,14 +38,17 @@ impl LoginQuery {
 
 pub fn login() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     warp::path(LOGIN)
+        .and(warp::path::end())
         .and(warp::get())
         .and(auth_validation())
         .map(|| warp::redirect::found(warp::http::Uri::from_static("/")))
         .or(warp::path(LOGIN)
+            .and(warp::path::end())
             .and(warp::get())
             .and(warp::query::<LoginQuery>())
             .map(move |query: LoginQuery| reply::html(format_login_html(query.failed()))))
         .or(warp::path(LOGIN)
+            .and(warp::path::end())
             .and(warp::post())
             .and(warp::body::form())
             .and_then(handlers::check_root_password)

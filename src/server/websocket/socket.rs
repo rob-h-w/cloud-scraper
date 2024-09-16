@@ -106,6 +106,11 @@ async fn use_websocket(mut web_socket: WebSocket, handles: NodeHandles) {
                                 }
                             };
 
+                            if confirmation.is_close() {
+                                error!("Websocket closed.");
+                                break;
+                            }
+
                             debug!("Received redirect confirmation: {:?}", confirmation);
                             break;
                         }
@@ -125,6 +130,7 @@ async fn use_websocket(mut web_socket: WebSocket, handles: NodeHandles) {
 
                         break;
                     }
+                    _ => {}
                 },
                 Err(e) => match e {
                     RecvError::Closed => {

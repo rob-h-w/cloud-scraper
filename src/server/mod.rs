@@ -1,9 +1,9 @@
 mod acme;
-pub mod auth;
-pub mod errors;
+pub(crate) mod auth;
+pub(crate) mod errors;
 mod events;
-pub mod javascript;
-mod oauth_installed_flow_delegate;
+pub(crate) mod javascript;
+mod oauth2;
 mod page;
 mod root;
 mod routes;
@@ -11,16 +11,13 @@ mod site_state;
 mod web_server;
 mod websocket;
 
-pub use events::{Event, WebEventChannelHandle};
-
-pub use oauth_installed_flow_delegate::OauthFlowDelegateFactory;
-pub use oauth_installed_flow_delegate::OauthInstalledFlowDelegate;
+pub(crate) use events::{Code, Event, WebEventChannelHandle};
 
 #[cfg(test)]
-pub use root::format_root_html;
+pub(crate) use root::format_root_html;
 
-pub use web_server::new;
-pub use web_server::WebServer;
+pub(crate) use web_server::new;
+pub(crate) use web_server::WebServer;
 
 #[cfg(test)]
-pub use web_server::MockWebServer;
+pub(crate) use web_server::MockWebServer;

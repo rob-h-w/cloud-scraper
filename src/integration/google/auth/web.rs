@@ -1,11 +1,10 @@
 use crate::core::module::State;
 use crate::core::node_handles::NodeHandles;
-#[cfg(not(test))]
-use crate::domain::config::Config;
-#[cfg(test)]
 use crate::domain::config::Config;
 use crate::domain::module_state::ModuleState;
 use crate::domain::node::Manager;
+use crate::domain::oauth2::ApplicationSecret;
+use crate::domain::oauth2::ApplicationSecretBuilder;
 use crate::integration::google::Source;
 use crate::server::auth::auth_validation;
 use crate::server::errors::Rejectable;
@@ -20,8 +19,7 @@ use std::collections::HashMap;
 use std::io;
 use std::path::PathBuf;
 use tokio::fs;
-use warp::{reply, Filter, Rejection, Reply};
-use yup_oauth2::ApplicationSecret;
+use warp::{path, reply, Filter, Rejection, Reply};
 
 const CONFIG_TEMPLATE: &str = "config/google";
 const ROOT_PATH: &str = "/";
@@ -121,17 +119,20 @@ ConfigQuery,
 
 impl ConfigQuery {
     pub fn to_application_secret(&self, config: &Config) -> ApplicationSecret {
-        ApplicationSecret {
-            client_id: self.client_id(),
-            client_secret: self.client_secret(),
-            auth_uri: self.auth_uri(),
-            auth_provider_x509_cert_url: Some(self.auth_provider_x509_cert_url()),
-            token_uri: self.token_uri(),
-            redirect_uris: vec![config.redirect_uri()],
-            project_id: Some(self.project_id()),
-            client_email: None,
-            client_x509_cert_url: None,
-        }
+        ApplicationSecretBuilder::default()
+            .auth_provider_x509_cert_url(Some(self.auth_provider_x509_cert_url()))
+            .auth_uri(self.auth_uri())
+            .client_email(None)
+            .client_id(self.client_id())
+            .client_secret(self.client_secret())
+            .client_x509_cert_url(None)
+            .project_id(Some(self.project_id()))
+            .redirect_uris(vec![config.redirect_uri()])
+            .token_uri(self.token_uri())
+            .build()
+            .unwrap_or_else(|e| {
+                panic!("Error while building ApplicationSecret: {:?}", e);
+            })
     }
 }
 
@@ -142,6 +143,7 @@ pub fn config_google(
     let post_node_handles = handles.clone();
     warp::path("config")
         .and(warp::path("google"))
+        .and(path::end())
         .and(warp::get())
         .and(auth_validation())
         .map(move || {
@@ -151,6 +153,7 @@ pub fn config_google(
         .and_then(|future| future)
         .or(warp::path("config")
             .and(warp::path("google"))
+            .and(path::end())
             .and(warp::post())
             .and(auth_validation())
             .and(warp::body::form())
@@ -159,11 +162,6 @@ pub fn config_google(
                 update_config(form_map, node_handles)
             })
             .and_then(|future| future))
-}
-
-#[derive(Deserialize)]
-struct AuthCode {
-    code: String,
 }
 
 async fn format_response(handles: NodeHandles) -> Result<impl Reply, Rejection> {
@@ -298,9 +296,9 @@ mod tests {
             project_id: "test_project_id".to_string(),
             client_id: "test_client_id".to_string(),
             client_secret: "test_client_secret".to_string(),
-            auth_uri: "test_auth_uri".to_string(),
+            auth_uri: "https://test.auth.uri".to_string(),
             auth_provider_x509_cert_url: "test_auth_provider_x509_cert_url".to_string(),
-            token_uri: "test_token_uri".to_string(),
+            token_uri: "https://test.token.uri".to_string(),
         }
     }
 
@@ -308,9 +306,9 @@ mod tests {
         "project_id=test_project_id&\
         client_id=test_client_id&\
         client_secret=test_client_secret&\
-        auth_uri=test_auth_uri&\
+        auth_uri=https://test.auth.uri&\
         auth_provider_x509_cert_url=test_auth_provider_x509_cert_url&\
-        token_uri=test_token_uri"
+        token_uri=https://test.token.uri"
             .to_string()
     }
 
@@ -385,11 +383,11 @@ mod tests {
             assert!(actual.contains("name=\"project_id\" value=\"test_project_id\"\n"));
             assert!(actual.contains("name=\"client_id\" value=\"test_client_id\"\n"));
             assert!(actual.contains("name=\"client_secret\" value=\"test_client_secret\"\n"));
-            assert!(actual.contains("name=\"auth_uri\" value=\"test_auth_uri\"\n"));
+            assert!(actual.contains("name=\"auth_uri\" value=\"https://test.auth.uri\"\n"));
             assert!(actual.contains(
                 "name=\"auth_provider_x509_cert_url\" value=\"test_auth_provider_x509_cert_url\"\n"
             ));
-            assert!(actual.contains("name=\"token_uri\" value=\"test_token_uri\"\n"));
+            assert!(actual.contains("name=\"token_uri\" value=\"https://test.token.uri\"\n"));
         }
 
         #[tokio::test]
@@ -427,26 +425,26 @@ mod tests {
             #[test]
             fn returns_application_secret() {
                 let config = test_config();
-                let core_config = Config::with_all_properties(None, None, None, None, None, None);
+                let core_config = Config::with_all_properties(None, None, None, None, None);
                 let application_secret = config.to_application_secret(&core_config);
-                assert_eq!(application_secret.client_id, "test_client_id");
-                assert_eq!(application_secret.client_secret, "test_client_secret");
-                assert_eq!(application_secret.auth_uri, "test_auth_uri");
+                assert_eq!(application_secret.client_id(), "test_client_id");
+                assert_eq!(application_secret.client_secret(), "test_client_secret");
+                assert_eq!(application_secret.auth_uri(), "https://test.auth.uri");
                 assert_eq!(
-                    application_secret.auth_provider_x509_cert_url,
-                    Some("test_auth_provider_x509_cert_url".to_string())
+                    application_secret.auth_provider_x509_cert_url(),
+                    &Some("test_auth_provider_x509_cert_url".to_string())
                 );
-                assert_eq!(application_secret.token_uri, "test_token_uri");
+                assert_eq!(application_secret.token_uri(), "https://test.token.uri");
                 assert_eq!(
-                    application_secret.redirect_uris,
-                    vec!["https://localhost:8081/auth/google"]
+                    application_secret.redirect_uris(),
+                    &vec!["https://localhost:443/auth/google"]
                 );
                 assert_eq!(
-                    application_secret.project_id,
-                    Some("test_project_id".to_string())
+                    application_secret.project_id(),
+                    &Some("test_project_id".to_string())
                 );
-                assert_eq!(application_secret.client_email, None);
-                assert_eq!(application_secret.client_x509_cert_url, None);
+                assert_eq!(application_secret.client_email(), &None);
+                assert_eq!(application_secret.client_x509_cert_url(), &None);
             }
         }
     }

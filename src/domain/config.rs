@@ -6,7 +6,6 @@ use std::time::Duration;
 use std::vec;
 
 const TLS_PORT: u16 = 443;
-const REDIRECT_PORT: u16 = 8081;
 const DEFAULT_SITE_FOLDER: &str = ".site";
 
 #[derive(Clone, Debug, Deserialize)]
@@ -15,7 +14,6 @@ pub struct Config {
     email: Option<String>,
     exit_after: Option<u64>,
     port: Option<u16>,
-    redirect_port: Option<u16>,
     site_state_folder: Option<String>,
 }
 
@@ -36,7 +34,6 @@ impl Config {
                 email: None,
                 exit_after: serve_args.exit_after,
                 port: serve_args.port,
-                redirect_port: serve_args.redirect_port,
                 site_state_folder: None,
             },
         })
@@ -48,7 +45,6 @@ impl Config {
         email: Option<String>,
         exit_after: Option<u64>,
         port: Option<u16>,
-        redirect_port: Option<u16>,
         site_state_folder: Option<String>,
     ) -> Self {
         Self {
@@ -56,7 +52,6 @@ impl Config {
             email,
             exit_after,
             port,
-            redirect_port,
             site_state_folder,
         }
     }
@@ -109,16 +104,12 @@ impl Config {
         self.port.unwrap_or(TLS_PORT)
     }
 
-    pub(crate) fn redirect_port(&self) -> u16 {
-        self.redirect_port.unwrap_or(REDIRECT_PORT)
-    }
-
     pub(crate) fn redirect_uri(&self) -> String {
         format!(
             "{}://{}:{}/auth/google",
             self.http_scheme(),
             self.domain_name(),
-            self.redirect_port()
+            self.port()
         )
     }
 
@@ -206,7 +197,6 @@ pub(crate) mod tests {
             email: None,
             exit_after: None,
             port: None,
-            redirect_port: None,
             site_state_folder: None,
         })
     }
@@ -220,7 +210,6 @@ pub(crate) mod tests {
             email,
             exit_after: None,
             port: None,
-            redirect_port: None,
             site_state_folder: None,
         })
     }
@@ -235,7 +224,6 @@ pub(crate) mod tests {
                 email: None,
                 exit_after: None,
                 port: None,
-                redirect_port: None,
                 site_state_folder: Some("test_site_folder".to_string()),
             };
 
@@ -269,11 +257,10 @@ pub(crate) mod tests {
                     None,
                     None,
                     Some(8080),
-                    Some(8081),
                     Some("test".to_string()),
                 );
                 let redirect_uri = config.redirect_uri();
-                assert_eq!(redirect_uri, "https://test_domain:8081/auth/google");
+                assert_eq!(redirect_uri, "https://test_domain:8080/auth/google");
             }
 
             #[test]
@@ -283,11 +270,10 @@ pub(crate) mod tests {
                     None,
                     None,
                     Some(8080),
-                    Some(8081),
                     Some("test_domain".to_string()),
                 );
                 let redirect_uri = config.redirect_uri();
-                assert_eq!(redirect_uri, "http://localhost:8081/auth/google");
+                assert_eq!(redirect_uri, "http://localhost:8080/auth/google");
             }
         }
 
@@ -301,7 +287,6 @@ pub(crate) mod tests {
                     None,
                     None,
                     Some(8080),
-                    Some(8081),
                     Some("test".to_string()),
                 );
                 let websocket_uri = config.websocket_uri();
@@ -315,7 +300,6 @@ pub(crate) mod tests {
                     None,
                     None,
                     Some(8080),
-                    Some(8081),
                     Some("test_domain".to_string()),
                 );
                 let websocket_uri = config.websocket_uri();

@@ -5,3 +5,4 @@ pub(crate) mod entity_data;
 pub mod module_state;
 pub mod mpsc_handle;
 pub mod node;
+pub(crate) mod oauth2;
