@@ -42,8 +42,8 @@ async fn use_websocket(mut web_socket: WebSocket, handles: NodeHandles) {
     let task = task::spawn(async move {
         loop {
             match web_event_reader.get_receiver().recv().await {
-                Ok(event) => match event {
-                    Redirect(url, sender) => {
+                Ok(event) => {
+                    if let Redirect(url, sender) = event {
                         let mut exit_parent: bool = false;
                         loop {
                             info!("Redirecting to {:?}", url);
@@ -130,8 +130,7 @@ async fn use_websocket(mut web_socket: WebSocket, handles: NodeHandles) {
 
                         break;
                     }
-                    _ => {}
-                },
+                }
                 Err(e) => match e {
                     RecvError::Closed => {
                         break;

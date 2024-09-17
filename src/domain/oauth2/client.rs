@@ -99,10 +99,7 @@ impl Client {
         let stop_task = self.manager.readonly().abort_on_stop(&task);
         let result = task.await.map_err(|e| e.to_error());
         stop_task.abort();
-        match result {
-            Ok(result) => result,
-            Err(e) => Err(e),
-        }
+        result.unwrap_or_else(|e| Err(e))
     }
 
     pub(crate) async fn get_token(&self, scopes: &[&str]) -> Result<AccessToken, Error> {
@@ -116,7 +113,7 @@ impl Client {
         let (redirect_url, csrf_state) = request.set_pkce_challenge(pkce_challenge).url();
 
         let code_future = self.await_code();
-        self.present_url(&redirect_url.to_string()).await?;
+        self.present_url(&redirect_url).await?;
 
         let code = code_future.await?;
 
@@ -136,7 +133,7 @@ impl Client {
         Ok(token_result.access_token().clone())
     }
 
-    async fn present_url(&self, url: &str) -> Result<(), Error> {
+    async fn present_url(&self, url: &Url) -> Result<(), Error> {
         debug!("Presenting user url: {}", url);
         let (sender, mut receiver) = one_shot();
         let semaphore = Arc::new(Semaphore::new(1));

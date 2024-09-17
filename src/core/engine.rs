@@ -66,7 +66,7 @@ where
         let wait_duration = self.manager.core_config().exit_after();
 
         let mut stub_source = StubSource::new(&self.manager);
-        let google_source = GoogleSource::new(&self.manager, &self.server.get_web_channel_handle());
+        let google_source = GoogleSource::new(&self.manager, self.server.get_web_channel_handle());
         let mut log_sink = LogSink::new(&self.manager, &stub_source.get_readonly_channel_handle());
 
         let node_handles = NodeHandles::new(&self.manager, self.server.get_web_channel_handle());
