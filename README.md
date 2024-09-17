@@ -125,22 +125,6 @@ Or by command line argument.
 cargo run -- -p 1234
 ```
 
-##### Redirects
-
-For Oauth2, a redirect path is needed. This is implemented on another port, defaulting to `8081`.
-
-This can be configured in the configuration file.
-
-```yaml
-redirect_port: 1231
-```
-
-Or by command line argument.
-
-```bash
-cargo run -- -r 1231
-```
-
 ### Running
 
 First, you should set a root password. There is only one, and no user because this system is
