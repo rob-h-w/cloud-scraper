@@ -66,7 +66,7 @@ where
 {
     let root = State::path_for::<Module>().await?;
 
-    Ok(PathBuf::from(root).join("token.json"))
+    Ok(PathBuf::from(root).join("token.yaml"))
 }
 
 #[derive(Clone, Debug)]
