@@ -103,7 +103,7 @@ impl Client {
         let stop_task = self.manager.readonly().abort_on_stop(&task);
         let result = task.await.map_err(|e| e.to_error());
         stop_task.abort();
-        result.unwrap_or_else(|e| Err(e))
+        result?
     }
 
     pub(crate) async fn get_token(&self, scopes: &[&str]) -> Result<AccessToken, Error> {
