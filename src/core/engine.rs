@@ -107,7 +107,11 @@ where
     async fn wait_for_init_responses<'a>(
         &'a self,
         join_set: &'a mut JoinSet<()>,
-    ) -> (OneshotMpscSenderHandle<()>, &mut JoinSet<()>, AbortHandle) {
+    ) -> (
+        OneshotMpscSenderHandle<()>,
+        &'a mut JoinSet<()>,
+        AbortHandle,
+    ) {
         let readonly_manager = self.manager.readonly();
         let (sender, mut receiver) = one_shot();
         let expected = join_set.len();
@@ -152,7 +156,7 @@ where
         &'a self,
         join_set: &'a mut JoinSet<()>,
         wait: Option<Duration>,
-    ) -> &mut JoinSet<()> {
+    ) -> &'a mut JoinSet<()> {
         let mut wait_manager = self.manager.clone();
         let semaphore = Arc::new(Semaphore::new(1));
         let permit = semaphore
@@ -195,7 +199,7 @@ where
         &'a self,
         join_set: &'a mut JoinSet<()>,
         sender: OneshotMpscSenderHandle<()>,
-    ) -> &mut JoinSet<()> {
+    ) -> &'a mut JoinSet<()> {
         let mut manager = self.manager.clone();
         manager
             .send_init(sender)

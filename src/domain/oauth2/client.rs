@@ -1,17 +1,21 @@
 use crate::domain::mpsc_handle::one_shot;
 use crate::domain::node::Manager;
+use crate::domain::oauth2::token::{BasicTokenResponseExt, Token, TokenExt, TokenStatus};
 use crate::domain::oauth2::ApplicationSecret;
 use crate::server::Event::Redirect;
 use crate::server::{Code, Event, WebEventChannelHandle};
 use crate::static_init::error::Error::FailedAfterRetries;
-use crate::static_init::error::{Error, JoinErrorExt, RequestTokenErrorExt};
-use log::debug;
+use crate::static_init::error::{
+    Error, IoErrorExt, JoinErrorExt, RequestTokenErrorExt, SerdeErrorExt,
+};
+use log::{debug, error};
 use oauth2::basic::BasicClient;
 use oauth2::reqwest::async_http_client;
 use oauth2::url::Url;
-use oauth2::{AccessToken, CsrfToken, PkceCodeChallenge, Scope, TokenResponse};
+use oauth2::{AccessToken, CsrfToken, PkceCodeChallenge, RefreshToken, Scope};
 use std::path::PathBuf;
 use std::sync::Arc;
+use tokio::fs;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::Semaphore;
 use tokio::task;
@@ -103,34 +107,26 @@ impl Client {
     }
 
     pub(crate) async fn get_token(&self, scopes: &[&str]) -> Result<AccessToken, Error> {
-        let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
-        let mut request = self.basic_client.authorize_url(CsrfToken::new_random);
-
-        for scope in scopes.iter() {
-            request = request.add_scope(Scope::new(scope.to_string()));
+        match self.get_token_status_from_file().await {
+            TokenStatus::Ok(token) => Ok(token.access_token().clone()),
+            TokenStatus::Expired(refresh_token) => self
+                .refresh_token(&refresh_token)
+                .await
+                .map(|token| token.access_token().clone()),
+            TokenStatus::Absent => self.retrieve_token(scopes).await.map(|token| {
+                debug!("Token retrieved: {:?}", token);
+                token.access_token().clone()
+            }),
         }
+    }
 
-        let (redirect_url, csrf_state) = request.set_pkce_challenge(pkce_challenge).url();
-
-        let code_future = self.await_code();
-        self.present_url(&redirect_url).await?;
-
-        let code = code_future.await?;
-
-        if code.state().secret() != csrf_state.secret() {
-            debug!("CSRF state secret did not match");
-            return Err(Oauth2CsrfMismatch);
-        }
-
-        let token_result = self
-            .basic_client
-            .exchange_code(code.code().clone())
-            .set_pkce_verifier(pkce_verifier)
-            .request_async(async_http_client)
+    async fn get_token_status_from_file(&self) -> TokenStatus {
+        fs::read_to_string(&self.token_path)
             .await
-            .map_err(|e| e.to_error())?;
-
-        Ok(token_result.access_token().clone())
+            .ok()
+            .map(|s| serde_yaml::from_str::<Token>(&s).ok())
+            .unwrap_or(None)
+            .get_status()
     }
 
     async fn present_url(&self, url: &Url) -> Result<(), Error> {
@@ -194,6 +190,72 @@ impl Client {
                 Some(_) => Ok(()),
             },
             Err(e) => Err(e.to_error()),
+        }
+    }
+
+    async fn refresh_token(&self, refresh_token: &RefreshToken) -> Result<Token, Error> {
+        let token_status = self
+            .basic_client
+            .exchange_refresh_token(refresh_token)
+            .request_async(async_http_client)
+            .await
+            .map_err(|e| e.to_error())?
+            .to_token_status();
+
+        self.write_token(&token_status).await
+    }
+
+    async fn retrieve_token(&self, scopes: &[&str]) -> Result<Token, Error> {
+        let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
+        let mut request = self.basic_client.authorize_url(CsrfToken::new_random);
+
+        for scope in scopes.iter() {
+            request = request.add_scope(Scope::new(scope.to_string()));
+        }
+
+        let (redirect_url, csrf_state) = request.set_pkce_challenge(pkce_challenge).url();
+
+        let code_future = self.await_code();
+        self.present_url(&redirect_url).await?;
+
+        let code = code_future.await?;
+
+        if code.state().secret() != csrf_state.secret() {
+            debug!("CSRF state secret did not match");
+            return Err(Oauth2CsrfMismatch);
+        }
+
+        let token_status = self
+            .basic_client
+            .exchange_code(code.code().clone())
+            .set_pkce_verifier(pkce_verifier)
+            .request_async(async_http_client)
+            .await
+            .map_err(|e| e.to_error())?
+            .to_token_status();
+
+        self.write_token(&token_status).await
+    }
+
+    async fn write_token(&self, token_status: &TokenStatus) -> Result<Token, Error> {
+        match token_status {
+            TokenStatus::Ok(token) => {
+                fs::write(
+                    &self.token_path,
+                    serde_yaml::to_string(token).map_err(|e| e.to_yaml_serialization_error())?,
+                )
+                .await
+                .map_err(|e| e.to_error())?;
+                Ok(token.clone())
+            }
+            TokenStatus::Expired(_) => {
+                error!("Token was retrieved expired.");
+                Err(Error::Oauth2TokenExpired)
+            }
+            TokenStatus::Absent => {
+                error!("Token was not retrieved.");
+                Err(Error::Oauth2TokenAbsent)
+            }
         }
     }
 }

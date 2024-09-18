@@ -1,4 +1,4 @@
-use crate::static_init::error::Error::TokenRequestFailed;
+use crate::static_init::error::Error::{IoError, TokenRequestFailed};
 use core::error::Error as CoreError;
 use log::{debug, error};
 use oauth2::basic::BasicErrorResponse;
@@ -8,6 +8,7 @@ use std::error::Error as StdError;
 use std::io;
 use tokio::task::JoinError;
 use warp::reject::Reject;
+use Error::Builder;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Error {
@@ -15,10 +16,13 @@ pub enum Error {
     Cancelled(String),
     Connection(String),
     FailedAfterRetries,
+    IoError(String),
     KeyNotFound(Value),
     NotAMapping(Value),
     Oauth2CodeMissing,
     Oauth2CsrfMismatch,
+    Oauth2TokenAbsent,
+    Oauth2TokenExpired,
     Panicked(String),
     TokenRequestFailed,
     YamlSerialization(String),
@@ -91,10 +95,15 @@ impl SerdeErrorExt for serde_yaml::Error {
 
 pub trait IoErrorExt {
     fn to_source_creation_builder_error(&self) -> Error;
+    fn to_error(&self) -> Error;
 }
 
 impl IoErrorExt for io::Error {
     fn to_source_creation_builder_error(&self) -> Error {
-        Error::Builder(self.to_string())
+        Builder(self.to_string())
+    }
+
+    fn to_error(&self) -> Error {
+        IoError(self.to_string())
     }
 }
