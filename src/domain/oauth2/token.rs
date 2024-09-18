@@ -26,9 +26,7 @@ impl Token {
                     .checked_add_signed(TimeDelta::from_std(duration).unwrap_or(max))
                     .unwrap_or(Utc::now().add(max))
             }),
-            refresh_token: response
-                .refresh_token()
-                .map(|refresh_token| refresh_token.clone()),
+            refresh_token: response.refresh_token().cloned(),
         }
     }
 
