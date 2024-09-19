@@ -13,7 +13,7 @@ use oauth2::basic::BasicClient;
 use oauth2::reqwest::async_http_client;
 use oauth2::url::Url;
 use oauth2::{AccessToken, CsrfToken, PkceCodeChallenge, RefreshToken, Scope};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::fs;
 use tokio::sync::broadcast::error::RecvError;
@@ -36,7 +36,7 @@ impl Client {
     pub(crate) fn new(
         application_secret: ApplicationSecret,
         manager: &Manager,
-        token_path: &PathBuf,
+        token_path: &Path,
         web_channel_handle: &WebEventChannelHandle,
     ) -> Self {
         let basic_client = application_secret.to_client();
@@ -45,7 +45,7 @@ impl Client {
             manager: manager.clone(),
             retry_max: 9,
             retry_period: std::time::Duration::from_secs(2),
-            token_path: token_path.clone(),
+            token_path: token_path.to_owned(),
             web_channel_handle: web_channel_handle.clone(),
         }
     }

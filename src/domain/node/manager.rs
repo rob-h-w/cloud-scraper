@@ -76,10 +76,6 @@ impl ReadonlyManager {
         abort_on_stop::<T>(self.manager.lifecycle_channel_handle.get_receiver(), task)
     }
 
-    pub fn core_config(&self) -> &Config {
-        self.manager.core_config()
-    }
-
     pub fn get_receiver(&self) -> Receiver<Lifecycle> {
         self.manager.lifecycle_channel_handle.get_receiver()
     }

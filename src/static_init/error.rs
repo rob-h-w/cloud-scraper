@@ -1,4 +1,4 @@
-use crate::static_init::error::Error::{IoError, TokenRequestFailed};
+use crate::static_init::error::Error::{Io, TokenRequestFailed};
 use core::error::Error as CoreError;
 use log::{debug, error};
 use oauth2::basic::BasicErrorResponse;
@@ -16,7 +16,7 @@ pub enum Error {
     Cancelled(String),
     Connection(String),
     FailedAfterRetries,
-    IoError(String),
+    Io(String),
     KeyNotFound(Value),
     NotAMapping(Value),
     Oauth2CodeMissing,
@@ -104,6 +104,6 @@ impl IoErrorExt for io::Error {
     }
 
     fn to_error(&self) -> Error {
-        IoError(self.to_string())
+        Io(self.to_string())
     }
 }

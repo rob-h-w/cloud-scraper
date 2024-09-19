@@ -14,7 +14,7 @@ where
     T: std::fmt::Debug,
 {
     fn from(error: SendError<T>) -> Self {
-        Self::SendRejection(format!("SendError: {:?}", error))
+        Self::SendRejection(format!("{:?}", error))
     }
 }
 
@@ -34,5 +34,19 @@ where
 impl Rejectable for Error {
     fn into_rejection(self) -> warp::Rejection {
         warp::reject::custom(self)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn rejection_is_reject() {
+        let send_error = SendError(123);
+        let expected_message = "SendError(123)";
+        match Rejection::from(send_error) {
+            Rejection::SendRejection(message) => assert_eq!(message, expected_message.to_string()),
+        }
     }
 }
