@@ -100,6 +100,7 @@ pub fn abort_on_stop<T>(
                 Err(e) => match e {
                     RecvError::Closed => {
                         debug!("Channel closed in abort_on_stop.");
+                        break;
                     }
                     RecvError::Lagged(amount) => {
                         error!("Lagged amount of {} in abort_on_stop.", amount);
