@@ -207,7 +207,10 @@ impl Client {
 
     async fn retrieve_token(&self, scopes: &[&str]) -> Result<Token, Error> {
         let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
-        let mut request = self.basic_client.authorize_url(CsrfToken::new_random);
+        let mut request = self
+            .basic_client
+            .authorize_url(CsrfToken::new_random)
+            .add_extra_param("access_type", "offline");
 
         for scope in scopes.iter() {
             request = request.add_scope(Scope::new(scope.to_string()));
