@@ -1,5 +1,6 @@
 use crate::domain::mpsc_handle::one_shot;
 use crate::domain::node::Manager;
+use crate::domain::oauth2::extra_parameters::ExtraParameters;
 use crate::domain::oauth2::token::{BasicTokenResponseExt, Token, TokenExt, TokenStatus};
 use crate::domain::oauth2::ApplicationSecret;
 use crate::server::Event::Redirect;
@@ -25,6 +26,7 @@ use Event::Oauth2Code;
 
 pub(crate) struct Client {
     basic_client: BasicClient,
+    extra_parameters: ExtraParameters,
     manager: Manager,
     retry_max: u8,
     retry_period: std::time::Duration,
@@ -35,6 +37,7 @@ pub(crate) struct Client {
 impl Client {
     pub(crate) fn new(
         application_secret: ApplicationSecret,
+        extra_parameters: &ExtraParameters,
         manager: &Manager,
         token_path: &Path,
         web_channel_handle: &WebEventChannelHandle,
@@ -42,6 +45,7 @@ impl Client {
         let basic_client = application_secret.to_client();
         Self {
             basic_client,
+            extra_parameters: extra_parameters.clone(),
             manager: manager.clone(),
             retry_max: 9,
             retry_period: std::time::Duration::from_secs(2),
@@ -207,10 +211,14 @@ impl Client {
 
     async fn retrieve_token(&self, scopes: &[&str]) -> Result<Token, Error> {
         let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
-        let mut request = self
-            .basic_client
-            .authorize_url(CsrfToken::new_random)
-            .add_extra_param("access_type", "offline");
+        let mut request = self.basic_client.authorize_url(CsrfToken::new_random);
+
+        for extra_parameter in self.extra_parameters.iter() {
+            request = request.add_extra_param(
+                extra_parameter.key().to_string(),
+                extra_parameter.value().to_string(),
+            );
+        }
 
         for scope in scopes.iter() {
             request = request.add_scope(Scope::new(scope.to_string()));

@@ -1,6 +1,6 @@
 use crate::domain::module_state::NamedModule;
 use crate::domain::node::{InitReplier, Lifecycle, Manager};
-use crate::domain::oauth2::Client;
+use crate::domain::oauth2::{extra_parameters, Client};
 use crate::integration::google::auth::web::get_config;
 use crate::server::auth::get_token_path;
 use crate::server::WebEventChannelHandle;
@@ -76,6 +76,7 @@ impl Source {
                 };
                 let client = Client::new(
                     application_secret,
+                    &extra_parameters!("access_type" => "offline"),
                     &lifecycle_manager,
                     &token_path,
                     &web_channel_handle,
