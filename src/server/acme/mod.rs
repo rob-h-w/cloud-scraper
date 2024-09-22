@@ -8,7 +8,6 @@ use acme2::{
     gen_ec_p256_private_key, AccountBuilder, AuthorizationStatus, ChallengeStatus, Csr,
     DirectoryBuilder, Error, OrderBuilder, OrderStatus,
 };
-use async_trait::async_trait;
 use chrono::Utc;
 use std::sync::Arc;
 use std::time::Duration;
@@ -18,23 +17,13 @@ use x509_parser::pem::parse_x509_pem;
 
 const LETS_ENCRYPT_URL: &str = "https://acme-v02.api.letsencrypt.org/directory";
 
-#[async_trait]
-pub trait Acme: Send + Sync {
-    fn cert_path(&self) -> &str;
-    async fn ensure_certs(&self) -> Result<(), String>;
-    fn key_path(&self) -> &str;
-}
-
-pub struct AcmeImpl<ConfigType> {
-    config: Arc<ConfigType>,
+pub struct Acme {
+    config: Arc<Config>,
     site_state: SiteState,
 }
 
-impl<ConfigType> AcmeImpl<ConfigType>
-where
-    ConfigType: Config,
-{
-    pub fn new(config: Arc<ConfigType>) -> Self {
+impl Acme {
+    pub fn new(config: &Arc<Config>) -> Self {
         Self {
             config: config.clone(),
             site_state: SiteState::new(config.as_ref()),
@@ -44,6 +33,27 @@ where
     async fn cert_is_valid(&self) -> bool {
         let path = self.site_state.cert_path();
         fs::metadata(path).await.is_ok() && cert_is_not_expired(path).await
+    }
+
+    pub(crate) fn cert_path(&self) -> &str {
+        self.site_state.cert_path()
+    }
+
+    pub(crate) async fn ensure_certs(&self) -> Result<(), String> {
+        if self.cert_is_valid().await {
+            return Ok(());
+        }
+
+        let cert_and_private_key = self
+            .get_cert()
+            .await
+            .map_err(|e| format!("Failed to get certificate: {}", e))?;
+
+        self.write_key_and_cert_to_files(cert_and_private_key)
+            .await
+            .map_err(|e| format!("Failed to write key and certificate to files: {}", e))?;
+
+        Ok(())
     }
 
     async fn get_cert(&self) -> Result<CertAndPrivateKey, Error> {
@@ -85,7 +95,9 @@ where
             log::debug!("Authorization: {:?}", auth);
             // Get an http-01 challenge for this authorization (or panic
             // if it doesn't exist).
-            let challenge = auth.get_challenge("http-01").unwrap();
+            let challenge = auth
+                .get_challenge("http-01")
+                .expect("Could not get ACME challenge for http-01");
 
             // At this point in time, you must configure your webserver to serve
             // a file at `http://example.com/.well-known/${challenge.token}` or
@@ -100,9 +112,9 @@ where
             }
 
             let challenge_token_server = challenge_token_server::ChallengeTokenServer::new(
-                key_authorization.unwrap(),
+                key_authorization.expect("Could not get ACME key authorization."),
                 domain_config.domain_name.clone(),
-                challenge_token.unwrap(),
+                challenge_token.expect("Could not get ACME challenge token."),
             );
             log::debug!("Challenge token server created");
 
@@ -116,9 +128,15 @@ where
                 let challenge = challenge
                     .wait_done(
                         Duration::from_secs(
-                            self.config.domain_config().unwrap().poll_interval_seconds,
+                            self.config
+                                .domain_config()
+                                .expect("Could not get domain config for poll interval seconds.")
+                                .poll_interval_seconds,
                         ),
-                        self.config.domain_config().unwrap().poll_attempts,
+                        self.config
+                            .domain_config()
+                            .expect("Could not get domain config for poll attempts.")
+                            .poll_attempts,
                     )
                     .await?;
                 log::debug!(
@@ -139,8 +157,16 @@ where
             // `valid` or `invalid` state.
             let authorization = auth
                 .wait_done(
-                    Duration::from_secs(self.config.domain_config().unwrap().poll_interval_seconds),
-                    self.config.domain_config().unwrap().poll_attempts,
+                    Duration::from_secs(
+                        self.config
+                            .domain_config()
+                            .expect("Could not get domain config for poll interval seconds.")
+                            .poll_interval_seconds,
+                    ),
+                    self.config
+                        .domain_config()
+                        .expect("Could not get domain config for poll attempts.")
+                        .poll_attempts,
                 )
                 .await?;
             assert_eq!(authorization.status, AuthorizationStatus::Valid)
@@ -151,8 +177,16 @@ where
         // for finalization (certificate creation).
         let order = order
             .wait_ready(
-                Duration::from_secs(self.config.domain_config().unwrap().poll_interval_seconds),
-                self.config.domain_config().unwrap().poll_attempts,
+                Duration::from_secs(
+                    self.config
+                        .domain_config()
+                        .expect("Could not get domain config for poll interval seconds.")
+                        .poll_interval_seconds,
+                ),
+                self.config
+                    .domain_config()
+                    .expect("Could not get domain config for poll attempts.")
+                    .poll_attempts,
             )
             .await?;
         log::debug!("Stopped waiting for order ready");
@@ -173,8 +207,16 @@ where
         // has been provisioned, and is now ready for download.
         let order = order
             .wait_done(
-                Duration::from_secs(self.config.domain_config().unwrap().poll_interval_seconds),
-                self.config.domain_config().unwrap().poll_attempts,
+                Duration::from_secs(
+                    self.config
+                        .domain_config()
+                        .expect("Could not get domain config for poll interval seconds.")
+                        .poll_interval_seconds,
+                ),
+                self.config
+                    .domain_config()
+                    .expect("Could not get domain config for poll attempts.")
+                    .poll_attempts,
             )
             .await?;
         log::debug!("Stopped waiting for order completion");
@@ -182,7 +224,10 @@ where
         assert_eq!(order.status, OrderStatus::Valid);
 
         // Download the certificate, and panic if it doesn't exist.
-        let cert = order.certificate().await?.unwrap();
+        let cert = order
+            .certificate()
+            .await?
+            .expect("Could not get X509 certificate.");
         log::debug!("Certificate downloaded");
         assert!(cert.len() > 1);
 
@@ -194,6 +239,10 @@ where
             cert: cert[0].clone(),
             private_key: pkey,
         })
+    }
+
+    pub(crate) fn key_path(&self) -> &str {
+        self.site_state.key_path()
     }
 
     async fn write_key_and_cert_to_files(
@@ -214,37 +263,6 @@ where
         fs::write(self.cert_path(), cert).await?;
 
         Ok(())
-    }
-}
-
-#[async_trait]
-impl<ConfigType> Acme for AcmeImpl<ConfigType>
-where
-    ConfigType: Config,
-{
-    fn cert_path(&self) -> &str {
-        self.site_state.cert_path()
-    }
-
-    async fn ensure_certs(&self) -> Result<(), String> {
-        if self.cert_is_valid().await {
-            return Ok(());
-        }
-
-        let cert_and_private_key = self
-            .get_cert()
-            .await
-            .map_err(|e| format!("Failed to get certificate: {}", e))?;
-
-        self.write_key_and_cert_to_files(cert_and_private_key)
-            .await
-            .map_err(|e| format!("Failed to write key and certificate to files: {}", e))?;
-
-        Ok(())
-    }
-
-    fn key_path(&self) -> &str {
-        self.site_state.key_path()
     }
 }
 

@@ -1,4 +1,5 @@
 use crate::core::password::Password;
+use log::trace;
 use rpassword::prompt_password;
 use tokio::fs;
 
@@ -32,10 +33,10 @@ pub async fn root_password_exists() -> bool {
 }
 
 async fn save_root_password(password: &str) -> Result<(), String> {
-    println!("Hashing root password.");
+    trace!("Hashing root password.");
     let password = Password::new(password, 16);
 
-    println!("Writing root password to file.");
+    trace!("Writing root password to file.");
     fs::write(
         ROOT_PASSWORD_FILE,
         serde_yaml::to_string(&password)

@@ -1,40 +1,25 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use tokio::task::JoinSet;
+use log::trace;
+use tokio::task::{AbortHandle, JoinSet};
 use tokio::time::sleep;
 
+use crate::core::node_handles::NodeHandles;
 use crate::domain::config::Config;
-use crate::server::WebServer;
-
-use crate::domain::channel_handle::ChannelHandle;
+use crate::domain::mpsc_handle::{one_shot, OneshotMpscSenderHandle};
+use crate::domain::node::{LifecycleChannelHandle, Manager};
+use crate::integration::google::Source as GoogleSource;
 use crate::integration::log::Sink as LogSink;
 use crate::integration::stub::Source as StubSource;
+use crate::server::WebServer;
+use core::time::Duration;
 #[cfg(test)]
 use mockall::automock;
-use tokio::join;
-
-#[macro_export]
-macro_rules! do_until_stop {
-    ($stop_rx:expr, $f:expr) => {
-        loop {
-            if !$stop_rx.is_empty() {
-                match $stop_rx.try_recv() {
-                    Ok(stop) => {
-                        if stop {
-                            log::trace!("Received stop signal");
-                            break;
-                        }
-                    }
-                    Err(e) => {
-                        log::error!("Error while receiving stop signal: {}", e);
-                    }
-                }
-            }
-            $f;
-        }
-    };
-}
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering::SeqCst;
+use tokio::sync::Semaphore;
+use tokio::{join, task};
 
 #[async_trait]
 #[cfg_attr(test, automock)]
@@ -42,72 +27,101 @@ pub(crate) trait Engine {
     async fn start(&self);
 }
 
-pub(crate) struct EngineImpl<ConfigType, ServerType>
+pub(crate) struct EngineImpl<ServerType>
 where
-    ConfigType: Config,
     ServerType: WebServer,
 {
-    config: Arc<ConfigType>,
+    manager: Manager,
     server: ServerType,
-    stop: ChannelHandle<bool>,
+    stopped: Arc<AtomicBool>,
 }
 
 #[async_trait]
-impl<ConfigType, ServerType> Engine for EngineImpl<ConfigType, ServerType>
+impl<ServerType> Engine for EngineImpl<ServerType>
 where
-    ConfigType: Config,
     ServerType: WebServer,
 {
     async fn start(&self) {
-        let (server_result, _) = join!(self.server.serve(self.stop.get_receiver()), self.run());
-
-        if let Err(e) = server_result {
-            log::error!("Error while serving: {}", e);
-        }
+        self.run().await;
     }
 }
 
-impl<ConfigType, ServerType> EngineImpl<ConfigType, ServerType>
+impl<ServerType> EngineImpl<ServerType>
 where
-    ConfigType: Config,
     ServerType: WebServer,
 {
-    pub(crate) fn new(config: Arc<ConfigType>, server: ServerType) -> Self {
+    pub(crate) fn new(config: &Arc<Config>, server: ServerType) -> Self {
         Self {
-            config,
+            manager: Manager::new(config, LifecycleChannelHandle::new()),
             server,
-            stop: ChannelHandle::new(),
+            stopped: Arc::new(AtomicBool::new(false)),
         }
     }
 
     async fn run(&self) {
-        let mut wait_channel_handle = self.stop.clone();
+        trace!("run");
         let mut join_set = JoinSet::new();
+        let mut abort_handles = Vec::new();
 
-        let wait = self.config.exit_after();
-        let _timer = join_set.spawn(async move {
-            match wait {
-                Some(duration) => {
-                    sleep(duration).await;
-                    match wait_channel_handle.send(true) {
-                        Ok(_) => {
-                            log::trace!("Wait sent stop signal after {:?}", duration);
-                        }
-                        Err(e) => {
-                            panic!("Wait error while sending stop signal: {:?}", e);
-                        }
-                    }
-                }
-                None => {}
+        let wait_duration = self.manager.core_config().exit_after();
+
+        let mut stub_source = StubSource::new(&self.manager);
+        let google_source = GoogleSource::new(&self.manager, self.server.get_web_channel_handle());
+        let mut log_sink = LogSink::new(&self.manager, &stub_source.get_readonly_channel_handle());
+
+        let node_handles = NodeHandles::new(&self.manager, self.server.get_web_channel_handle());
+
+        const NODE_COUNT: usize = 4;
+        let semaphore = Arc::new(Semaphore::new(NODE_COUNT));
+
+        let log_permit = semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("Could not acquire semaphore");
+        let stub_permit = semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("Could not acquire semaphore");
+        let google_permit = semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("Could not acquire semaphore");
+        let server_permit = semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("Could not acquire semaphore");
+        abort_handles.push(join_set.spawn(async move { log_sink.run(log_permit).await }));
+        abort_handles.push(join_set.spawn(async move { stub_source.run(stub_permit).await }));
+        abort_handles.push(join_set.spawn(async move { google_source.run(google_permit).await }));
+
+        let server = self.server.clone();
+        abort_handles.push(join_set.spawn(async move {
+            trace!("server starting");
+            if let Err(e) = server.serve(&node_handles, server_permit).await {
+                log::error!("Error while serving: {}", e);
             }
-        });
+        }));
 
-        let mut stub_source = StubSource::new(self.stop.read_only());
-        let mut log_sink = LogSink::new(&self.stop, &stub_source.get_readonly_channel_handle());
+        let _permit = semaphore
+            .acquire_many(NODE_COUNT as u32)
+            .await
+            .expect("Could not acquire semaphore");
 
-        join_set.spawn(async move { log_sink.run().await });
-        join_set.spawn(async move { stub_source.run().await });
+        let (sender, join_set, abort_handle) = self.wait_for_init_responses(&mut join_set).await;
+        abort_handles.push(abort_handle);
+        let join_set = self.send_init(join_set, sender);
 
+        let join_set = self.wait_for_timeout(join_set, wait_duration).await;
+
+        join!(Self::join(join_set), self.stop_checker(abort_handles));
+        trace!("run completed");
+    }
+
+    async fn join(join_set: &mut JoinSet<()>) {
         while let Some(res) = join_set.join_next().await {
             match res {
                 Ok(_) => {}
@@ -117,49 +131,161 @@ where
             }
         }
     }
+
+    async fn wait_for_init_responses<'a>(
+        &'a self,
+        join_set: &'a mut JoinSet<()>,
+    ) -> (
+        OneshotMpscSenderHandle<()>,
+        &'a mut JoinSet<()>,
+        AbortHandle,
+    ) {
+        let readonly_manager = self.manager.readonly();
+        let (sender, mut receiver) = one_shot();
+        let expected = join_set.len();
+        let semaphore = Arc::new(Semaphore::new(1));
+        let permit = semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("Could not acquire semaphore");
+        let abort_handle = join_set.spawn(async move {
+            trace!("init wait outer start");
+            let task = task::spawn(async move {
+                trace!("init wait inner start");
+                drop(permit);
+                let mut count = 0;
+                while count < expected {
+                    receiver
+                        .recv()
+                        .await
+                        .expect("Could not receive one shot init signal.");
+                    trace!("Received init signal {}.", count);
+                    count += 1;
+                }
+                trace!("init wait inner complete");
+            });
+
+            let stop_task = readonly_manager.abort_on_stop(&task).await;
+
+            let _ = join!(task, stop_task);
+            trace!("init wait outer complete");
+        });
+
+        let _permit = semaphore
+            .acquire()
+            .await
+            .expect("Could not acquire semaphore");
+
+        (sender, join_set, abort_handle)
+    }
+
+    async fn wait_for_timeout<'a>(
+        &'a self,
+        join_set: &'a mut JoinSet<()>,
+        wait: Option<Duration>,
+    ) -> &'a mut JoinSet<()> {
+        let mut wait_manager = self.manager.clone();
+        let semaphore = Arc::new(Semaphore::new(1));
+        let permit = semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("Could not acquire semaphore");
+        let stopped = self.stopped.clone();
+
+        join_set.spawn(async move {
+            drop(permit);
+            match wait {
+                Some(duration) => {
+                    trace!("timeout starting sleep");
+                    sleep(duration).await;
+                    trace!("timeout sleep over");
+                    match wait_manager.send_stop() {
+                        Ok(_) => {
+                            trace!("Lifecycle sent stop signal after {:?}", duration);
+                        }
+                        Err(e) => {
+                            panic!("Lifecycle error while sending stop signal: {:?}", e);
+                        }
+                    }
+                    stopped.store(true, SeqCst);
+                }
+                None => {}
+            }
+        });
+
+        let _permit = semaphore
+            .acquire()
+            .await
+            .expect("Could not acquire semaphore");
+
+        join_set
+    }
+
+    fn send_init<'a>(
+        &'a self,
+        join_set: &'a mut JoinSet<()>,
+        sender: OneshotMpscSenderHandle<()>,
+    ) -> &'a mut JoinSet<()> {
+        let mut manager = self.manager.clone();
+        manager
+            .send_init(sender)
+            .expect("Could not send init signal.");
+
+        join_set
+    }
+
+    /// Stop all tasks when the stop signal is received.
+    /// Used as a backup in case a task handles the stop signal incorrectly.
+    async fn stop_checker(&self, abort_handles: Vec<AbortHandle>) {
+        loop {
+            if self.stopped.load(SeqCst) {
+                trace!("Stopping all tasks.");
+                abort_handles.iter().for_each(|handle| {
+                    handle.abort();
+                });
+                break;
+            }
+            sleep(Duration::from_millis(10)).await;
+        }
+    }
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::time::Duration;
-
     use crate::block_on;
-    use crate::domain::config::DomainConfig;
-    use crate::server::MockWebServer;
+    use crate::server::{MockWebServer, WebEventChannelHandle};
 
     use super::*;
 
-    pub(crate) struct StubConfig {}
-
-    impl Config for StubConfig {
-        fn domain_config(&self) -> Option<&DomainConfig> {
-            None
-        }
-
-        fn email(&self) -> Option<&str> {
-            None
-        }
-
-        fn exit_after(&self) -> Option<Duration> {
-            Some(Duration::from_millis(10))
-        }
-
-        fn port(&self) -> u16 {
-            80
-        }
-
-        fn site_folder(&self) -> &str {
-            "./stub_site_folder"
-        }
+    pub fn stub_config() -> Arc<Config> {
+        Arc::new(Config::with_all_properties(
+            None,
+            None,
+            Some(1),
+            Some(80),
+            Some("./stub_site_folder".to_string()),
+        ))
     }
 
     #[test]
     fn test_engine_start() {
+        let web_channel_handle = WebEventChannelHandle::new();
+        let cloned_web_channel_handle = web_channel_handle.clone();
         let mut mock_web_server = MockWebServer::new();
+        mock_web_server.expect_clone().times(1).returning(|| {
+            let mut returned_mock_web_server = MockWebServer::new();
+            returned_mock_web_server
+                .expect_serve()
+                .times(1)
+                .returning(|_node_handles: &NodeHandles, _permit| Ok(()));
+            returned_mock_web_server
+        });
         mock_web_server
-            .expect_serve()
-            .times(1)
-            .returning(|_| Box::pin(async { Ok(()) }));
-        block_on!(EngineImpl::new(Arc::new(StubConfig {}), mock_web_server).start());
+            .expect_get_web_channel_handle()
+            .return_const(cloned_web_channel_handle.clone());
+
+        block_on!(EngineImpl::new(&stub_config(), mock_web_server).start());
     }
 }

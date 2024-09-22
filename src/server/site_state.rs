@@ -7,10 +7,7 @@ pub struct SiteState {
 }
 
 impl SiteState {
-    pub fn new<ConfigType>(config: &ConfigType) -> Self
-    where
-        ConfigType: Config,
-    {
+    pub fn new(config: &Config) -> Self {
         Self {
             cert_path: config.site_folder().to_string() + "/cert.pem",
             key_path: config.site_folder().to_string() + "/key.pem",

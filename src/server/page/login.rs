@@ -1,7 +1,7 @@
 use crate::core::root_password::check_root_password;
 use crate::server::auth::auth_validation;
 use handlebars::Handlebars;
-use once_cell::sync::Lazy;
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use warp::http::header::LOCATION;
@@ -12,19 +12,18 @@ const LOGIN: &str = "login";
 pub const LOGIN_PATH: &str = "/login";
 pub const LOGIN_FAILED: &str = "/login?failed=true";
 
-static PAGE_TEMPLATE: Lazy<Handlebars> = Lazy::new(|| {
-    let mut handlebars = Handlebars::new();
-    handlebars
-        .register_template_string(
-            LOGIN_TEMPLATE,
-            include_str!(
-                "../../../resources/html/login\
-        .html"
-            ),
-        )
-        .expect("Could not register login template");
-    handlebars
-});
+lazy_static! {
+    pub static ref PAGE_TEMPLATE: Handlebars<'static> = {
+        let mut handlebars = Handlebars::new();
+        handlebars
+            .register_template_string(
+                LOGIN_TEMPLATE,
+                include_str!("../../../resources/html/login.html"),
+            )
+            .expect("Could not register login template");
+        handlebars
+    };
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 struct LoginQuery {
@@ -39,14 +38,17 @@ impl LoginQuery {
 
 pub fn login() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     warp::path(LOGIN)
+        .and(warp::path::end())
         .and(warp::get())
         .and(auth_validation())
         .map(|| warp::redirect::found(warp::http::Uri::from_static("/")))
         .or(warp::path(LOGIN)
+            .and(warp::path::end())
             .and(warp::get())
             .and(warp::query::<LoginQuery>())
             .map(move |query: LoginQuery| reply::html(format_login_html(query.failed()))))
         .or(warp::path(LOGIN)
+            .and(warp::path::end())
             .and(warp::post())
             .and(warp::body::form())
             .and_then(handlers::check_root_password)

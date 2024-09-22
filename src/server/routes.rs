@@ -1,19 +1,21 @@
-use crate::server::auth::auth_validation;
-use crate::server::page::login;
-use crate::server::page::login::login;
-use warp::{reply, Filter, Rejection};
+use crate::core::node_handles::NodeHandles;
+use crate::integration::google::auth::web::config_google;
+use crate::server::oauth2::oauth2_callback;
+use crate::server::page::{handlers, login};
+use crate::server::root::root;
+use crate::server::websocket::websocket;
+use warp::{Filter, Rejection};
 
-pub fn router() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-    root()
+pub fn router(
+    handles: &NodeHandles,
+) -> impl Filter<Extract = impl warp::Reply, Error = Rejection> + Clone {
+    root(handles)
         .or(login())
-        .recover(login::handlers::handle_rejection)
+        .or(config_google(handles))
+        .or(websocket(handles))
+        .or(oauth2_callback!(handles, "auth" / "google"))
+        .recover(handlers::handle_rejection)
         .with(warp::log("api"))
-}
-
-fn root() -> impl Filter<Extract = impl warp::Reply, Error = Rejection> + Clone {
-    warp::path::end()
-        .and(auth_validation())
-        .map(move || reply::html(include_str!("../../resources/html/index.html")))
 }
 
 #[cfg(test)]
@@ -27,14 +29,17 @@ mod tests {
 
         mod auth {
             use super::*;
+            use crate::core::node_handles::test::get_test_node_handles;
             use crate::core::root_password::test::with_test_root_password_scope;
             use crate::server::auth::gen_token_for_path;
-            use crate::server::page::login::{LOGIN_FAILED, LOGIN_PATH};
+            use crate::server::format_root_html;
+            use crate::server::page::{LOGIN_FAILED, LOGIN_PATH};
             use warp::http::header::COOKIE;
 
             #[tokio::test]
             async fn authorized_root_serves_page() {
-                let filter = router();
+                let node_handles = get_test_node_handles();
+                let filter = router(&node_handles);
                 let token = gen_token_for_path("/");
                 let res = request()
                     .method("GET")
@@ -43,8 +48,9 @@ mod tests {
                     .reply(&filter)
                     .await;
 
+                let expected = format_root_html(&node_handles);
                 assert_eq!(res.status(), StatusCode::OK);
-                assert_eq!(res.body(), include_str!("../../resources/html/index.html"));
+                assert_eq!(res.body(), expected.as_bytes());
                 assert_eq!(
                     res.headers().get("content-type").unwrap(),
                     "text/html; charset=utf-8"
@@ -53,7 +59,8 @@ mod tests {
 
             #[tokio::test]
             async fn missing_token_redirects_to_login() {
-                let filter = router();
+                let node_handles = get_test_node_handles();
+                let filter = router(&node_handles);
                 let res = request().method("GET").path("/").reply(&filter).await;
 
                 assert_eq!(res.status(), StatusCode::FOUND);
@@ -65,7 +72,8 @@ mod tests {
 
             #[tokio::test]
             async fn bad_token_redirects_to_login() {
-                let filter = router();
+                let node_handles = get_test_node_handles();
+                let filter = router(&node_handles);
                 let res = request()
                     .method("GET")
                     .header(COOKIE, "token=bad_token")
@@ -83,7 +91,8 @@ mod tests {
             #[tokio::test]
             async fn incorrect_password_redirects_to_login() {
                 let _scope = with_test_root_password_scope().await;
-                let filter = router();
+                let node_handles = get_test_node_handles();
+                let filter = router(&node_handles);
                 let res = request()
                     .method("POST")
                     .path("/login")
@@ -100,7 +109,7 @@ mod tests {
                 assert_eq!(res.status(), StatusCode::OK);
                 assert_eq!(
                     String::from_utf8(res.body().to_vec()).unwrap(),
-                    crate::server::page::login::format_login_html(true)
+                    crate::server::page::format_login_html(true)
                 );
             }
         }

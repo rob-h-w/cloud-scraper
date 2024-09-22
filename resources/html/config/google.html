@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Google Configuration</title>
+    {{{redirect_script}}}
+</head>
+<body>
+<h1>Google Configuration</h1>
+<form action="/config/google" method="post">
+    <label>
+        Project ID
+        <input
+                {{{project_id}}}
+                placeholder="Your Google Project ID"
+                type="text"
+        >
+    </label>
+    <br>
+    <label>
+        Client ID
+        <input
+                {{{client_id}}}
+                placeholder="Your Google Client ID"
+                type="text"
+        >
+    </label>
+    <br>
+    <label>
+        Client Secret
+        <input
+                {{{client_secret}}}
+                placeholder="Your Google Client Secret"
+                type="password"
+        >
+    </label>
+    <br>
+    <label>
+        Auth URI
+        <input
+                {{{auth_uri}}}
+                placeholder="Auth URI"
+                type="text"
+        >
+    </label>
+    <br>
+    <label>Auth Provider 509 Cert URL
+        <input
+                {{{auth_provider_x509_cert_url}}}
+                placeholder="Auth Provider 509 Cert URL"
+                type="text"
+        >
+    </label>
+    <br>
+    <label>
+        Token URI
+        <input
+                {{{token_uri}}}
+                placeholder="Token URI"
+                type="text"
+        >
+    </label>
+    <br>
+    <button type="submit">Submit</button>
+</form>
+</body>
+</html>

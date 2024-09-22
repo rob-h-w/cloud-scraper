@@ -1,10 +1,13 @@
+use crate::core::module::State;
+use crate::domain::module_state::{ModuleState, NamedModule};
 use chrono::{DateTime, TimeDelta, Utc};
-use once_cell::sync::Lazy;
+use lazy_static::lazy_static;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::ops::Add;
+use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::Duration;
 use warp::reject::Reject;
@@ -13,7 +16,9 @@ use warp::Filter;
 const KEY_BYTES: usize = 16;
 const MAX_TOKEN_AGE_SECONDS: u64 = 24 * 60 * 60;
 
-static TOKEN_MANAGER: Lazy<Mutex<TokenManager>> = Lazy::new(|| Mutex::new(TokenManager::new()));
+lazy_static! {
+    static ref TOKEN_MANAGER: Mutex<TokenManager> = Mutex::new(TokenManager::new());
+}
 
 pub fn gen_token_for_path(path: &str) -> Token {
     TOKEN_MANAGER
@@ -53,6 +58,15 @@ pub fn auth_validation() -> impl Filter<Extract = (), Error = warp::Rejection> +
             }
         })
         .untuple_one()
+}
+
+pub async fn get_token_path<Module>() -> Result<PathBuf, std::io::Error>
+where
+    Module: NamedModule,
+{
+    let root = State::path_for::<Module>().await?;
+
+    Ok(PathBuf::from(root).join("token.yaml"))
 }
 
 #[derive(Clone, Debug)]

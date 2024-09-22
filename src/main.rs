@@ -1,7 +1,6 @@
 use crate::core::cli::{Cli, Command, ServeArgs};
-use crate::core::config::Config;
 use crate::core::engine::{Engine, EngineImpl};
-use crate::domain::config::Config as DomainConfig;
+use crate::domain::config::Config;
 use clap::Parser;
 use core::root_password::create_root_password;
 use log::debug;
@@ -14,16 +13,17 @@ mod domain;
 mod integration;
 mod macros;
 mod server;
+mod static_init;
+mod test;
 
 #[tokio::main]
 async fn main() -> Result<(), String> {
-    main_impl::<Config, CoreInterface>().await
+    main_impl::<CoreInterface>().await
 }
 
-async fn main_impl<ConfigType, Interface>() -> Result<(), String>
+async fn main_impl<Interface>() -> Result<(), String>
 where
-    ConfigType: DomainConfig,
-    Interface: MainInterface<ConfigType>,
+    Interface: MainInterface,
 {
     // Make sure we never initialize the env_logger in unit tests.
     Interface::initialize_logging();
@@ -64,20 +64,17 @@ where
     Ok(())
 }
 
-trait MainInterface<ConfigType>
-where
-    ConfigType: DomainConfig,
-{
+trait MainInterface {
     fn initialize_logging();
     fn get_cli() -> Cli;
-    fn construct_config(cli: &ServeArgs) -> Arc<ConfigType>;
-    fn construct_server(config: Arc<ConfigType>) -> impl WebServer;
-    fn construct_engine(config: Arc<ConfigType>, server: impl WebServer) -> impl Engine;
+    fn construct_config(cli: &ServeArgs) -> Arc<Config>;
+    fn construct_server(config: Arc<Config>) -> impl WebServer;
+    fn construct_engine(config: Arc<Config>, server: impl WebServer) -> impl Engine;
 }
 
 struct CoreInterface {}
 
-impl MainInterface<Config> for CoreInterface {
+impl MainInterface for CoreInterface {
     fn initialize_logging() {
         env_logger::init()
     }
@@ -95,7 +92,7 @@ impl MainInterface<Config> for CoreInterface {
     }
 
     fn construct_engine(config: Arc<Config>, server: impl WebServer) -> impl Engine {
-        EngineImpl::new(config, server)
+        EngineImpl::new(&config, server)
     }
 }
 
@@ -103,8 +100,8 @@ impl MainInterface<Config> for CoreInterface {
 mod tests {
     use super::*;
     use crate::core::engine::MockEngine;
-    use crate::domain::config::tests::TestConfig;
     use crate::server::MockWebServer;
+    use lazy_static::lazy_static;
     use log::{Log, Metadata, Record};
     use once_cell::sync::Lazy;
     use parking_lot::ReentrantMutex;
@@ -112,6 +109,10 @@ mod tests {
     use std::sync::atomic::AtomicBool;
     use std::sync::Once;
     use std::sync::{Arc, Mutex};
+
+    use crate::core::root_password::test::with_test_root_password_scope;
+    use crate::domain::config::tests::{test_config, test_config_with};
+    use crate::domain::config::DomainConfig;
 
     static mut LOGGER: Option<Logger> = None;
 
@@ -225,30 +226,6 @@ mod tests {
         fn flush(&self) {}
     }
 
-    struct InsaneConfig {}
-
-    impl DomainConfig for InsaneConfig {
-        fn domain_config(&self) -> Option<&domain::config::DomainConfig> {
-            None
-        }
-
-        fn email(&self) -> Option<&str> {
-            None
-        }
-
-        fn port(&self) -> u16 {
-            80
-        }
-
-        fn site_folder(&self) -> &str {
-            "insane_site_folder"
-        }
-
-        fn sanity_check(&self) -> Result<(), String> {
-            Err("Insane config".to_string())
-        }
-    }
-
     fn empty_cli() -> Cli {
         Cli {
             command: Serve(ServeArgs::default()),
@@ -317,20 +294,21 @@ mod tests {
         };
     }
 
-    static TEST_CONFIG: Lazy<Arc<TestConfig>> =
-        Lazy::new(|| Arc::new(TestConfig::new_domain_email(None, None)));
+    lazy_static! {
+        static ref TEST_CONFIG: Arc<Config> = test_config();
+    }
 
     macro_rules! with_test_config {
         () => {
-            fn construct_config(_serve_args: &ServeArgs) -> Arc<TestConfig> {
+            fn construct_config(_serve_args: &ServeArgs) -> Arc<Config> {
                 note_called!(CONFIG_CONSTRUCTOR);
                 TEST_CONFIG.clone()
             }
-            fn construct_server(_config: Arc<TestConfig>) -> impl WebServer {
+            fn construct_server(_config: Arc<Config>) -> impl WebServer {
                 note_called!(SERVER_CONSTRUCTOR);
                 MockWebServer::new()
             }
-            fn construct_engine(_config: Arc<TestConfig>, _server: impl WebServer) -> impl Engine {
+            fn construct_engine(_config: Arc<Config>, _server: impl WebServer) -> impl Engine {
                 note_called!(ENGINE_CONSTRUCTOR);
                 let mut eng = MockEngine::new();
 
@@ -341,22 +319,22 @@ mod tests {
         };
     }
 
-    static INSANE_CONFIG: Lazy<Arc<InsaneConfig>> = Lazy::new(|| Arc::new(InsaneConfig {}));
+    lazy_static! {
+        static ref INSANE_CONFIG: Arc<Config> =
+            test_config_with(Some(DomainConfig::new("insane domain".to_string())), None);
+    }
 
     macro_rules! with_insane_config {
         () => {
-            fn construct_config(_serve_args: &ServeArgs) -> Arc<InsaneConfig> {
+            fn construct_config(_serve_args: &ServeArgs) -> Arc<Config> {
                 note_called!(CONFIG_CONSTRUCTOR);
                 INSANE_CONFIG.clone()
             }
-            fn construct_server(_config: Arc<InsaneConfig>) -> impl WebServer {
+            fn construct_server(_config: Arc<Config>) -> impl WebServer {
                 note_called!(SERVER_CONSTRUCTOR);
                 MockWebServer::new()
             }
-            fn construct_engine(
-                _config: Arc<InsaneConfig>,
-                _server: impl WebServer,
-            ) -> impl Engine {
+            fn construct_engine(_config: Arc<Config>, _server: impl WebServer) -> impl Engine {
                 note_called!(ENGINE_CONSTRUCTOR);
                 let mut eng = MockEngine::new();
 
@@ -366,8 +344,6 @@ mod tests {
             }
         };
     }
-
-    use crate::core::root_password::test::with_test_root_password_scope;
 
     macro_rules! with_password_file {
         ($b:block) => {
@@ -380,12 +356,12 @@ mod tests {
     fn test_main_impl() {
         with_password_file!({
             with_verifiers!(MockMainInterface);
-            impl MainInterface<TestConfig> for MockMainInterface {
+            impl MainInterface for MockMainInterface {
                 with_empty_logging!();
                 with_empty_cli!();
                 with_test_config!();
             }
-            let _ = block_on!(main_impl::<TestConfig, MockMainInterface>());
+            let _ = block_on!(main_impl::<MockMainInterface>());
 
             assert_eq!(MockMainInterface::is_log_initializer_called(), true);
             assert_eq!(MockMainInterface::is_cli_getter_called(), true);
@@ -399,12 +375,12 @@ mod tests {
     fn test_main_impl_calls_log_initializer() {
         with_password_file!({
             with_verifiers!(MockMainInterface);
-            impl MainInterface<TestConfig> for MockMainInterface {
+            impl MainInterface for MockMainInterface {
                 with_empty_logging!();
                 with_empty_cli!();
                 with_test_config!();
             }
-            block_on!(main_impl::<TestConfig, MockMainInterface>()).unwrap();
+            block_on!(main_impl::<MockMainInterface>()).unwrap();
 
             assert_eq!(MockMainInterface::is_log_initializer_called(), true);
             assert_eq!(MockMainInterface::is_cli_getter_called(), true);
@@ -418,7 +394,7 @@ mod tests {
     fn test_main_impl_logs() {
         with_password_file!({
             with_verifiers!(MockMainInterface);
-            impl MainInterface<TestConfig> for MockMainInterface {
+            impl MainInterface for MockMainInterface {
                 fn initialize_logging() {
                     Logger::init()
                 }
@@ -427,7 +403,7 @@ mod tests {
             }
 
             Logger::use_in(|logger| {
-                block_on!(main_impl::<TestConfig, MockMainInterface>()).unwrap();
+                block_on!(main_impl::<MockMainInterface>()).unwrap();
                 assert_eq!(
                     logger.log_entry_exists(&LogEntry::debug("Starting engine")),
                     true
@@ -440,13 +416,13 @@ mod tests {
     fn test_barfs_insane_config() {
         with_password_file!({
             with_verifiers!(MockMainInterface);
-            impl MainInterface<InsaneConfig> for MockMainInterface {
+            impl MainInterface for MockMainInterface {
                 with_empty_logging!();
                 with_empty_cli!();
                 with_insane_config!();
             }
 
-            let result = block_on!(main_impl::<InsaneConfig, MockMainInterface>());
+            let result = block_on!(main_impl::<MockMainInterface>());
 
             assert!(result.is_err());
         });
