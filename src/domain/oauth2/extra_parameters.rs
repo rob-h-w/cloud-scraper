@@ -4,12 +4,12 @@ use oauth2::{AuthorizationRequest, RefreshTokenRequest};
 macro_rules! extra_parameters {
     ($($key: expr => $value: expr),* $(,)?) => {
         {
-            use crate::domain::oauth2::extra_parameters::{ExtraParameter, ExtraParameters};
-            let mut extra_parameters: ExtraParameters = Vec::new();
+            use crate::domain::oauth2::extra_parameters::ExtraParameter;
+            vec![
             $(
-                extra_parameters.push(ExtraParameter::new($key.to_string(), $value.to_string()));
+                ExtraParameter::new($key.to_string(), $value.to_string()),
             )*
-            extra_parameters
+            ]
         }
     };
 }
