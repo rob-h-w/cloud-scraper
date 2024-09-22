@@ -1,6 +1,6 @@
 use crate::domain::mpsc_handle::one_shot;
 use crate::domain::node::Manager;
-use crate::domain::oauth2::extra_parameters::ExtraParameters;
+use crate::domain::oauth2::extra_parameters::{ExtraParameters, WithExtraParametersExt};
 use crate::domain::oauth2::token::{BasicTokenResponseExt, Token, TokenExt, TokenStatus};
 use crate::domain::oauth2::ApplicationSecret;
 use crate::server::Event::Redirect;
@@ -13,7 +13,9 @@ use log::{debug, error};
 use oauth2::basic::BasicClient;
 use oauth2::reqwest::async_http_client;
 use oauth2::url::Url;
-use oauth2::{AccessToken, CsrfToken, PkceCodeChallenge, RefreshToken, Scope};
+use oauth2::{
+    AccessToken, AuthorizationRequest, CsrfToken, PkceCodeChallenge, RefreshToken, Scope,
+};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::fs;
@@ -201,6 +203,7 @@ impl Client {
         let token_status = self
             .basic_client
             .exchange_refresh_token(refresh_token)
+            .with_extra_parameters(&self.extra_parameters)
             .request_async(async_http_client)
             .await
             .map_err(|e| e.to_error())?
@@ -211,14 +214,10 @@ impl Client {
 
     async fn retrieve_token(&self, scopes: &[&str]) -> Result<Token, Error> {
         let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
-        let mut request = self.basic_client.authorize_url(CsrfToken::new_random);
-
-        for extra_parameter in self.extra_parameters.iter() {
-            request = request.add_extra_param(
-                extra_parameter.key().to_string(),
-                extra_parameter.value().to_string(),
-            );
-        }
+        let mut request: AuthorizationRequest<'_> = self
+            .basic_client
+            .authorize_url(CsrfToken::new_random)
+            .with_extra_parameters(&self.extra_parameters);
 
         for scope in scopes.iter() {
             request = request.add_scope(Scope::new(scope.to_string()));

@@ -1,4 +1,5 @@
 use derive_getters::Getters;
+use oauth2::{AuthorizationRequest, RefreshTokenRequest};
 
 macro_rules! extra_parameters {
     ($($key: expr => $value: expr),* $(,)?) => {
@@ -15,8 +16,6 @@ macro_rules! extra_parameters {
 
 pub(crate) use extra_parameters;
 
-pub(crate) type ExtraParameters = Vec<ExtraParameter>;
-
 #[derive(Clone, Debug, Getters)]
 pub(crate) struct ExtraParameter {
     key: String,
@@ -27,6 +26,49 @@ impl ExtraParameter {
     pub(crate) fn new(key: String, value: String) -> Self {
         assert_allowed_key(&key);
         Self { key, value }
+    }
+}
+
+pub(crate) type ExtraParameters = Vec<ExtraParameter>;
+
+macro_rules! apply_extra_parameters {
+    ($self: expr, $extra_parameters: expr) => {{
+        let mut it = $self;
+        for extra_parameter in $extra_parameters.iter() {
+            it = it.add_extra_param(
+                extra_parameter.key().clone(),
+                extra_parameter.value().clone(),
+            );
+        }
+
+        it
+    }};
+}
+
+pub(crate) trait WithExtraParametersExt<'a, 'b> {
+    fn with_extra_parameters(self, extra_parameters: &'b ExtraParameters) -> Self;
+}
+
+impl<'a, 'b> WithExtraParametersExt<'a, 'b> for AuthorizationRequest<'a> {
+    fn with_extra_parameters(
+        self,
+        extra_parameters: &'b ExtraParameters,
+    ) -> AuthorizationRequest<'a> {
+        apply_extra_parameters!(self, extra_parameters)
+    }
+}
+
+impl<'a, 'b, TE, TR, TT> WithExtraParametersExt<'a, 'b> for RefreshTokenRequest<'a, TE, TR, TT>
+where
+    TE: oauth2::ErrorResponse + 'static,
+    TR: oauth2::TokenResponse<TT>,
+    TT: oauth2::TokenType,
+{
+    fn with_extra_parameters(
+        self,
+        extra_parameters: &'b ExtraParameters,
+    ) -> RefreshTokenRequest<'a, TE, TR, TT> {
+        apply_extra_parameters!(self, extra_parameters)
     }
 }
 
