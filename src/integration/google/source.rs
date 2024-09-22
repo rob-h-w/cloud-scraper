@@ -8,7 +8,7 @@ use derive_getters::Getters;
 use log::{debug, error, info, trace};
 use std::any::TypeId;
 use std::sync::Arc;
-use tokio::sync::{mpsc, Semaphore};
+use tokio::sync::{mpsc, OwnedSemaphorePermit, Semaphore};
 use tokio::{join, task};
 use Lifecycle::{Init, ReadConfig, Stop};
 
@@ -37,11 +37,11 @@ impl Source {
         }
     }
 
-    pub async fn run(&self) {
+    pub async fn run(&self, google_permit: OwnedSemaphorePermit) {
         let (load_sender, mut load_receiver) = mpsc::channel(1);
         let core_config = self.lifecycle_manager.core_config().clone();
         let semaphore = Arc::new(Semaphore::new(1));
-        let permit = semaphore
+        let mut permit = semaphore
             .clone()
             .acquire_owned()
             .await
@@ -91,10 +91,12 @@ impl Source {
             }
         });
 
-        let _permit = semaphore
-            .acquire()
-            .await
-            .expect("Could not acquire semaphore");
+        {
+            let _permit = semaphore
+                .acquire()
+                .await
+                .expect("Could not acquire semaphore");
+        }
 
         macro_rules! send_load {
             () => {
@@ -110,9 +112,16 @@ impl Source {
             };
         }
 
+        permit = semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("Could not acquire semaphore");
+
         let task_abort_handle = task.abort_handle();
         let mut stop_event_receiver = self.lifecycle_manager.readonly().get_receiver();
         let lifetime_task = task::spawn(async move {
+            drop(permit);
             loop {
                 match stop_event_receiver.recv().await {
                     Ok(event) => match event {
@@ -136,6 +145,15 @@ impl Source {
                 }
             }
         });
+
+        {
+            let _permit = semaphore
+                .acquire()
+                .await
+                .expect("Could not acquire semaphore");
+        }
+
+        drop(google_permit);
 
         let (_task_result, _stop_result) = join!(task, lifetime_task);
     }

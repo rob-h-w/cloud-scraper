@@ -3,6 +3,7 @@ use crate::domain::entity::Entity;
 use crate::domain::node::{Manager, ReadonlyManager};
 use std::fmt::Debug;
 use std::time::Duration;
+use tokio::sync::OwnedSemaphorePermit;
 use tokio::time::sleep;
 use tokio::{join, task};
 use uuid::Uuid;
@@ -30,7 +31,7 @@ impl Source {
         self.channel_handle.read_only()
     }
 
-    pub(crate) async fn run(&mut self) {
+    pub(crate) async fn run(&mut self, stub_permit: OwnedSemaphorePermit) {
         let mut sender = self.channel_handle.clone();
         let task = task::spawn(async move {
             loop {
@@ -48,7 +49,9 @@ impl Source {
             }
         });
 
-        let stop_task = self.lifecycle_manager.abort_on_stop(&task);
+        let stop_task = self.lifecycle_manager.abort_on_stop(&task).await;
+
+        drop(stub_permit);
 
         let (_task_result, _stop_result) = join!(task, stop_task);
     }
@@ -60,6 +63,8 @@ mod tests {
     use crate::core::engine::tests::stub_config;
     use crate::domain::node::LifecycleChannelHandle;
     use chrono::Utc;
+    use std::sync::Arc;
+    use tokio::sync::Semaphore;
     use tokio::task::JoinSet;
 
     #[tokio::test]
@@ -71,7 +76,17 @@ mod tests {
         let mut source = Source::new(&manager);
 
         let mut read_receiver = source.get_readonly_channel_handle().get_receiver();
-        let _source_run = join_set.spawn(async move { source.run().await });
+        let semaphore = Arc::new(Semaphore::new(1));
+        let permit = semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("Could not acquire semaphore");
+        let _source_run = join_set.spawn(async move { source.run(permit).await });
+        let _permit = semaphore
+            .acquire()
+            .await
+            .expect("Could not acquire semaphore");
         let _receive_future = join_set.spawn(async move {
             let event = read_receiver.recv().await.unwrap();
             let diff = Utc::now().timestamp_millis() - event.created_at().timestamp_millis();

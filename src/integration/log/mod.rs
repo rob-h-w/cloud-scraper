@@ -5,6 +5,7 @@ use crate::domain::node::{Manager, ReadonlyManager};
 use log::info;
 use std::fmt::Debug;
 use tokio::join;
+use tokio::sync::OwnedSemaphorePermit;
 use tokio::task;
 use uuid::Uuid;
 
@@ -22,7 +23,7 @@ impl Sink {
         }
     }
 
-    pub async fn run(&mut self) {
+    pub(crate) async fn run(&mut self, log_permit: OwnedSemaphorePermit) {
         let mut stub_receiver = self.stub_receiver.get_receiver();
         let task = task::spawn(async move {
             loop {
@@ -34,7 +35,9 @@ impl Sink {
             }
         });
 
-        let stop_handle = self.manager.abort_on_stop(&task);
+        let stop_handle = self.manager.abort_on_stop(&task).await;
+
+        drop(log_permit);
 
         let (_task_result, _stop_result) = join!(task, stop_handle);
     }
@@ -62,6 +65,8 @@ mod tests {
     use crate::integration::stub::Source;
     use crate::tests::Logger;
     use log::trace;
+    use std::sync::Arc;
+    use tokio::sync::Semaphore;
     use tokio::task::JoinSet;
 
     #[test]
@@ -82,9 +87,19 @@ mod tests {
 
                 let mut join_set = JoinSet::new();
 
-                let _abort_handle = join_set.spawn(async move { sink.run().await });
+                let semaphore = Arc::new(Semaphore::new(1));
+                let permit = semaphore
+                    .clone()
+                    .acquire_owned()
+                    .await
+                    .expect("Could not acquire semaphore");
 
-                tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+                let _abort_handle = join_set.spawn(async move { sink.run(permit).await });
+
+                let _permit = semaphore
+                    .acquire()
+                    .await
+                    .expect("Could not acquire semaphore");
 
                 stub_source_handle
                     .send(Entity::new_now(Uuid::new_v4(), "1"))

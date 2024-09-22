@@ -143,7 +143,7 @@ async fn use_websocket(mut web_socket: WebSocket, handles: NodeHandles) {
         }
     });
 
-    lifecycle_reader.abort_on_stop(&task);
+    lifecycle_reader.abort_on_stop(&task).await;
 }
 
 fn create_redirect_json(url: &str) -> String {

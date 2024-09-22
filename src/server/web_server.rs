@@ -9,6 +9,7 @@ use async_trait::async_trait;
 #[cfg(test)]
 use mockall::mock;
 use std::sync::Arc;
+use tokio::sync::OwnedSemaphorePermit;
 
 pub fn new(config: Arc<Config>) -> impl WebServer {
     WebServerImpl {
@@ -20,7 +21,11 @@ pub fn new(config: Arc<Config>) -> impl WebServer {
 
 #[async_trait]
 pub trait WebServer: 'static + Clone + Send + Sync {
-    async fn serve(&self, node_handles: &NodeHandles) -> Result<(), String>;
+    async fn serve(
+        &self,
+        node_handles: &NodeHandles,
+        server_permit: OwnedSemaphorePermit,
+    ) -> Result<(), String>;
     fn get_web_channel_handle(&self) -> &WebEventChannelHandle;
 }
 
@@ -34,7 +39,7 @@ mock! {
 
     #[async_trait]
     impl WebServer for WebServer {
-        async fn serve(&self, node_handles: &NodeHandles) -> Result<(), String>;
+        async fn serve(&self, node_handles: &NodeHandles, server_permit: OwnedSemaphorePermit) -> Result<(), String>;
         fn get_web_channel_handle(&self) -> &WebEventChannelHandle;
     }
 }
@@ -57,7 +62,11 @@ impl Clone for WebServerImpl {
 
 #[async_trait]
 impl WebServer for WebServerImpl {
-    async fn serve(&self, node_handles: &NodeHandles) -> Result<(), String> {
+    async fn serve(
+        &self,
+        node_handles: &NodeHandles,
+        server_permit: OwnedSemaphorePermit,
+    ) -> Result<(), String> {
         if self.config.domain_is_defined() {
             self.acme.ensure_certs().await?;
         }
@@ -73,6 +82,8 @@ impl WebServer for WebServerImpl {
         };
         let path_params = ([0, 0, 0, 0], self.config.port());
         let server = warp::serve(routes);
+
+        drop(server_permit);
 
         if self.config.domain_is_defined() {
             let (addr, fut) = server

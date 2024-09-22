@@ -71,17 +71,45 @@ where
 
         let node_handles = NodeHandles::new(&self.manager, self.server.get_web_channel_handle());
 
-        abort_handles.push(join_set.spawn(async move { log_sink.run().await }));
-        abort_handles.push(join_set.spawn(async move { stub_source.run().await }));
-        abort_handles.push(join_set.spawn(async move { google_source.run().await }));
+        const NODE_COUNT: usize = 4;
+        let semaphore = Arc::new(Semaphore::new(NODE_COUNT));
+
+        let log_permit = semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("Could not acquire semaphore");
+        let stub_permit = semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("Could not acquire semaphore");
+        let google_permit = semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("Could not acquire semaphore");
+        let server_permit = semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("Could not acquire semaphore");
+        abort_handles.push(join_set.spawn(async move { log_sink.run(log_permit).await }));
+        abort_handles.push(join_set.spawn(async move { stub_source.run(stub_permit).await }));
+        abort_handles.push(join_set.spawn(async move { google_source.run(google_permit).await }));
 
         let server = self.server.clone();
         abort_handles.push(join_set.spawn(async move {
             trace!("server starting");
-            if let Err(e) = server.serve(&node_handles).await {
+            if let Err(e) = server.serve(&node_handles, server_permit).await {
                 log::error!("Error while serving: {}", e);
             }
         }));
+
+        let _permit = semaphore
+            .acquire_many(NODE_COUNT as u32)
+            .await
+            .expect("Could not acquire semaphore");
 
         let (sender, join_set, abort_handle) = self.wait_for_init_responses(&mut join_set).await;
         abort_handles.push(abort_handle);
@@ -138,7 +166,7 @@ where
                 trace!("init wait inner complete");
             });
 
-            let stop_task = readonly_manager.abort_on_stop(&task);
+            let stop_task = readonly_manager.abort_on_stop(&task).await;
 
             let _ = join!(task, stop_task);
             trace!("init wait outer complete");
@@ -251,7 +279,7 @@ pub(crate) mod tests {
             returned_mock_web_server
                 .expect_serve()
                 .times(1)
-                .returning(|_| Ok(()));
+                .returning(|_node_handles: &NodeHandles, _permit| Ok(()));
             returned_mock_web_server
         });
         mock_web_server

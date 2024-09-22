@@ -110,7 +110,7 @@ pub mod test {
             let mut manager = get_test_manager(&config);
             let readonly_manager = manager.readonly();
             let task = task::spawn(async {});
-            let stop_handle = readonly_manager.abort_on_stop(&task);
+            let stop_handle = readonly_manager.abort_on_stop(&task).await;
             let (sender, receiver) = one_shot();
             manager
                 .send_init(sender)
@@ -126,7 +126,7 @@ pub mod test {
             let mut manager = get_test_manager(&config);
             let readonly_manager = manager.readonly();
             let task = task::spawn(async {});
-            let stop_handle = readonly_manager.abort_on_stop(&task);
+            let stop_handle = readonly_manager.abort_on_stop(&task).await;
             manager.send_stop().expect("Could not send stop signal.");
             assert_ok!(stop_handle.await);
         }

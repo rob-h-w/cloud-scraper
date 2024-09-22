@@ -106,7 +106,7 @@ impl Client {
             }
         });
 
-        let stop_task = self.manager.readonly().abort_on_stop(&task);
+        let stop_task = self.manager.readonly().abort_on_stop(&task).await;
         let result = task.await.map_err(|e| e.to_error());
         stop_task.abort();
         result?
@@ -151,7 +151,7 @@ impl Client {
             debug!("Waiting for redirect url");
             receiver.recv().await
         });
-        let stop_task = self.manager.readonly().abort_on_stop(&task);
+        let stop_task = self.manager.readonly().abort_on_stop(&task).await;
         let _permit = semaphore
             .clone()
             .acquire_owned()

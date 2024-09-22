@@ -8,6 +8,7 @@ use std::any::TypeId;
 use std::sync::Arc;
 use tokio::sync::broadcast::error::{RecvError, SendError};
 use tokio::sync::broadcast::Receiver;
+use tokio::sync::Semaphore;
 use tokio::task;
 use tokio::task::JoinHandle;
 
@@ -72,21 +73,28 @@ impl ReadonlyManager {
         }
     }
 
-    pub fn abort_on_stop<T>(&self, task: &JoinHandle<T>) -> JoinHandle<()> {
-        abort_on_stop::<T>(self.manager.lifecycle_channel_handle.get_receiver(), task)
+    pub(crate) async fn abort_on_stop<T>(&self, task: &JoinHandle<T>) -> JoinHandle<()> {
+        abort_on_stop::<T>(self.manager.lifecycle_channel_handle.get_receiver(), task).await
     }
 
-    pub fn get_receiver(&self) -> Receiver<Lifecycle> {
+    pub(crate) fn get_receiver(&self) -> Receiver<Lifecycle> {
         self.manager.lifecycle_channel_handle.get_receiver()
     }
 }
 
-pub fn abort_on_stop<T>(
+pub(crate) async fn abort_on_stop<T>(
     mut event_receiver: Receiver<Lifecycle>,
     task: &JoinHandle<T>,
 ) -> JoinHandle<()> {
     let task_abort_handle = task.abort_handle();
-    task::spawn(async move {
+    let semaphore = Arc::new(Semaphore::new(1));
+    let permit = semaphore
+        .clone()
+        .acquire_owned()
+        .await
+        .expect("Could not acquire semaphore");
+    let handle = task::spawn(async move {
+        drop(permit);
         loop {
             match event_receiver.recv().await {
                 Ok(event) => match event {
@@ -108,7 +116,13 @@ pub fn abort_on_stop<T>(
                 },
             }
         }
-    })
+    });
+
+    let _permit = semaphore
+        .acquire()
+        .await
+        .expect("Could not acquire semaphore");
+    handle
 }
 
 #[cfg(test)]
