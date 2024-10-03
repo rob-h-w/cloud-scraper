@@ -63,7 +63,7 @@ mod tests {
     use crate::domain::config::tests::test_config;
     use crate::domain::node::LifecycleChannelHandle;
     use crate::integration::stub::Source;
-    use crate::tests::Logger;
+    use crate::test::Logger;
     use log::trace;
     use std::sync::Arc;
     use tokio::sync::Semaphore;
