@@ -23,11 +23,11 @@ use tokio::{join, task};
 
 #[async_trait]
 #[cfg_attr(test, automock)]
-pub(crate) trait Engine {
+pub trait Engine {
     async fn start(&self);
 }
 
-pub(crate) struct EngineImpl<ServerType>
+pub struct EngineImpl<ServerType>
 where
     ServerType: WebServer,
 {

@@ -1,19 +1,25 @@
 use crate::core::cli::ServeArgs;
+use derive_builder::Builder;
 use derive_getters::Getters;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 
-const TLS_PORT: u16 = 443;
-const DEFAULT_SITE_FOLDER: &str = ".site";
+pub const TLS_PORT: u16 = 443;
+pub const DEFAULT_SITE_FOLDER: &str = ".site";
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Builder, Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Config {
+    #[serde(skip_serializing_if = "Option::is_none")]
     domain_config: Option<DomainConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     email: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     exit_after: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     port: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     site_state_folder: Option<String>,
 }
 
@@ -39,7 +45,6 @@ impl Config {
         })
     }
 
-    #[cfg(test)]
     pub fn with_all_properties(
         domain_config: Option<DomainConfig>,
         email: Option<String>,
@@ -113,7 +118,7 @@ impl Config {
         )
     }
 
-    pub(crate) fn sanity_check(&self) -> Result<(), String> {
+    pub fn sanity_check(&self) -> Result<(), String> {
         let mut errors = vec![];
 
         if self.domain_is_defined() {
@@ -167,7 +172,7 @@ impl Config {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Getters)]
+#[derive(Builder, Clone, Debug, Deserialize, Getters, PartialEq, Serialize)]
 pub struct DomainConfig {
     pub builder_contacts: Vec<String>,
     pub domain_name: String,
@@ -175,7 +180,6 @@ pub struct DomainConfig {
     pub poll_interval_seconds: u64,
 }
 
-#[cfg(test)]
 impl DomainConfig {
     pub fn new(domain_name: String) -> Self {
         Self {
@@ -191,7 +195,7 @@ impl DomainConfig {
 pub(crate) mod tests {
     use super::*;
 
-    pub fn test_config() -> Arc<Config> {
+    pub(crate) fn test_config() -> Arc<Config> {
         Arc::new(Config {
             domain_config: None,
             email: None,
@@ -201,7 +205,7 @@ pub(crate) mod tests {
         })
     }
 
-    pub fn test_config_with(
+    pub(crate) fn test_config_with(
         domain_config: Option<DomainConfig>,
         email: Option<String>,
     ) -> Arc<Config> {

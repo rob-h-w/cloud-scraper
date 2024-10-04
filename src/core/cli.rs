@@ -1,12 +1,33 @@
 use clap::{Args, Parser, Subcommand};
 use serde::Deserialize;
 
+const DEFAULT_CONFIG_NAME: &str = "config.yaml";
+
+pub trait ConfigFileProvider {
+    fn config_file(&self) -> String;
+}
+
 #[derive(Debug, Parser)]
 #[command(about = "Tool to set up and run a Small Technology inspired web service that integrates \
 with your Big Web services on your behalf.", version = env!("CARGO_PKG_VERSION"))]
-pub(crate) struct Cli {
+pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
+}
+
+#[derive(Args, Clone, Debug, Deserialize, PartialEq)]
+pub struct ConfigArgs {
+    /// Config file
+    #[arg(short, long)]
+    pub(crate) config: Option<String>,
+}
+
+impl ConfigFileProvider for ConfigArgs {
+    fn config_file(&self) -> String {
+        self.config
+            .clone()
+            .unwrap_or_else(|| DEFAULT_CONFIG_NAME.to_string())
+    }
 }
 
 #[derive(Args, Clone, Debug, Deserialize, PartialEq)]
@@ -25,6 +46,14 @@ pub struct ServeArgs {
     pub port: Option<u16>,
 }
 
+impl ConfigFileProvider for ServeArgs {
+    fn config_file(&self) -> String {
+        self.config
+            .clone()
+            .unwrap_or_else(|| DEFAULT_CONFIG_NAME.to_string())
+    }
+}
+
 #[cfg(test)]
 impl ServeArgs {
     pub(crate) fn default() -> ServeArgs {
@@ -38,6 +67,7 @@ impl ServeArgs {
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Subcommand)]
 pub enum Command {
+    Config(ConfigArgs),
     RootPassword(RootPasswordArgs),
     Serve(ServeArgs),
 }
