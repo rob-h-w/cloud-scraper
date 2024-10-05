@@ -57,6 +57,10 @@ Feature: Config subcommand
     When I enter "email-2@domain.owner.contact"
     When I enter ""
     When I enter "test.scenario.domain"
+    When I enter "y"
+    When I enter "external.uri"
+    When I enter "/path"
+    When I enter "8080"
     When I enter " 3000   "
     When I enter "1"
     When I enter "email@test.scenario.domain"
@@ -70,6 +74,10 @@ Feature: Config subcommand
   - email-1@domain.owner.contact
   - email-2@domain.owner.contact
   domain_name: test.scenario.domain
+  external_uri_config:
+    domain: external.uri
+    path: /path
+    port: 8080
   poll_attempts: 3000
   poll_interval_seconds: 1
 email: email@test.scenario.domain

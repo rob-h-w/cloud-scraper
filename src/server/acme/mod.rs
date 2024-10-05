@@ -73,7 +73,7 @@ impl Acme {
         let mut builder = AccountBuilder::new(dir.clone());
         builder.contact(
             domain_config
-                .builder_contacts
+                .builder_contacts()
                 .iter()
                 .map(|it| format!("mailto:{}", it).to_string())
                 .collect(),
@@ -84,7 +84,7 @@ impl Acme {
 
         // Create a new order for a specific domain name.
         let mut builder = OrderBuilder::new(account);
-        builder.add_dns_identifier(domain_config.domain_name.to_string());
+        builder.add_dns_identifier(domain_config.domain_name().to_string());
         let order = builder.build().await?;
         log::debug!("Order builder finished");
 
@@ -113,7 +113,7 @@ impl Acme {
 
             let challenge_token_server = challenge_token_server::ChallengeTokenServer::new(
                 key_authorization.expect("Could not get ACME key authorization."),
-                domain_config.domain_name.clone(),
+                domain_config.domain_name().clone(),
                 challenge_token.expect("Could not get ACME challenge token."),
             );
             log::debug!("Challenge token server created");
@@ -128,15 +128,17 @@ impl Acme {
                 let challenge = challenge
                     .wait_done(
                         Duration::from_secs(
-                            self.config
+                            *self
+                                .config
                                 .domain_config()
                                 .expect("Could not get domain config for poll interval seconds.")
-                                .poll_interval_seconds,
+                                .poll_interval_seconds(),
                         ),
-                        self.config
+                        *self
+                            .config
                             .domain_config()
                             .expect("Could not get domain config for poll attempts.")
-                            .poll_attempts,
+                            .poll_attempts(),
                     )
                     .await?;
                 log::debug!(
@@ -158,15 +160,17 @@ impl Acme {
             let authorization = auth
                 .wait_done(
                     Duration::from_secs(
-                        self.config
+                        *self
+                            .config
                             .domain_config()
                             .expect("Could not get domain config for poll interval seconds.")
-                            .poll_interval_seconds,
+                            .poll_interval_seconds(),
                     ),
-                    self.config
+                    *self
+                        .config
                         .domain_config()
                         .expect("Could not get domain config for poll attempts.")
-                        .poll_attempts,
+                        .poll_attempts(),
                 )
                 .await?;
             assert_eq!(authorization.status, AuthorizationStatus::Valid)
@@ -178,15 +182,17 @@ impl Acme {
         let order = order
             .wait_ready(
                 Duration::from_secs(
-                    self.config
+                    *self
+                        .config
                         .domain_config()
                         .expect("Could not get domain config for poll interval seconds.")
-                        .poll_interval_seconds,
+                        .poll_interval_seconds(),
                 ),
-                self.config
+                *self
+                    .config
                     .domain_config()
                     .expect("Could not get domain config for poll attempts.")
-                    .poll_attempts,
+                    .poll_attempts(),
             )
             .await?;
         log::debug!("Stopped waiting for order ready");
@@ -208,15 +214,17 @@ impl Acme {
         let order = order
             .wait_done(
                 Duration::from_secs(
-                    self.config
+                    *self
+                        .config
                         .domain_config()
                         .expect("Could not get domain config for poll interval seconds.")
-                        .poll_interval_seconds,
+                        .poll_interval_seconds(),
                 ),
-                self.config
+                *self
+                    .config
                     .domain_config()
                     .expect("Could not get domain config for poll attempts.")
-                    .poll_attempts,
+                    .poll_attempts(),
             )
             .await?;
         log::debug!("Stopped waiting for order completion");
