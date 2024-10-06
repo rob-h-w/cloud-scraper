@@ -50,6 +50,7 @@ impl CliWorld {
 
         let mut child = Command::new(command)
             .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
             .args(self.args.clone())
             .spawn()
             .expect("Error spawning command");
@@ -189,7 +190,7 @@ pub(crate) async fn the_file_should_be_a_valid_config(cli_world: &mut CliWorld, 
     assert_ok!(config.sanity_check());
 }
 
-#[then(regex = r#"^the file "([\S "]+)" should contain$"#)]
+#[then(regex = r#"^the file "([\S "]+)" should contain:$"#)]
 pub(crate) async fn the_file_should_contain(cli_world: &mut CliWorld, step: &Step, path: String) {
     cli_world.retrieve_output().await;
     let config = tokio::fs::read_to_string(&path)
@@ -198,6 +199,23 @@ pub(crate) async fn the_file_should_contain(cli_world: &mut CliWorld, step: &Ste
 
     assert_eq!(
         &config,
+        step.docstring
+            .as_ref()
+            .expect("No docstring in Cucumber step"),
+    );
+}
+
+#[then(regex = r#"^the prompts should have been:$"#)]
+pub(crate) async fn the_prompts_should_have_been(cli_world: &mut CliWorld, step: &Step) {
+    cli_world.retrieve_output().await;
+    let output = cli_world.output.clone().expect("Output not set");
+    println!(
+        "stdout: {}",
+        String::from_utf8(output.stdout.clone()).unwrap()
+    );
+    let stdout = String::from_utf8(output.stdout).expect("Error parsing stdout");
+    assert_eq!(
+        &stdout,
         step.docstring
             .as_ref()
             .expect("No docstring in Cucumber step"),
