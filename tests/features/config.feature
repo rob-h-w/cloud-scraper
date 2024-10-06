@@ -6,14 +6,14 @@ Feature: Config subcommand
     Then the exit code should not be 0
 
   Scenario: Exiting does not generate a file
-    Given no config file named "config.yaml"
+    Given no file named "config.yaml"
     When I run "cloud_scraper config"
     When I kill the process
     Then the file "config.yaml" should not exist
     And the exit code should not be 0
 
   Scenario: Entering email generates a file
-    Given no config file named "config-test.yaml"
+    Given no file named "config-test.yaml"
     When I run "cloud_scraper config -c config-test.yaml"
     When I enter "n"
     When I enter "test@test.com"
@@ -32,7 +32,7 @@ Please enter the folder where site state will be stored (leave blank for .site):
     And the exit code should be 0
 
   Scenario: Entering a port generates a file
-    Given no config file named "config.yaml"
+    Given no file named "config.yaml"
     When I run "cloud_scraper config"
     When I enter "n"
     When I enter ""
@@ -45,7 +45,7 @@ Please enter the folder where site state will be stored (leave blank for .site):
     And the exit code should be 0
 
   Scenario: Entering a domain without an email for certificate retrieval does not generate a file
-    Given no config file named "config.yaml"
+    Given no file named "config.yaml"
     When I run "cloud_scraper config"
     When I enter "y"
     When I enter "y"
@@ -58,7 +58,7 @@ Please enter the folder where site state will be stored (leave blank for .site):
     And the exit code should not be 0
 
   Scenario: Entering all data generates a file
-    Given no config file named "config.yaml"
+    Given no file named "config.yaml"
     When I run "cloud_scraper config"
     When I enter "y"
     When I enter "email-1@domain.owner.contact"

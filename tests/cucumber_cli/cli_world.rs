@@ -84,8 +84,8 @@ impl CliWorld {
     }
 }
 
-#[given(regex = r#"no config file named "([\S ]+)""#)]
-async fn no_config(_cli_world: &mut CliWorld, path: String) {
+#[given(regex = r#"no file named "([\S ]+)""#)]
+async fn no_file(_cli_world: &mut CliWorld, path: String) {
     if fs::try_exists(&path)
         .await
         .expect("Error checking file existence")
