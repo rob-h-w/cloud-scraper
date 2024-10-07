@@ -174,10 +174,11 @@ impl Config {
 
 #[derive(Builder, Clone, Debug, Deserialize, Getters, PartialEq, Serialize)]
 pub struct DomainConfig {
-    pub builder_contacts: Vec<String>,
-    pub domain_name: String,
-    pub poll_attempts: usize,
-    pub poll_interval_seconds: u64,
+    builder_contacts: Vec<String>,
+    domain_name: String,
+    external_uri_config: Option<ExternalUriConfig>,
+    poll_attempts: usize,
+    poll_interval_seconds: u64,
 }
 
 impl DomainConfig {
@@ -185,10 +186,18 @@ impl DomainConfig {
         Self {
             builder_contacts: vec![],
             domain_name,
+            external_uri_config: None,
             poll_attempts: 0,
             poll_interval_seconds: 0,
         }
     }
+}
+
+#[derive(Builder, Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct ExternalUriConfig {
+    domain: String,
+    path: Option<String>,
+    port: u16,
 }
 
 #[cfg(test)]
@@ -240,6 +249,11 @@ pub(crate) mod tests {
             let domain_config = Some(DomainConfig {
                 builder_contacts: vec!["builder@contact.com".to_string()],
                 domain_name: "the.domain".to_string(),
+                external_uri_config: Some(ExternalUriConfig {
+                    domain: "the.domain".to_string(),
+                    path: None,
+                    port: 2222,
+                }),
                 poll_attempts: 0,
                 poll_interval_seconds: 0,
             });

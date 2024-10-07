@@ -5,8 +5,18 @@ use cucumber::{World, WriterExt};
 
 #[tokio::main]
 async fn main() {
-    let _ = CliWorld::cucumber()
-        .run_and_exit("tests/features/config.feature")
-        .await
-        .fail_on_skipped();
+    run_all_of(vec![
+        "tests/features/config.feature",
+        "tests/features/serve.feature",
+    ])
+    .await;
+}
+
+async fn run_all_of(features: Vec<&str>) {
+    for feature in features {
+        let _ = CliWorld::cucumber()
+            .run_and_exit(feature)
+            .await
+            .fail_on_skipped();
+    }
 }

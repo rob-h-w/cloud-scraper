@@ -1,5 +1,7 @@
 use crate::core::cli::{ConfigArgs, ConfigFileProvider};
-use crate::domain::config::{ConfigBuilder, DomainConfigBuilder, DEFAULT_SITE_FOLDER, TLS_PORT};
+use crate::domain::config::{
+    ConfigBuilder, DomainConfigBuilder, ExternalUriConfigBuilder, DEFAULT_SITE_FOLDER, TLS_PORT,
+};
 use std::io::stdin;
 use tokio::fs;
 
@@ -11,7 +13,7 @@ pub async fn construct_config(args: &ConfigArgs) {
     let mut config_builder = &mut ConfigBuilder::default();
 
     config_builder.exit_after(None);
-    config_builder = read_domain_config(config_builder).await;
+    config_builder = read_domain_config(config_builder);
     config_builder = read_email(config_builder);
     config_builder = read_tls_port(config_builder);
     config_builder = read_site_state_folder(config_builder);
@@ -29,14 +31,15 @@ pub async fn construct_config(args: &ConfigArgs) {
     .expect("Error writing config file");
 }
 
-async fn read_domain_config(config_builder: &mut ConfigBuilder) -> &mut ConfigBuilder {
-    if read_boolean("Would you like to configure a domain?", true).await {
+fn read_domain_config(config_builder: &mut ConfigBuilder) -> &mut ConfigBuilder {
+    if read_boolean("Would you like to configure a domain?", true) {
         let mut domain_builder = &mut DomainConfigBuilder::default();
         domain_builder = read_builder_contacts(domain_builder);
         println!("Please enter the domain you'd like to serve:");
         let mut buf = String::new();
         stdin().read_line(&mut buf).expect("Error reading domain");
         domain_builder.domain_name(buf.trim().to_string());
+        domain_builder = read_external_uri_config(domain_builder);
         println!("Please enter the number of poll attempts to make when retrieving a domain certificate:");
         buf.clear();
         stdin()
@@ -85,6 +88,44 @@ fn read_builder_contacts(
     }
 
     domain_config_builder.builder_contacts(builder_contacts);
+    domain_config_builder
+}
+
+fn read_external_uri_config(
+    domain_config_builder: &mut DomainConfigBuilder,
+) -> &mut DomainConfigBuilder {
+    if read_boolean(
+        "Would you like to configure an external URI for the domain?",
+        false,
+    ) {
+        println!("Please enter the external URI you'd like to use:");
+        let mut buf = String::new();
+        stdin()
+            .read_line(&mut buf)
+            .expect("Error reading external URI");
+        let mut builder = ExternalUriConfigBuilder::default();
+        builder.domain(buf.trim().to_string());
+        buf.clear();
+        println!("Please enter the path if there is one. Leave blank if there is no path:");
+        stdin().read_line(&mut buf).expect("Error reading path");
+        if !buf.trim().is_empty() {
+            builder.path(Some(buf.trim().to_string()));
+        } else {
+            builder.path(None);
+        }
+        println!("Please enter the port you'd like to use:");
+        buf.clear();
+        stdin().read_line(&mut buf).expect("Error reading port");
+        builder.port(buf.trim().parse::<u16>().expect("Error parsing port"));
+
+        domain_config_builder.external_uri_config(Some(
+            builder.build().expect("Error building external URI config"),
+        ));
+        println!("External URI configured");
+    } else {
+        domain_config_builder.external_uri_config(None);
+    }
+
     domain_config_builder
 }
 
@@ -154,10 +195,9 @@ async fn do_not_mind_overwriting(config_args: &ConfigArgs) -> bool {
         ),
         false,
     )
-    .await
 }
 
-async fn read_boolean(message: &str, default_yes: bool) -> bool {
+fn read_boolean(message: &str, default_yes: bool) -> bool {
     let default_message = if default_yes { "Y/n" } else { "y/N" };
     let mut result;
     loop {

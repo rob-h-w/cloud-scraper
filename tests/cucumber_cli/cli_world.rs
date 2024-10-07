@@ -2,6 +2,7 @@ use cloud_scraper::domain::{Config, DomainConfig};
 use cucumber::gherkin::Step;
 use cucumber::{given, then, when, World};
 use derive_getters::Getters;
+use regex::RegexBuilder;
 use std::cmp::PartialEq;
 use std::fmt::Debug;
 use std::path::PathBuf;
@@ -22,6 +23,7 @@ pub(crate) enum InputType {
 pub(crate) struct CliWorld {
     args: Vec<String>,
     command: Option<String>,
+    environment_variables: Vec<(String, String)>,
     input_sequence: Vec<InputType>,
     output: Option<Output>,
 }
@@ -31,6 +33,7 @@ impl CliWorld {
         Self {
             args: Vec::new(),
             command: None,
+            environment_variables: vec![],
             input_sequence: Vec::new(),
             output: None,
         }
@@ -48,11 +51,19 @@ impl CliWorld {
             .first()
             .is_some_and(|i| i != &InputType::Kill);
 
-        let mut child = Command::new(command)
+        let cmd = command.clone();
+        let mut command = Command::new(cmd);
+        let mut command = command
             .stdin(std::process::Stdio::piped())
-            .args(self.args.clone())
-            .spawn()
-            .expect("Error spawning command");
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+        command = command.args(self.args.clone());
+
+        for (key, value) in self.environment_variables.clone() {
+            command = command.env(key, value);
+        }
+
+        let mut child = command.spawn().expect("Error spawning command");
 
         if stdin_wanted {
             let mut stdin = child.stdin.take().expect("Error taking stdin");
@@ -83,8 +94,8 @@ impl CliWorld {
     }
 }
 
-#[given(regex = r#"no config file named "([\S ]+)""#)]
-async fn no_config(_cli_world: &mut CliWorld, path: String) {
+#[given(regex = r#"no file named "([\S ]+)""#)]
+async fn no_file(_cli_world: &mut CliWorld, path: String) {
     if fs::try_exists(&path)
         .await
         .expect("Error checking file existence")
@@ -93,6 +104,22 @@ async fn no_config(_cli_world: &mut CliWorld, path: String) {
             .await
             .expect(&format!("Error removing {}", path));
     }
+}
+
+#[given(regex = r#"a file named "([\S ]+)" containing:"#)]
+async fn a_file_containing(_cli_world: &mut CliWorld, step: &Step, path: String) {
+    if fs::try_exists(&path)
+        .await
+        .expect("Error checking file existence")
+    {
+        fs::remove_file(&path)
+            .await
+            .expect(&format!("Error removing {}", path));
+    }
+
+    fs::write(&path, step.docstring.as_ref().unwrap().as_bytes())
+        .await
+        .expect(&format!("Error writing to {}", path));
 }
 
 #[given("a test config")]
@@ -113,6 +140,11 @@ fn test_config() -> Config {
         Some(8080),
         None,
     )
+}
+
+#[given(regex = r#"an environment variable "([\S ]+)" with the value "([\S ]+)""#)]
+fn set_environment_variable(cli_world: &mut CliWorld, key: String, value: String) {
+    cli_world.environment_variables.push((key, value));
 }
 
 #[when(regex = r#"^I run "([\S "]+)"$"#)]
@@ -189,7 +221,7 @@ pub(crate) async fn the_file_should_be_a_valid_config(cli_world: &mut CliWorld, 
     assert_ok!(config.sanity_check());
 }
 
-#[then(regex = r#"^the file "([\S "]+)" should contain$"#)]
+#[then(regex = r#"^the file "([\S "]+)" should contain:$"#)]
 pub(crate) async fn the_file_should_contain(cli_world: &mut CliWorld, step: &Step, path: String) {
     cli_world.retrieve_output().await;
     let config = tokio::fs::read_to_string(&path)
@@ -201,6 +233,43 @@ pub(crate) async fn the_file_should_contain(cli_world: &mut CliWorld, step: &Ste
         step.docstring
             .as_ref()
             .expect("No docstring in Cucumber step"),
+    );
+}
+
+#[then(regex = r#"^the prompts should have been:$"#)]
+pub(crate) async fn the_prompts_should_have_been(cli_world: &mut CliWorld, step: &Step) {
+    cli_world.retrieve_output().await;
+    let output = cli_world.output.clone().expect("Output not set");
+    let stdout = String::from_utf8(output.stdout).expect("Error parsing stdout");
+    assert_eq!(
+        &stdout,
+        step.docstring
+            .as_ref()
+            .expect("No docstring in Cucumber step"),
+    );
+}
+
+#[then(regex = r#"^the stderr should have matched:$"#)]
+pub(crate) async fn the_stderr_should_have_been(cli_world: &mut CliWorld, step: &Step) {
+    cli_world.retrieve_output().await;
+    let output = cli_world.output.clone().expect("Output not set");
+    let stderr = String::from_utf8(output.stderr).expect("Error parsing stdout");
+    let regex_string = step
+        .docstring
+        .as_ref()
+        .expect("No docstring in Cucumber step")
+        .replace("\n", "\\n");
+    let re = RegexBuilder::new(&regex_string)
+        .multi_line(true)
+        .dot_matches_new_line(true)
+        .build()
+        .expect(&format!("Error parsing regex {}", regex_string));
+    let captures = re.captures(&stderr);
+    assert!(
+        captures.is_some(),
+        "Could not match regex\n{}\nto stderr\n{}",
+        regex_string,
+        stderr
     );
 }
 
