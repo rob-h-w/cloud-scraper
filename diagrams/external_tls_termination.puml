@@ -1,0 +1,33 @@
+@startuml Context
+
+skinparam backgroundColor white
+
+!include  https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+!include  https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Cloud Scraper Context
+
+Boundary(your_server, "Your Server") {
+    System(tls, "TLS Termination")
+    rectangle certificate as "Certificate"
+    System(cloud_scraper, "Cloud Scraper")
+    SystemDb(cloud_scraper_db, "Your Data")
+
+    Rel_U(cloud_scraper, certificate, "write", "On absence/expiry")
+    Rel_U(certificate, tls, "read")
+    Rel_L(tls, cloud_scraper, "Decrypted traffic", "Via HTTP")
+}
+
+skinparam NoteTextAlignment left
+note bottom
+    Your server can be a
+    Raspberry Pi, an old laptop, your current laptop, a VPS, etc.
+end note
+
+Person(you, "You")
+
+Rel(you, cloud_scraper, "Configuration", "Via CLI")
+Rel(you, tls, "Control", "Via HTTPS")
+Rel(cloud_scraper, cloud_scraper_db, "Saves")
+
+@enduml
