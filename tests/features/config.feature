@@ -20,7 +20,7 @@ Feature: Config subcommand
     When I enter ""
     Then the file "config-test.yaml" should exist
     And the file "config-test.yaml" should be a valid config
-    And the prompts should have been:
+    And the stdout should have been:
     """Would you like to configure a domain? (Y/n)
 Please enter the email you'd like to use as the admin contact when requesting a certificate:
 Please enter the port you'd like to use for serving HTTPS traffic (leave blank for 443):

@@ -236,7 +236,7 @@ pub(crate) async fn the_file_should_contain(cli_world: &mut CliWorld, step: &Ste
     );
 }
 
-#[then(regex = r#"^the prompts should have been:$"#)]
+#[then(regex = r#"^the stdout should have been:$"#)]
 pub(crate) async fn the_prompts_should_have_been(cli_world: &mut CliWorld, step: &Step) {
     cli_world.retrieve_output().await;
     let output = cli_world.output.clone().expect("Output not set");
