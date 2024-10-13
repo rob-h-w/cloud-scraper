@@ -421,11 +421,17 @@ mod tests {
 
         mod to_application_secret {
             use super::*;
+            use crate::domain::DomainConfig;
 
             #[test]
             fn returns_application_secret() {
                 let config = test_config();
-                let core_config = Config::with_all_properties(None, None, None, None, None);
+                let core_config = Config::with_all_properties(
+                    Some(DomainConfig::new("https://localhost")),
+                    None,
+                    None,
+                    None,
+                );
                 let application_secret = config.to_application_secret(&core_config);
                 assert_eq!(application_secret.client_id(), "test_client_id");
                 assert_eq!(application_secret.client_secret(), "test_client_secret");
@@ -437,7 +443,7 @@ mod tests {
                 assert_eq!(application_secret.token_uri(), "https://test.token.uri");
                 assert_eq!(
                     application_secret.redirect_uris(),
-                    &vec!["https://localhost:443/auth/google"]
+                    &vec!["https://localhost/auth/google"]
                 );
                 assert_eq!(
                     application_secret.project_id(),

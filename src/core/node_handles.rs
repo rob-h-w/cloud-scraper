@@ -3,7 +3,7 @@ use crate::server::WebEventChannelHandle;
 use derive_getters::Getters;
 
 #[derive(Clone, Debug, Getters)]
-pub(crate) struct NodeHandles {
+pub struct NodeHandles {
     lifecycle_manager: Manager,
     web_channel_handle: WebEventChannelHandle,
 }

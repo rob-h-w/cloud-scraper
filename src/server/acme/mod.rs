@@ -57,10 +57,7 @@ impl Acme {
     }
 
     async fn get_cert(&self) -> Result<CertAndPrivateKey, Error> {
-        let domain_config = self
-            .config
-            .domain_config()
-            .expect("Domain config is not defined");
+        let domain_config = self.config.domain_config();
 
         // Create a new ACMEv2 directory for Let's Encrypt.
         let dir = DirectoryBuilder::new(LETS_ENCRYPT_URL.to_string())
@@ -84,7 +81,12 @@ impl Acme {
 
         // Create a new order for a specific domain name.
         let mut builder = OrderBuilder::new(account);
-        builder.add_dns_identifier(domain_config.domain_name().to_string());
+        let domain = domain_config
+            .url_in_use()
+            .domain()
+            .unwrap_or_else(|| panic!("Could not get domain from {}", domain_config.url_in_use()))
+            .to_string();
+        builder.add_dns_identifier(domain.to_string());
         let order = builder.build().await?;
         log::debug!("Order builder finished");
 
@@ -113,7 +115,7 @@ impl Acme {
 
             let challenge_token_server = challenge_token_server::ChallengeTokenServer::new(
                 key_authorization.expect("Could not get ACME key authorization."),
-                domain_config.domain_name().clone(),
+                domain.to_string(),
                 challenge_token.expect("Could not get ACME challenge token."),
             );
             log::debug!("Challenge token server created");
@@ -127,18 +129,8 @@ impl Acme {
                 // `valid` or `invalid` state.
                 let challenge = challenge
                     .wait_done(
-                        Duration::from_secs(
-                            *self
-                                .config
-                                .domain_config()
-                                .expect("Could not get domain config for poll interval seconds.")
-                                .poll_interval_seconds(),
-                        ),
-                        *self
-                            .config
-                            .domain_config()
-                            .expect("Could not get domain config for poll attempts.")
-                            .poll_attempts(),
+                        Duration::from_secs(domain_config.poll_interval_seconds()),
+                        domain_config.poll_attempts(),
                     )
                     .await?;
                 log::debug!(
@@ -159,18 +151,8 @@ impl Acme {
             // `valid` or `invalid` state.
             let authorization = auth
                 .wait_done(
-                    Duration::from_secs(
-                        *self
-                            .config
-                            .domain_config()
-                            .expect("Could not get domain config for poll interval seconds.")
-                            .poll_interval_seconds(),
-                    ),
-                    *self
-                        .config
-                        .domain_config()
-                        .expect("Could not get domain config for poll attempts.")
-                        .poll_attempts(),
+                    Duration::from_secs(self.config.domain_config().poll_interval_seconds()),
+                    self.config.domain_config().poll_attempts(),
                 )
                 .await?;
             assert_eq!(authorization.status, AuthorizationStatus::Valid)
@@ -181,18 +163,8 @@ impl Acme {
         // for finalization (certificate creation).
         let order = order
             .wait_ready(
-                Duration::from_secs(
-                    *self
-                        .config
-                        .domain_config()
-                        .expect("Could not get domain config for poll interval seconds.")
-                        .poll_interval_seconds(),
-                ),
-                *self
-                    .config
-                    .domain_config()
-                    .expect("Could not get domain config for poll attempts.")
-                    .poll_attempts(),
+                Duration::from_secs(self.config.domain_config().poll_interval_seconds()),
+                self.config.domain_config().poll_attempts(),
             )
             .await?;
         log::debug!("Stopped waiting for order ready");
@@ -213,18 +185,8 @@ impl Acme {
         // has been provisioned, and is now ready for download.
         let order = order
             .wait_done(
-                Duration::from_secs(
-                    *self
-                        .config
-                        .domain_config()
-                        .expect("Could not get domain config for poll interval seconds.")
-                        .poll_interval_seconds(),
-                ),
-                *self
-                    .config
-                    .domain_config()
-                    .expect("Could not get domain config for poll attempts.")
-                    .poll_attempts(),
+                Duration::from_secs(self.config.domain_config().poll_interval_seconds()),
+                self.config.domain_config().poll_attempts(),
             )
             .await?;
         log::debug!("Stopped waiting for order completion");

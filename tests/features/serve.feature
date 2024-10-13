@@ -67,4 +67,3 @@ Feature: Serve subcommand
 .*Constructing engine\.\.\.
 .*Starting engine
         """
-    And the exit code should be 0

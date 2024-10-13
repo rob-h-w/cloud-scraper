@@ -27,7 +27,7 @@ fn redirect(config: &Config) -> String {
         "script",
         include_str!("../../../resources/js/redirect.js").to_string(),
     );
-    map.insert("url", config.websocket_uri());
+    map.insert("url", config.websocket_url().to_string());
 
     SCRIPT_TEMPLATE
         .render(JS_TEMPLATE_NAME, &map)

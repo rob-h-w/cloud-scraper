@@ -1,24 +1,33 @@
 use crate::core::cli::ServeArgs;
 use derive_builder::Builder;
 use derive_getters::Getters;
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
+use url::Url;
 
+const HTTP_PORT: u16 = 80;
 pub const TLS_PORT: u16 = 443;
 pub const DEFAULT_SITE_FOLDER: &str = ".site";
+const LOCALHOST: &str = "http://localhost";
 
-#[derive(Builder, Clone, Debug, Deserialize, PartialEq, Serialize)]
+lazy_static! {
+    static ref DEFAULT_DOMAIN_CONFIG: DomainConfig = Default::default();
+}
+
+#[derive(Builder, Clone, Debug, Deserialize, Getters, PartialEq, Serialize)]
 pub struct Config {
+    #[getter(skip)]
     #[serde(skip_serializing_if = "Option::is_none")]
     domain_config: Option<DomainConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     email: Option<String>,
+    #[getter(skip)]
     #[serde(skip_serializing_if = "Option::is_none")]
     exit_after: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    port: Option<u16>,
+    #[getter(skip)]
     #[serde(skip_serializing_if = "Option::is_none")]
     site_state_folder: Option<String>,
 }
@@ -29,19 +38,19 @@ impl Config {
             Some(config_file) => {
                 let config_file =
                     std::fs::read_to_string(config_file).expect("Could not open $config_file");
-                let mut config: Config =
+                let config: Config =
                     serde_yaml::from_str(&config_file).expect("Could not parse config");
-                config.merge_exit_after(serve_args.exit_after);
-                config.merge_port(serve_args.port);
                 config
+                    .merge_exit_after(serve_args.exit_after)
+                    .merge_port(serve_args.port)
             }
             None => Self {
                 domain_config: None,
                 email: None,
                 exit_after: serve_args.exit_after,
-                port: serve_args.port,
                 site_state_folder: None,
-            },
+            }
+            .merge_port(serve_args.port),
         })
     }
 
@@ -49,90 +58,81 @@ impl Config {
         domain_config: Option<DomainConfig>,
         email: Option<String>,
         exit_after: Option<u64>,
-        port: Option<u16>,
         site_state_folder: Option<String>,
     ) -> Self {
         Self {
             domain_config,
             email,
             exit_after,
-            port,
             site_state_folder,
         }
     }
 
-    pub(crate) fn domain_config(&self) -> Option<&crate::domain::config::DomainConfig> {
-        self.domain_config.as_ref()
-    }
-
-    pub(crate) fn domain_is_defined(&self) -> bool {
-        self.domain_config.is_some()
-    }
-
-    pub(crate) fn domain_name(&self) -> &str {
-        if let Some(domain_config) = self.domain_config() {
-            &domain_config.domain_name
-        } else {
-            "localhost"
-        }
-    }
-
-    fn email(&self) -> Option<&str> {
-        self.email.as_deref()
+    pub(crate) fn domain_config(&self) -> &DomainConfig {
+        self.domain_config
+            .as_ref()
+            .unwrap_or(&DEFAULT_DOMAIN_CONFIG)
     }
 
     pub(crate) fn exit_after(&self) -> Option<Duration> {
         self.exit_after.map(Duration::from_secs)
     }
 
-    fn http_scheme(&self) -> &str {
-        if self.uses_tls() {
-            "https"
-        } else {
-            "http"
-        }
-    }
-
-    fn merge_exit_after(&mut self, exit_after: Option<u64>) {
+    fn merge_exit_after(mut self, exit_after: Option<u64>) -> Self {
         if exit_after.is_some() {
             self.exit_after = exit_after;
         }
+
+        self
     }
 
-    fn merge_port(&mut self, port: Option<u16>) {
+    fn merge_port(mut self, port: Option<u16>) -> Self {
         if let Some(p) = port {
-            self.port = Some(p);
+            let mut domain_config = self.domain_config().clone();
+            let mut url = domain_config.url().clone();
+            url.set_port(Some(p)).expect("Could not set port");
+            domain_config.url = url.clone();
+            self.domain_config = Some(domain_config);
         }
+
+        self
     }
 
     pub(crate) fn port(&self) -> u16 {
-        self.port.unwrap_or(TLS_PORT)
+        if let Some(port) = self.domain_config().url().port() {
+            port
+        } else if self.uses_tls() {
+            TLS_PORT
+        } else {
+            HTTP_PORT
+        }
     }
 
     pub(crate) fn redirect_uri(&self) -> String {
-        format!(
-            "{}://{}:{}/auth/google",
-            self.http_scheme(),
-            self.domain_name(),
-            self.port()
-        )
+        self.domain_config()
+            .url_in_use()
+            .join("/auth/google")
+            .expect("Could not join redirect URI")
+            .to_string()
     }
 
     pub fn sanity_check(&self) -> Result<(), String> {
         let mut errors = vec![];
 
-        if self.domain_is_defined() {
+        if self.uses_tls() {
             if self.email().is_none() {
-                errors.push("No email configured".to_string());
+                errors.push(format!(
+                    "{} uses HTTPS, but no email address was provided for certificate requests",
+                    self.domain_config().url()
+                ));
             }
-        }
 
-        if let Some(domain_config) = self.domain_config() {
-            if domain_config.builder_contacts.is_empty() {
-                errors.push("No builder contacts configured".to_string());
-            }
-            if domain_config.domain_name.is_empty() {
-                errors.push("No domain name configured".to_string());
+            if let Some(tls) = self.domain_config().tls_config() {
+                if tls.builder_contacts().is_empty() {
+                    errors.push("No builder contacts configured".to_string());
+                }
+            } else {
+                errors.push("No TLS config found".to_string());
             }
         }
 
@@ -151,16 +151,18 @@ impl Config {
     }
 
     pub(crate) fn uses_tls(&self) -> bool {
-        self.port() == TLS_PORT || self.domain_is_defined()
+        self.domain_config().url_in_use().scheme() == "https"
     }
 
-    pub(crate) fn websocket_uri(&self) -> String {
-        format!(
-            "{}://{}:{}/ws",
-            self.ws_scheme(),
-            self.domain_name(),
-            self.port()
-        )
+    pub(crate) fn websocket_url(&self) -> Url {
+        let mut url = self
+            .domain_config()
+            .url_in_use()
+            .join("/ws")
+            .expect("Could not join websocket URL");
+        url.set_scheme(self.ws_scheme())
+            .expect("Could not set websocket scheme");
+        url
     }
 
     fn ws_scheme(&self) -> &str {
@@ -174,30 +176,77 @@ impl Config {
 
 #[derive(Builder, Clone, Debug, Deserialize, Getters, PartialEq, Serialize)]
 pub struct DomainConfig {
-    builder_contacts: Vec<String>,
-    domain_name: String,
-    external_uri_config: Option<ExternalUriConfig>,
-    poll_attempts: usize,
-    poll_interval_seconds: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    external_url: Option<Url>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tls_config: Option<TlsConfig>,
+    #[serde(skip_serializing_if = "url_is_default")]
+    url: Url,
 }
 
-impl DomainConfig {
-    pub fn new(domain_name: String) -> Self {
+fn url_is_default(url: &Url) -> bool {
+    url.as_str() == LOCALHOST
+}
+
+impl Default for DomainConfig {
+    fn default() -> Self {
         Self {
-            builder_contacts: vec![],
-            domain_name,
-            external_uri_config: None,
-            poll_attempts: 0,
-            poll_interval_seconds: 0,
+            external_url: None,
+            tls_config: Some(TlsConfig {
+                builder_contacts: vec![],
+                poll_attempts: 3,
+                poll_interval_seconds: 30,
+            }),
+            url: Url::parse(LOCALHOST).expect("Could not parse default URL"),
         }
     }
 }
 
-#[derive(Builder, Clone, Debug, Deserialize, PartialEq, Serialize)]
-pub struct ExternalUriConfig {
-    domain: String,
-    path: Option<String>,
-    port: u16,
+impl DomainConfig {
+    pub fn new(url: &str) -> Self {
+        Self {
+            external_url: None,
+            tls_config: None,
+            url: Url::parse(url).unwrap_or_else(|_err| {
+                panic!("Could not parse URL: {}", url);
+            }),
+        }
+    }
+
+    pub(crate) fn builder_contacts(&self) -> Vec<String> {
+        self.tls_config()
+            .as_ref()
+            .expect("TLS config not defined")
+            .builder_contacts()
+            .clone()
+    }
+
+    pub(crate) fn poll_attempts(&self) -> usize {
+        *self
+            .tls_config()
+            .as_ref()
+            .expect("TLS config not defined")
+            .poll_attempts()
+    }
+
+    pub(crate) fn poll_interval_seconds(&self) -> u64 {
+        *self
+            .tls_config()
+            .as_ref()
+            .expect("TLS config not defined")
+            .poll_interval_seconds()
+    }
+
+    pub(crate) fn url_in_use(&self) -> Url {
+        self.external_url().as_ref().unwrap_or(self.url()).clone()
+    }
+}
+
+#[derive(Builder, Clone, Debug, Deserialize, Getters, PartialEq, Serialize)]
+pub struct TlsConfig {
+    builder_contacts: Vec<String>,
+    poll_attempts: usize,
+    poll_interval_seconds: u64,
 }
 
 #[cfg(test)]
@@ -206,10 +255,9 @@ pub(crate) mod tests {
 
     pub(crate) fn test_config() -> Arc<Config> {
         Arc::new(Config {
-            domain_config: None,
+            domain_config: Default::default(),
             email: None,
             exit_after: None,
-            port: None,
             site_state_folder: None,
         })
     }
@@ -219,10 +267,9 @@ pub(crate) mod tests {
         email: Option<String>,
     ) -> Arc<Config> {
         Arc::new(Config {
-            domain_config,
+            domain_config: Some(domain_config.unwrap_or(Default::default())),
             email,
             exit_after: None,
-            port: None,
             site_state_folder: None,
         })
     }
@@ -233,29 +280,27 @@ pub(crate) mod tests {
         #[test]
         fn test_instantiate() {
             let config = Config {
-                domain_config: None,
+                domain_config: Default::default(),
                 email: None,
                 exit_after: None,
-                port: None,
                 site_state_folder: Some("test_site_folder".to_string()),
             };
 
-            assert_eq!(config.port(), TLS_PORT);
             assert!(config.sanity_check().is_ok());
         }
 
         #[test]
         fn test_config_sanity_check() {
             let domain_config = Some(DomainConfig {
-                builder_contacts: vec!["builder@contact.com".to_string()],
-                domain_name: "the.domain".to_string(),
-                external_uri_config: Some(ExternalUriConfig {
-                    domain: "the.domain".to_string(),
-                    path: None,
-                    port: 2222,
+                external_url: Some(
+                    Url::parse("https://the.domain:2222").expect("Could not parse URL"),
+                ),
+                tls_config: Some(TlsConfig {
+                    builder_contacts: vec!["builder@contact.com".to_string()],
+                    poll_attempts: 0,
+                    poll_interval_seconds: 0,
                 }),
-                poll_attempts: 0,
-                poll_interval_seconds: 0,
+                url: Url::parse("http://the.domain").expect("Could not parse URL"),
             });
 
             let bad_config = test_config_with(domain_config.clone(), None);
@@ -271,25 +316,19 @@ pub(crate) mod tests {
             #[test]
             fn with_domain_config_returns_https() {
                 let config = Config::with_all_properties(
-                    Some(DomainConfig::new("test_domain".to_string())),
+                    Some(DomainConfig::new("http://test_domain:8080")),
                     None,
                     None,
-                    Some(8080),
                     Some("test".to_string()),
                 );
                 let redirect_uri = config.redirect_uri();
-                assert_eq!(redirect_uri, "https://test_domain:8080/auth/google");
+                assert_eq!(redirect_uri, "http://test_domain:8080/auth/google");
             }
 
             #[test]
             fn without_domain_config_returns_http() {
-                let config = Config::with_all_properties(
-                    None,
-                    None,
-                    None,
-                    Some(8080),
-                    Some("test_domain".to_string()),
-                );
+                let config =
+                    Config::with_all_properties(None, None, None, None).merge_port(Some(8080));
                 let redirect_uri = config.redirect_uri();
                 assert_eq!(redirect_uri, "http://localhost:8080/auth/google");
             }
@@ -301,27 +340,20 @@ pub(crate) mod tests {
             #[test]
             fn with_domain_config_returns_https() {
                 let config = Config::with_all_properties(
-                    Some(DomainConfig::new("test_domain".to_string())),
+                    Some(DomainConfig::new("https://test_domain:8080")),
                     None,
                     None,
-                    Some(8080),
-                    Some("test".to_string()),
+                    None,
                 );
-                let websocket_uri = config.websocket_uri();
+                let websocket_uri = config.websocket_url().to_string();
                 assert_eq!(websocket_uri, "wss://test_domain:8080/ws");
             }
 
             #[test]
             fn without_domain_config_returns_http() {
-                let config = Config::with_all_properties(
-                    None,
-                    None,
-                    None,
-                    Some(8080),
-                    Some("test_domain".to_string()),
-                );
-                let websocket_uri = config.websocket_uri();
-                assert_eq!(websocket_uri, "ws://localhost:8080/ws");
+                let config: Config = Config::with_all_properties(None, None, None, None);
+                let websocket_uri = config.websocket_url().to_string();
+                assert_eq!(websocket_uri, "ws://localhost/ws");
             }
         }
     }

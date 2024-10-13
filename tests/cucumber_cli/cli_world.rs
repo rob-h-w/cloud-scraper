@@ -46,10 +46,6 @@ impl CliWorld {
 
         let command = self.command.clone().expect("Command not set");
         let command = PathBuf::new().join("target/debug").join(command);
-        let stdin_wanted = self
-            .input_sequence
-            .first()
-            .is_some_and(|i| i != &InputType::Kill);
 
         let cmd = command.clone();
         let mut command = Command::new(cmd);
@@ -65,21 +61,19 @@ impl CliWorld {
 
         let mut child = command.spawn().expect("Error spawning command");
 
-        if stdin_wanted {
-            let mut stdin = child.stdin.take().expect("Error taking stdin");
+        let mut stdin = child.stdin.take().expect("Error taking stdin");
 
-            for input in self.input_sequence.clone() {
-                match input {
-                    InputType::Kill => {
-                        child.start_kill().expect("Error killing command");
-                        break;
-                    }
-                    InputType::String(string) => {
-                        stdin
-                            .write((string + "\n").as_bytes())
-                            .await
-                            .expect("Error writing to stdin");
-                    }
+        for input in self.input_sequence.clone() {
+            match input {
+                InputType::Kill => {
+                    child.start_kill().expect("Error killing command");
+                    break;
+                }
+                InputType::String(string) => {
+                    stdin
+                        .write((string + "\n").as_bytes())
+                        .await
+                        .expect("Error writing to stdin");
                 }
             }
         }
@@ -134,10 +128,9 @@ async fn a_config_file(_cli_world: &mut CliWorld) {
 
 fn test_config() -> Config {
     Config::with_all_properties(
-        Some(DomainConfig::new("test.domain".to_string())),
+        Some(DomainConfig::new("http://test.domain:8080")),
         Some("user@test.domain".to_string()),
         None,
-        Some(8080),
         None,
     )
 }
