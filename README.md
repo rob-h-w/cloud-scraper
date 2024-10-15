@@ -128,10 +128,12 @@ parameters are used to manage how the service retries attempts to retrieve a cer
 
 ##### Web Interface
 
-By default, the service listens on port 443. You can change this in the configuration file.
+By default, the service listens on port 80 unless you configure TLS. You can change this in the
+configuration file by including it in your url.
 
 ```yaml
-port: 1234
+domain_config:
+  url: http://localhost:1234
 ```
 
 Or by command line argument.
