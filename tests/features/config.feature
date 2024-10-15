@@ -139,6 +139,42 @@ site_state_folder: .my_site_state_folder
     """
     And the exit code should be 0
 
+  Scenario: Entering only the admin contact email results in that email address used for the domain contact
+    Given no file named "config.yaml"
+    When I run "cloud_scraper config"
+    When I enter "email@test.scenario.domain"
+    When I enter "http://test.scenario.domain"
+    When I enter "https://external.uri:8080/path"
+    When I enter ""
+    When I enter "1"
+    When I enter "1"
+    When I enter ""
+    When I enter ""
+    Then the file "config.yaml" should exist
+    And the file "config.yaml" should be a valid config
+    And the stdout should have been:
+    """Please enter the email you'd like to use as the admin contact when requesting a certificate (you can leave this blank if you don't want to host a secure site using HTTPS):
+Please enter the url you'd like to use for serving web traffic (leave blank for http://localhost):
+If you would like to use a different URL visible externally, please provide it here (leave blank if the URL you entered above is visible externally):
+Please enter the email you'd like to use as a contact for the domain (leave blank to finish, an empty list will be replaced with the admin contact email):
+Please enter the number of poll attempts to make when retrieving a domain certificate:
+Please enter the number of seconds to wait between poll attempts:
+Please enter the folder where the site cert should be stored (leave blank for site state folder):
+Please enter the folder where site state will be stored (leave blank for .site):
+    """
+    And the file "config.yaml" should contain:
+    """domain_config:
+  external_url: https://external.uri:8080/path
+  tls_config:
+    builder_contacts:
+    - email@test.scenario.domain
+    poll_attempts: 1
+    poll_interval_seconds: 1
+  url: http://test.scenario.domain/
+email: email@test.scenario.domain
+    """
+    And the exit code should be 0
+
   Scenario: Not replacing config respects the choice
     Given a test config
     When I run "cloud_scraper config"

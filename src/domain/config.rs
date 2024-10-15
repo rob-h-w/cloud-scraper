@@ -165,6 +165,11 @@ impl Config {
         url
     }
 
+    pub(crate) fn with_domain_config(mut self, domain_config: DomainConfig) -> Self {
+        self.domain_config = Some(domain_config);
+        self
+    }
+
     fn ws_scheme(&self) -> &str {
         if self.uses_tls() {
             "wss"
@@ -241,14 +246,27 @@ impl DomainConfig {
     pub(crate) fn url_in_use(&self) -> Url {
         self.external_url().as_ref().unwrap_or(self.url()).clone()
     }
+
+    pub(crate) fn with_tls_config(mut self, tls_config: TlsConfig) -> Self {
+        self.tls_config = Some(tls_config);
+        self
+    }
 }
 
 #[derive(Builder, Clone, Debug, Deserialize, Getters, PartialEq, Serialize)]
 pub struct TlsConfig {
     builder_contacts: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     cert_location: Option<String>,
     poll_attempts: usize,
     poll_interval_seconds: u64,
+}
+
+impl TlsConfig {
+    pub(crate) fn with_builder_contacts(mut self, builder_contacts: Vec<String>) -> Self {
+        self.builder_contacts = builder_contacts;
+        self
+    }
 }
 
 #[cfg(test)]

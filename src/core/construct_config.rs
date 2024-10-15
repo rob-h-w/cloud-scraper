@@ -18,9 +18,27 @@ pub async fn construct_config(args: &ConfigArgs) {
     config_builder = read_domain_config(config_builder);
     config_builder = read_site_state_folder(config_builder);
 
-    let config = config_builder
+    let mut config = config_builder
         .build()
         .unwrap_or_else(|error| panic!("Could not build the config because {:?}", error));
+
+    if config.uses_tls()
+        && config.domain_config().builder_contacts().is_empty()
+        && config.email().is_some()
+    {
+        let mut domain_config = config.domain_config().clone();
+        let tls_config = config
+            .domain_config()
+            .tls_config()
+            .as_ref()
+            .unwrap()
+            .clone();
+        domain_config = domain_config.with_tls_config(
+            tls_config.with_builder_contacts(vec![config.email().as_ref().unwrap().to_string()]),
+        );
+        config = config.with_domain_config(domain_config);
+    }
+
     config.sanity_check().expect("Config is not valid");
 
     fs::write(
