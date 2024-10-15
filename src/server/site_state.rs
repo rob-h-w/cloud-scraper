@@ -1,6 +1,9 @@
 use crate::domain::config::Config;
+use derive_getters::Getters;
 
+#[derive(Debug, Getters)]
 pub struct SiteState {
+    cert_folder: String,
     cert_path: String,
     key_path: String,
     site_folder: String,
@@ -8,22 +11,20 @@ pub struct SiteState {
 
 impl SiteState {
     pub fn new(config: &Config) -> Self {
+        let cert_folder = match config.domain_config().tls_config() {
+            None => None,
+            Some(tls_config) => tls_config.cert_location().as_ref(),
+        }
+        .map(|it| it as &str)
+        .unwrap_or(config.site_folder())
+        .to_string();
+        let path_base = cert_folder.clone();
+
         Self {
-            cert_path: config.site_folder().to_string() + "/cert.pem",
-            key_path: config.site_folder().to_string() + "/key.pem",
+            cert_folder,
+            cert_path: path_base.clone() + "/cert.pem",
+            key_path: path_base + "/key.pem",
             site_folder: config.site_folder().to_string(),
         }
-    }
-
-    pub fn cert_path(&self) -> &str {
-        &self.cert_path
-    }
-
-    pub fn key_path(&self) -> &str {
-        &self.key_path
-    }
-
-    pub fn site_folder(&self) -> &str {
-        &self.site_folder
     }
 }

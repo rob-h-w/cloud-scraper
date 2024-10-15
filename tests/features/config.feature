@@ -79,6 +79,7 @@ Please enter the folder where site state will be stored (leave blank for .site):
     When I enter "1"
     When I enter "1"
     When I enter ""
+    When I enter ""
     Then the file "config.yaml" should not exist
     And the stdout should have been:
     """Please enter the email you'd like to use as the admin contact when requesting a certificate (you can leave this blank if you don't want to host a secure site using HTTPS):
@@ -87,6 +88,7 @@ If you would like to use a different URL visible externally, please provide it h
 Please enter the email you'd like to use as a contact for the domain (leave blank to finish, an empty list will be replaced with the admin contact email):
 Please enter the number of poll attempts to make when retrieving a domain certificate:
 Please enter the number of seconds to wait between poll attempts:
+Please enter the folder where the site cert should be stored (leave blank for site state folder):
 Please enter the folder where site state will be stored (leave blank for .site):
     """
     And the stderr should have matched:
@@ -105,6 +107,7 @@ Please enter the folder where site state will be stored (leave blank for .site):
     When I enter ""
     When I enter " 3000   "
     When I enter "1"
+    When I enter "my/path"
     When I enter ".my_site_state_folder"
     Then the file "config.yaml" should exist
     And the file "config.yaml" should be a valid config
@@ -117,6 +120,7 @@ Please enter the email you'd like to use as a contact for the domain (leave blan
 Please enter the email you'd like to use as a contact for the domain (leave blank to finish, an empty list will be replaced with the admin contact email):
 Please enter the number of poll attempts to make when retrieving a domain certificate:
 Please enter the number of seconds to wait between poll attempts:
+Please enter the folder where the site cert should be stored (leave blank for site state folder):
 Please enter the folder where site state will be stored (leave blank for .site):
     """
     And the file "config.yaml" should contain:
@@ -126,6 +130,7 @@ Please enter the folder where site state will be stored (leave blank for .site):
     builder_contacts:
     - email-1@domain.owner.contact
     - email-2@domain.owner.contact
+    cert_location: my/path
     poll_attempts: 3000
     poll_interval_seconds: 1
   url: http://test.scenario.domain/

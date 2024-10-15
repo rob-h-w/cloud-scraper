@@ -219,7 +219,7 @@ impl Acme {
         &self,
         cert_and_private_key: CertAndPrivateKey,
     ) -> Result<(), std::io::Error> {
-        fs::create_dir_all(self.site_state.site_folder()).await?;
+        fs::create_dir_all(self.site_state.cert_folder()).await?;
 
         let key = cert_and_private_key
             .private_key

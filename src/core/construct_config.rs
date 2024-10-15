@@ -71,6 +71,9 @@ fn read_domain_config(config_builder: &mut ConfigBuilder) -> &mut ConfigBuilder 
                     .parse::<u64>()
                     .expect("Error parsing poll interval seconds"),
             );
+            tls_config.cert_location(read_optional_string(
+                "Please enter the folder where the site cert should be stored (leave blank for site state folder):",
+            ));
             domain_builder.tls_config(Some(tls_config.build().expect("Error building TLS config")));
         } else {
             domain_builder.tls_config(None);

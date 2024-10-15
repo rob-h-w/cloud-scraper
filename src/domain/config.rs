@@ -194,6 +194,7 @@ impl Default for DomainConfig {
             external_url: None,
             tls_config: Some(TlsConfig {
                 builder_contacts: vec![],
+                cert_location: None,
                 poll_attempts: 3,
                 poll_interval_seconds: 30,
             }),
@@ -245,6 +246,7 @@ impl DomainConfig {
 #[derive(Builder, Clone, Debug, Deserialize, Getters, PartialEq, Serialize)]
 pub struct TlsConfig {
     builder_contacts: Vec<String>,
+    cert_location: Option<String>,
     poll_attempts: usize,
     poll_interval_seconds: u64,
 }
@@ -297,6 +299,7 @@ pub(crate) mod tests {
                 ),
                 tls_config: Some(TlsConfig {
                     builder_contacts: vec!["builder@contact.com".to_string()],
+                    cert_location: None,
                     poll_attempts: 0,
                     poll_interval_seconds: 0,
                 }),
