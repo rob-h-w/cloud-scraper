@@ -198,7 +198,7 @@ mod tests {
 
     lazy_static! {
         static ref INSANE_CONFIG: Arc<Config> =
-            test_config_with(Some(DomainConfig::new("insane domain".to_string())), None);
+            test_config_with(Some(DomainConfig::new("https://insane.domain")), None);
     }
 
     macro_rules! with_insane_config {

@@ -5,13 +5,13 @@ use oauth2::{AuthorizationCode, CsrfToken};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug)]
-pub(crate) enum Event {
+pub enum Event {
     Redirect(String, OneshotMpscSenderHandle<String>),
     Oauth2Code(Code, String),
 }
 
 #[derive(Clone, Debug, Deserialize, Getters, Serialize)]
-pub(crate) struct Code {
+pub struct Code {
     code: AuthorizationCode,
     state: CsrfToken,
 }

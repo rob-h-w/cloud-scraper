@@ -67,7 +67,7 @@ impl WebServer for WebServerImpl {
         node_handles: &NodeHandles,
         server_permit: OwnedSemaphorePermit,
     ) -> Result<(), String> {
-        if self.config.domain_is_defined() {
+        if self.config.uses_tls() {
             self.acme.ensure_certs().await?;
         }
 
@@ -85,7 +85,7 @@ impl WebServer for WebServerImpl {
 
         drop(server_permit);
 
-        if self.config.domain_is_defined() {
+        if self.config.uses_tls() {
             let (addr, fut) = server
                 .tls()
                 .cert_path(self.acme.cert_path())
