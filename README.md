@@ -80,8 +80,22 @@ cargo test # run tests
 
 ### Configuration
 
-Cloud Scraper can be configured by a yaml file. You can either use the default `config.yaml` or
-specify a file name by command line argument.
+Cloud Scraper can be configured by a yaml file.
+
+You can generate your own yaml file by running the CLI wizard:
+
+```bash
+cargo run config
+```
+
+You can either use the default `config.yaml`, as above, or specify your own file name by command
+line argument:
+
+```bash
+cargo run config -- -c my-config.yaml
+```
+
+You can then run the service with the configuration file using the same argument:
 
 ```bash
 cargo run -- -c my-config.yaml
@@ -98,10 +112,11 @@ But this is only required if you add a domain configuration:
 
 ```yaml
 domain_config:
-  builder_contacts: [ "an@other.email", "your@email.address" ]
-  domain_name: your.domain.name
-  poll_attempts: 10
-  poll_interval_seconds: 10
+  tls_config:
+    builder_contacts: [ "an@other.email", "your@email.address" ]
+    poll_attempts: 10
+    poll_interval_seconds: 10
+  url: https://your.domain.com
 email: your@email.address
 ```
 
