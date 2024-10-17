@@ -5,10 +5,12 @@ use derive_getters::Getters;
 use regex::RegexBuilder;
 use std::cmp::PartialEq;
 use std::fmt::Debug;
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::process::Output;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
+use tokio::net::TcpStream;
 use tokio::process::Command;
 use tokio_test::assert_ok;
 
@@ -21,18 +23,22 @@ pub(crate) enum InputType {
 #[derive(Debug, Default, Getters, World)]
 #[world(init = Self::new)]
 pub(crate) struct CliWorld {
-    args: Vec<String>,
-    command: Option<String>,
+    commands: Vec<CommandParameters>,
     environment_variables: Vec<(String, String)>,
     input_sequence: Vec<InputType>,
     output: Option<Output>,
 }
 
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct CommandParameters {
+    pub(crate) args: Vec<String>,
+    pub(crate) command: String,
+}
+
 impl CliWorld {
     pub(crate) fn new() -> Self {
         Self {
-            args: Vec::new(),
-            command: None,
+            commands: Vec::new(),
             environment_variables: vec![],
             input_sequence: Vec::new(),
             output: None,
@@ -44,46 +50,58 @@ impl CliWorld {
             return self.output.clone().expect("Output not set");
         }
 
-        let command = self.command.clone().expect("Command not set");
-        let command = PathBuf::new().join("target/debug").join(command);
+        assert!(
+            !self.commands.is_empty(),
+            "No commands run, cannot retrieve output"
+        );
 
-        let cmd = command.clone();
-        let mut command = Command::new(cmd);
-        let mut command = command
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped());
-        command = command.args(self.args.clone());
+        let last_command = self.commands.last().expect("No commands run");
 
-        for (key, value) in self.environment_variables.clone() {
-            command = command.env(key, value);
-        }
+        for command_parameters in self.commands.clone() {
+            let command = command_parameters.command.clone();
+            let command = PathBuf::new().join("target/debug").join(command);
 
-        let mut child = command.spawn().expect("Error spawning command");
+            let cmd = command.clone();
+            let mut command = Command::new(cmd);
+            let mut command = command
+                .stdin(std::process::Stdio::piped())
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped());
+            command = command.args(command_parameters.args.clone());
 
-        let mut stdin = child.stdin.take().expect("Error taking stdin");
+            for (key, value) in self.environment_variables.clone() {
+                command = command.env(key, value);
+            }
 
-        for input in self.input_sequence.clone() {
-            match input {
-                InputType::Kill => {
-                    child.start_kill().expect("Error killing command");
-                    break;
+            let mut child = command.spawn().expect("Error spawning command");
+
+            let mut stdin = child.stdin.take().expect("Error taking stdin");
+
+            for input in self.input_sequence.clone() {
+                match input {
+                    InputType::Kill => {
+                        child.start_kill().expect("Error killing command");
+                        break;
+                    }
+                    InputType::String(string) => {
+                        stdin
+                            .write((string + "\n").as_bytes())
+                            .await
+                            .expect("Error writing to stdin");
+                    }
                 }
-                InputType::String(string) => {
-                    stdin
-                        .write((string + "\n").as_bytes())
-                        .await
-                        .expect("Error writing to stdin");
-                }
+            }
+
+            let output = child
+                .wait_with_output()
+                .await
+                .expect("Error waiting for command");
+
+            if command_parameters == *last_command {
+                self.output = Some(output);
             }
         }
 
-        let output = child
-            .wait_with_output()
-            .await
-            .expect("Error waiting for command");
-
-        self.output = Some(output);
         self.output.clone().expect("Output not set")
     }
 }
@@ -143,8 +161,11 @@ fn set_environment_variable(cli_world: &mut CliWorld, key: String, value: String
 #[when(regex = r#"^I run "([\S "]+)"$"#)]
 pub(crate) async fn i_run(cli_world: &mut CliWorld, command: String) {
     let mut raw = command.split_ascii_whitespace();
-    cli_world.command = Some(raw.next().expect("Error parsing command").to_string());
-    cli_world.args = raw.map(|s| s.to_string()).collect();
+    let command = raw.next().expect("Error parsing command").to_string();
+    cli_world.commands.push(CommandParameters {
+        args: raw.map(|s| s.to_string()).collect(),
+        command,
+    });
 }
 
 #[when(regex = r#"I enter \"([\S ]*)\""#)]
@@ -274,4 +295,37 @@ pub(crate) async fn the_test_config_should_be_unchanged(_cli_world: &mut CliWorl
         .expect("Error reading config file");
     let actual = serde_yaml::from_str::<Config>(&actual).expect("Error parsing config");
     assert_eq!(actual, config, "Config mismatch");
+}
+
+#[then(regex = r#"^the port ([\d]+) should be open$"#)]
+pub(crate) async fn the_port_should_be_open(_cli_world: &mut CliWorld, port: u16) {
+    let addr = format!("127.0.0.1:{port}");
+    assert!(is_port_open(&addr).await, "Port {port} is not open");
+}
+
+#[then(regex = r#"^the port ([\d]+) should be closed"#)]
+pub(crate) async fn the_port_should_be_closed(_cli_world: &mut CliWorld, port: u16) {
+    let addr = format!("127.0.0.1:{port}");
+    assert!(!is_port_open(&addr).await, "Port {port} is open");
+}
+
+#[then(regex = r#"^after ([\d]+) seconds?$"#)]
+pub(crate) async fn after_seconds(_cli_world: &mut CliWorld, seconds: u64) {
+    tokio::time::sleep(tokio::time::Duration::from_secs(seconds)).await;
+}
+
+async fn is_port_open(addr: &str) -> bool {
+    let socket_addr: SocketAddr = addr.parse().expect("Invalid address");
+    let possible_connection = TcpStream::connect(socket_addr).await;
+    let connection_ok = possible_connection.is_ok();
+
+    if connection_ok {
+        possible_connection
+            .unwrap()
+            .shutdown()
+            .await
+            .expect("Error shutting down connection");
+    }
+
+    !connection_ok
 }

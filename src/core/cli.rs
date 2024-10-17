@@ -1,7 +1,7 @@
 use clap::{Args, Parser, Subcommand};
 use serde::Deserialize;
 
-const DEFAULT_CONFIG_NAME: &str = "config.yaml";
+pub const DEFAULT_CONFIG_NAME: &str = "config.yaml";
 
 pub trait ConfigFileProvider {
     fn config_file(&self) -> String;

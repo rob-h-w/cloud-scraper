@@ -67,3 +67,23 @@ Feature: Serve subcommand
 .*Constructing engine\.\.\.
 .*Starting engine
         """
+
+  Scenario: Start the service without HTTPS, opens the configured port and serves the API
+    Given no file named "config.yaml"
+    Given no file named "root_password.yaml"
+    Given a file named "root_password.yaml" containing:
+    """hash: b4f27c30d7530f6f8d9edca87a86c867d9a1d537
+salt: eyF8Ak6G48ZrRBs0
+"""
+    When I run "cloud_scraper config"
+    When I enter "email@test.scenario.domain"
+    When I enter "http://localhost:4321"
+    When I enter ""
+    When I enter ""
+    When I run "cloud_scraper serve --exit-after=1"
+    Then the file "config.yaml" should exist
+    And the file "config.yaml" should be a valid config
+    And the port 4321 should be open
+    And after 3 seconds
+    And the port 4321 should be closed
+    And the exit code should be 0
