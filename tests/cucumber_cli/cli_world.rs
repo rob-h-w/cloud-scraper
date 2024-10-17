@@ -5,10 +5,15 @@ use derive_getters::Getters;
 use regex::RegexBuilder;
 use std::cmp::PartialEq;
 use std::fmt::Debug;
+use std::future::Future;
+use std::io;
+use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::pin::Pin;
 use std::process::Output;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
+use tokio::net::TcpStream;
 use tokio::process::Command;
 use tokio_test::assert_ok;
 
@@ -16,6 +21,26 @@ use tokio_test::assert_ok;
 pub(crate) enum InputType {
     Kill,
     String(String),
+}
+
+struct PinnedBoxedFutureWrapper {
+    inner: Pin<Box<dyn Future<Output = io::Result<Output>>>>,
+}
+
+impl PinnedBoxedFutureWrapper {
+    pub(crate) fn new(inner: Pin<Box<dyn Future<Output = io::Result<Output>>>>) -> Self {
+        Self { inner }
+    }
+
+    async fn wait(self) -> io::Result<Output> {
+        self.inner.await
+    }
+}
+
+impl Debug for PinnedBoxedFutureWrapper {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PinnedBoxedFutureWrapper").finish()
+    }
 }
 
 #[derive(Debug, Default, Getters, World)]
@@ -26,6 +51,8 @@ pub(crate) struct CliWorld {
     environment_variables: Vec<(String, String)>,
     input_sequence: Vec<InputType>,
     output: Option<Output>,
+    output_future: Option<PinnedBoxedFutureWrapper>,
+    wait: bool,
 }
 
 impl CliWorld {
@@ -36,12 +63,32 @@ impl CliWorld {
             environment_variables: vec![],
             input_sequence: Vec::new(),
             output: None,
+            output_future: None,
+            wait: false,
         }
     }
 
-    pub(crate) async fn retrieve_output(&mut self) -> Output {
-        if self.output.is_some() {
-            return self.output.clone().expect("Output not set");
+    pub(crate) async fn expect_output(&mut self) -> Output {
+        self.retrieve_output()
+            .await
+            .expect("Output not set - did the command finish?")
+    }
+
+    pub(crate) async fn finish(&mut self) {
+        self.retrieve_output().await;
+        self.output = Some(
+            self.output_future
+                .take()
+                .expect("Output future not set")
+                .wait()
+                .await
+                .expect("Error waiting for command"),
+        );
+    }
+
+    pub(crate) async fn retrieve_output(&mut self) -> Option<Output> {
+        if self.output.is_some() || self.output_future.is_some() {
+            return self.output.clone();
         }
 
         let command = self.command.clone().expect("Command not set");
@@ -78,13 +125,16 @@ impl CliWorld {
             }
         }
 
-        let output = child
-            .wait_with_output()
-            .await
-            .expect("Error waiting for command");
+        let output_future = child.wait_with_output();
+        if self.wait {
+            let output = output_future.await.expect("Error waiting for command");
 
-        self.output = Some(output);
-        self.output.clone().expect("Output not set")
+            self.output = Some(output);
+        } else {
+            self.output_future = Some(PinnedBoxedFutureWrapper::new(Box::pin(output_future)));
+        }
+
+        self.output.clone()
     }
 }
 
@@ -145,6 +195,15 @@ pub(crate) async fn i_run(cli_world: &mut CliWorld, command: String) {
     let mut raw = command.split_ascii_whitespace();
     cli_world.command = Some(raw.next().expect("Error parsing command").to_string());
     cli_world.args = raw.map(|s| s.to_string()).collect();
+    cli_world.wait = true;
+}
+
+#[when(regex = r#"^I start "([\S "]+)"$"#)]
+pub(crate) async fn i_start(cli_world: &mut CliWorld, command: String) {
+    let mut raw = command.split_ascii_whitespace();
+    cli_world.command = Some(raw.next().expect("Error parsing command").to_string());
+    cli_world.args = raw.map(|s| s.to_string()).collect();
+    cli_world.wait = false;
 }
 
 #[when(regex = r#"I enter \"([\S ]*)\""#)]
@@ -179,7 +238,7 @@ pub(crate) async fn the_file_should_exist(cli_world: &mut CliWorld, path: String
 
 #[then(regex = r#"^the exit code should be (\d+)$"#)]
 pub(crate) async fn the_exit_code_should_be(cli_world: &mut CliWorld, expected_exit_code: i32) {
-    let output = cli_world.retrieve_output().await;
+    let output = cli_world.expect_output().await;
     let actual = output.status.code().expect("Error getting exit code");
     assert_eq!(
         actual, expected_exit_code,
@@ -190,7 +249,7 @@ pub(crate) async fn the_exit_code_should_be(cli_world: &mut CliWorld, expected_e
 
 #[then(regex = r#"^the exit code should not be (\d+)$"#)]
 pub(crate) async fn the_exit_code_should_not_be(cli_world: &mut CliWorld, expected_exit_code: i32) {
-    let output = cli_world.retrieve_output().await;
+    let output = cli_world.expect_output().await;
     let actual = match output.status.code() {
         Some(code) => code,
         None => {
@@ -274,4 +333,42 @@ pub(crate) async fn the_test_config_should_be_unchanged(_cli_world: &mut CliWorl
         .expect("Error reading config file");
     let actual = serde_yaml::from_str::<Config>(&actual).expect("Error parsing config");
     assert_eq!(actual, config, "Config mismatch");
+}
+
+#[then(regex = r#"^the port ([\d]+) should be open$"#)]
+pub(crate) async fn the_port_should_be_open(_cli_world: &mut CliWorld, port: u16) {
+    let addr = format!("127.0.0.1:{port}");
+    assert!(is_port_open(&addr).await, "Port {port} is not open");
+}
+
+#[then(regex = r#"^the port ([\d]+) should be closed"#)]
+pub(crate) async fn the_port_should_be_closed(_cli_world: &mut CliWorld, port: u16) {
+    let addr = format!("127.0.0.1:{port}");
+    assert!(!is_port_open(&addr).await, "Port {port} is open");
+}
+
+#[then(regex = r#"^after ([\d]+) seconds?$"#)]
+pub(crate) async fn after_seconds(_cli_world: &mut CliWorld, seconds: u64) {
+    tokio::time::sleep(tokio::time::Duration::from_secs(seconds)).await;
+}
+
+#[then(expr = "after the process ends")]
+pub(crate) async fn after_the_process_ends(cli_world: &mut CliWorld) {
+    cli_world.finish().await;
+}
+
+async fn is_port_open(addr: &str) -> bool {
+    let socket_addr: SocketAddr = addr.parse().expect("Invalid address");
+    let possible_connection = TcpStream::connect(socket_addr).await;
+    let connection_ok = possible_connection.is_ok();
+
+    if connection_ok {
+        possible_connection
+            .unwrap()
+            .shutdown()
+            .await
+            .expect("Error shutting down connection");
+    }
+
+    !connection_ok
 }
