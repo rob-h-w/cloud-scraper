@@ -1,11 +1,11 @@
-use crate::core::cli::ServeArgs;
+use crate::core::cli::{ServeArgs, DEFAULT_CONFIG_NAME};
 use derive_builder::Builder;
 use derive_getters::Getters;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
-use std::vec;
+use std::{fs, vec};
 use url::Url;
 
 const HTTP_PORT: u16 = 80;
@@ -35,23 +35,29 @@ pub struct Config {
 impl Config {
     pub(crate) fn new(serve_args: &ServeArgs) -> Arc<Self> {
         Arc::new(match serve_args.config.as_ref() {
-            Some(config_file) => {
-                let config_file =
-                    std::fs::read_to_string(config_file).expect("Could not open $config_file");
-                let config: Config =
-                    serde_yaml::from_str(&config_file).expect("Could not parse config");
-                config
-                    .merge_exit_after(serve_args.exit_after)
+            Some(config_file) => Self::open_config(config_file, serve_args),
+            None => {
+                if fs::exists(DEFAULT_CONFIG_NAME).unwrap_or(false) {
+                    Self::open_config(DEFAULT_CONFIG_NAME, serve_args)
+                } else {
+                    Self {
+                        domain_config: None,
+                        email: None,
+                        exit_after: serve_args.exit_after,
+                        site_state_folder: None,
+                    }
                     .merge_port(serve_args.port)
+                }
             }
-            None => Self {
-                domain_config: None,
-                email: None,
-                exit_after: serve_args.exit_after,
-                site_state_folder: None,
-            }
-            .merge_port(serve_args.port),
         })
+    }
+
+    fn open_config(config_path: &str, serve_args: &ServeArgs) -> Self {
+        let config_file = fs::read_to_string(config_path).expect("Could not open config file");
+        serde_yaml::from_str::<Self>(&config_file)
+            .expect("Could not parse config")
+            .merge_exit_after(serve_args.exit_after)
+            .merge_port(serve_args.port)
     }
 
     pub fn with_all_properties(
