@@ -7,14 +7,13 @@ use std::cmp::PartialEq;
 use std::fmt::Debug;
 use std::future::Future;
 use std::io;
-use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::process::Output;
 use std::time::Duration;
 use tokio::fs;
-use tokio::io::{AsyncReadExt, AsyncWriteExt, Interest};
-use tokio::net::{TcpListener, TcpStream};
+use tokio::io::AsyncWriteExt;
+use tokio::net::TcpListener;
 use tokio::process::Command;
 use tokio_test::assert_ok;
 
@@ -90,23 +89,6 @@ impl CliWorld {
                 .await
                 .expect("Error waiting for command"),
         );
-    }
-
-    async fn get_output(&mut self) -> Output {
-        self.start_process().await;
-
-        if self.output.is_none() {
-            self.output = Some(
-                self.output_future
-                    .take()
-                    .expect("Output future not set")
-                    .wait()
-                    .await
-                    .expect("Error waiting for command"),
-            );
-        }
-
-        self.output.clone().expect("Output not set")
     }
 
     pub(crate) async fn start_process(&mut self) {
