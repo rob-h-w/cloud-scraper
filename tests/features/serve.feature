@@ -34,7 +34,9 @@ Feature: Serve subcommand
     """
     And the stderr should have matched:
     """\s*\[[\d]{4}-[\d]{2}-[\d]{2}T[\d]{2}:[\d]{2}:[\d]{2}Z DEBUG cloud_scraper::server::web_server\] Server listening on 0\.0\.0\.0:8080.*
-\s*\[[\d]{4}-[\d]{2}-[\d]{2}T[\d]{2}:[\d]{2}:[\d]{2}Z DEBUG hyper::server::shutdown\] signal received, starting graceful shutdown
+    """
+    And the stderr should have matched:
+    """\s*\[[\d]{4}-[\d]{2}-[\d]{2}T[\d]{2}:[\d]{2}:[\d]{2}Z DEBUG hyper::server::shutdown\] signal received, starting graceful shutdown
     """
     And the exit code should be 0
 
