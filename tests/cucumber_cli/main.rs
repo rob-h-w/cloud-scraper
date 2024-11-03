@@ -1,22 +1,13 @@
 mod cli_world;
 
 use crate::cli_world::CliWorld;
-use cucumber::{World, WriterExt};
+use cucumber::World;
 
 #[tokio::main]
 async fn main() {
-    run_all_of(vec![
-        "tests/features/config.feature",
-        "tests/features/serve.feature",
-    ])
-    .await;
-}
-
-async fn run_all_of(features: Vec<&str>) {
-    for feature in features {
-        let _ = CliWorld::cucumber()
-            .run_and_exit(feature)
-            .await
-            .fail_on_skipped();
-    }
+    let _ = CliWorld::cucumber()
+        .repeat_skipped()
+        .fail_on_skipped()
+        .run_and_exit("tests/features")
+        .await;
 }

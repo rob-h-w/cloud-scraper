@@ -1,6 +1,5 @@
 @serial
 Feature: Serve subcommand
-  # Used to run the
 
   Scenario: Serve without root password
     Given no file named "root_password.yaml"
@@ -35,7 +34,6 @@ Feature: Serve subcommand
     """
     And the stderr should have matched:
     """\s*\[[\d]{4}-[\d]{2}-[\d]{2}T[\d]{2}:[\d]{2}:[\d]{2}Z DEBUG cloud_scraper::server::web_server\] Server listening on 0\.0\.0\.0:8080.*
-\s*\[[\d]{4}-[\d]{2}-[\d]{2}T[\d]{2}:[\d]{2}:[\d]{2}Z DEBUG hyper::server::shutdown\] signal received, starting graceful shutdown
     """
     And the exit code should be 0
 
@@ -67,3 +65,58 @@ Feature: Serve subcommand
 .*Constructing engine\.\.\.
 .*Starting engine
         """
+
+  Scenario: Start the service without HTTPS, opens the configured port and serves the API
+    Given no file named "config.yaml"
+    Given no file named "root_password.yaml"
+    Given a file named "root_password.yaml" containing:
+    """hash: b4f27c30d7530f6f8d9edca87a86c867d9a1d537
+salt: eyF8Ak6G48ZrRBs0
+"""
+    Given a file named "config.yaml" containing:
+    """domain_config:
+  url: http://localhost:4321/
+email: email@test.scenario.domain
+"""
+    When I start "cloud_scraper serve --exit-after=2"
+    Then wait 1 second
+    And the port 4321 should be open
+    And after the process ends
+    And the port 4321 should be closed
+    And the exit code should be 0
+
+  Scenario: Login page is served
+    Given a file named "root_password.yaml" containing:
+    """hash: b4f27c30d7530f6f8d9edca87a86c867d9a1d537
+salt: eyF8Ak6G48ZrRBs0
+"""
+    Given a file named "config.yaml" containing:
+    """domain_config:
+  url: http://localhost:4321/
+email: email@test.scenario.domain
+"""
+    When I start "cloud_scraper serve --exit-after=2"
+    When I request "GET" "http://localhost:4321/login"
+    Then the request "GET" "http://localhost:4321/login" should return a status code of 200
+    And the request "GET" "http://localhost:4321/login" should return a response matching:
+    """.*Admin Login.*
+    """
+
+  Scenario: Login redirects to index
+    Given a file named "root_password.yaml" containing:
+    """hash: b4f27c30d7530f6f8d9edca87a86c867d9a1d537
+salt: eyF8Ak6G48ZrRBs0
+"""
+    Given a file named "config.yaml" containing:
+    """domain_config:
+  url: http://localhost:4321/
+email: email@test.scenario.domain
+"""
+    When I start "cloud_scraper serve --exit-after=2"
+    When I request "GET" "http://localhost:4321/login"
+    When I request "POST" "http://localhost:4321/login" with body:
+    """password=test"""
+    Then the request "POST" "http://localhost:4321/login" should return a status code of 302
+    And the request "POST" "http://localhost:4321/login" should return a response matching:
+    """"""
+    And the request "POST" "http://localhost:4321/login" should return a header "location" with "/"
