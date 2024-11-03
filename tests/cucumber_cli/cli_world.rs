@@ -62,12 +62,6 @@ struct RequestResponseMap {
 }
 
 impl RequestResponseMap {
-    pub(crate) fn new() -> Self {
-        Self {
-            map: HashMap::new(),
-        }
-    }
-
     pub(crate) fn insert(
         &mut self,
         request: &HttpRequest,
