@@ -84,3 +84,20 @@ email: email@test.scenario.domain
     And after the process ends
     And the port 4321 should be closed
     And the exit code should be 0
+
+  Scenario: Login page is served
+    Given a file named "root_password.yaml" containing:
+    """hash: b4f27c30d7530f6f8d9edca87a86c867d9a1d537
+salt: eyF8Ak6G48ZrRBs0
+"""
+    Given a file named "config.yaml" containing:
+    """domain_config:
+  url: http://localhost:4321/
+email: email@test.scenario.domain
+"""
+    When I start "cloud_scraper serve --exit-after=2"
+    When I request "GET" "http://localhost:4321/login"
+    Then the request "GET" "http://localhost:4321/login" should return a status code of 200
+    And the request "GET" "http://localhost:4321/login" should return a response matching:
+    """.*Admin Login.*
+    """

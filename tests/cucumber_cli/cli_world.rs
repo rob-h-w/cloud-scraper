@@ -4,6 +4,7 @@ use cucumber::{given, then, when, World};
 use derive_getters::Getters;
 use regex::RegexBuilder;
 use std::cmp::PartialEq;
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::future::Future;
 use std::io;
@@ -43,12 +44,75 @@ impl Debug for PinnedBoxedFutureWrapper {
     }
 }
 
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+struct HttpRequest {
+    method: String,
+    url: String,
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+struct HttpResponse {
+    status_code: u16,
+    body: String,
+}
+
+#[derive(Clone, Default, Eq, PartialEq)]
+struct RequestResponseMap {
+    map: HashMap<HttpRequest, Option<Result<HttpResponse, String>>>,
+}
+
+impl RequestResponseMap {
+    pub(crate) fn new() -> Self {
+        Self {
+            map: HashMap::new(),
+        }
+    }
+
+    pub(crate) fn insert(
+        &mut self,
+        request: &HttpRequest,
+        response: &Option<Result<HttpResponse, String>>,
+    ) {
+        self.map.insert(request.clone(), response.clone());
+    }
+
+    pub(crate) fn expect(&self, request: &HttpRequest) -> &HttpResponse {
+        self.get(request)
+            .expect(&format!(
+                "No response for request {} {}",
+                request.method, request.url
+            ))
+            .as_ref()
+            .unwrap_or_else(|e| {
+                panic!(
+                    "Error getting response for request {} {}: {}",
+                    request.method, request.url, e
+                )
+            })
+    }
+
+    pub(crate) fn get(&self, request: &HttpRequest) -> Option<&Result<HttpResponse, String>> {
+        match self.map.get(request) {
+            Some(response) => response.as_ref(),
+            None => None,
+        }
+    }
+}
+
+impl Debug for RequestResponseMap {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RequestResponseMap").finish()
+    }
+}
+
 #[derive(Debug, Default, Getters, World)]
 #[world(init = Self::new)]
 pub(crate) struct CliWorld {
     args: Vec<String>,
     command: Option<String>,
     environment_variables: Vec<(String, String)>,
+    http_requests: Vec<HttpRequest>,
+    http_transactions: RequestResponseMap,
     input_sequence: Vec<InputType>,
     output: Option<Output>,
     output_future: Option<PinnedBoxedFutureWrapper>,
@@ -60,7 +124,9 @@ impl CliWorld {
         Self {
             args: Vec::new(),
             command: None,
-            environment_variables: vec![],
+            environment_variables: Vec::new(),
+            http_requests: Vec::new(),
+            http_transactions: Default::default(),
             input_sequence: Vec::new(),
             output: None,
             output_future: None,
@@ -128,6 +194,19 @@ impl CliWorld {
                         .expect("Error writing to stdin");
                 }
             }
+        }
+
+        for request in self.http_requests.clone() {
+            let result = reqwest::get(&request.url).await.map_err(|e| e.to_string());
+            let result = match result {
+                Ok(response) => {
+                    let status_code = response.status().as_u16();
+                    let body = response.text().await.unwrap();
+                    Ok(HttpResponse { status_code, body })
+                }
+                Err(e) => Err(e),
+            };
+            self.http_transactions.insert(&request, &Some(result));
         }
 
         self.output_future = Some(PinnedBoxedFutureWrapper::new(Box::pin(
@@ -222,6 +301,11 @@ pub(crate) async fn i_kill_the_process(cli_world: &mut CliWorld) {
     cli_world.input_sequence.push(InputType::Kill);
 }
 
+#[when(regex = r#"^I request "(GET)" "([a-zA-Z0-9.-/:]+)"$"#)]
+pub(crate) async fn i_request(cli_world: &mut CliWorld, method: String, url: String) {
+    cli_world.http_requests.push(HttpRequest { method, url });
+}
+
 #[then(regex = r#"^the file "([\S "]+)" should not exist$"#)]
 pub(crate) async fn the_file_should_not_exist(cli_world: &mut CliWorld, path: String) {
     cli_world.trigger().await;
@@ -307,28 +391,38 @@ pub(crate) async fn the_prompts_should_have_been(cli_world: &mut CliWorld, step:
     );
 }
 
-#[then(regex = r#"^the stderr should have matched:$"#)]
-pub(crate) async fn the_stderr_should_have_been(cli_world: &mut CliWorld, step: &Step) {
-    cli_world.trigger().await;
-    let output = cli_world.output.clone().expect("Output not set");
-    let stderr = String::from_utf8(output.stderr).expect("Error parsing stdout");
+fn regex_from_step(step: &Step) -> (regex::Regex, String) {
     let regex_string = step
         .docstring
         .as_ref()
         .expect("No docstring in Cucumber step")
         .replace("\n", "\\n");
-    let re = RegexBuilder::new(&regex_string)
-        .multi_line(true)
-        .dot_matches_new_line(true)
-        .build()
-        .expect(&format!("Error parsing regex {}", regex_string));
-    let captures = re.captures(&stderr);
-    assert!(
-        captures.is_some(),
-        "Could not match regex\n{}\nto stderr\n{}",
+    (
+        RegexBuilder::new(&regex_string)
+            .multi_line(true)
+            .dot_matches_new_line(true)
+            .build()
+            .expect(&format!("Error parsing regex {}", regex_string)),
         regex_string,
-        stderr
+    )
+}
+
+fn assert_step_regex_matches(step: &Step, actual: &str) {
+    let (re, regex_string) = regex_from_step(step);
+    assert!(
+        re.is_match(actual),
+        "Could not match regex\n{}\nto\n{}",
+        regex_string,
+        actual
     );
+}
+
+#[then(regex = r#"^the stderr should have matched:$"#)]
+pub(crate) async fn the_stderr_should_have_matched(cli_world: &mut CliWorld, step: &Step) {
+    cli_world.trigger().await;
+    let output = cli_world.output.clone().expect("Output not set");
+    let stderr = String::from_utf8(output.stderr).expect("Error parsing stdout");
+    assert_step_regex_matches(step, &stderr);
 }
 
 #[then(expr = "the test config should be unchanged")]
@@ -365,6 +459,39 @@ pub(crate) async fn after_seconds(cli_world: &mut CliWorld, seconds: u64) {
 #[then(expr = "after the process ends")]
 pub(crate) async fn after_the_process_ends(cli_world: &mut CliWorld) {
     cli_world.finish().await;
+}
+
+#[then(
+    regex = r#"^the request "(GET)" "([a-zA-Z0-9.-/:]+)" should return a status code of (\d+)$"#
+)]
+pub(crate) async fn the_request_should_return_a_status_code_of(
+    cli_world: &mut CliWorld,
+    method: String,
+    url: String,
+    status_code: u16,
+) {
+    cli_world.trigger().await;
+    let response = cli_world.http_transactions.expect(&HttpRequest {
+        method: method.clone(),
+        url: url.clone(),
+    });
+
+    assert_eq!(response.status_code, status_code, "Status code mismatch");
+}
+
+#[then(regex = r#"^the request "(GET)" "([a-zA-Z0-9.-/:]+)" should return a response matching:$"#)]
+pub(crate) async fn the_request_should_return_a_response_matching(
+    cli_world: &mut CliWorld,
+    method: String,
+    url: String,
+    step: &Step,
+) {
+    cli_world.trigger().await;
+    let response = cli_world.http_transactions.expect(&HttpRequest {
+        method: method.clone(),
+        url: url.clone(),
+    });
+    assert_step_regex_matches(step, &response.body);
 }
 
 async fn is_port_open(addr: &str) -> bool {
