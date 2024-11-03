@@ -44,16 +44,54 @@ impl Debug for PinnedBoxedFutureWrapper {
     }
 }
 
+pub(crate) trait ResponseExpecter {
+    fn expect_response<'a, 'b>(&'a self, world: &'b CliWorld) -> &'b HttpResponse;
+}
+
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-struct HttpRequest {
+struct RequestMethodAndUrl {
     method: String,
     url: String,
 }
 
+impl ResponseExpecter for RequestMethodAndUrl {
+    fn expect_response<'a, 'b>(&'a self, world: &'b CliWorld) -> &'b HttpResponse {
+        world
+            .http_request_shortcuts
+            .get(self)
+            .unwrap_or_else(|| panic!("Could not get a request for shortcut {:?}", self))
+            .expect_response(world)
+    }
+}
+
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-struct HttpResponse {
-    status_code: u16,
+pub(crate) struct GetRequest {
+    url: String,
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub(crate) struct PostRequest {
+    url: String,
     body: String,
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub(crate) enum HttpRequest {
+    GET(GetRequest),
+    POST(PostRequest),
+}
+
+impl ResponseExpecter for HttpRequest {
+    fn expect_response<'a, 'b>(&'a self, world: &'b CliWorld) -> &'b HttpResponse {
+        world.http_transactions.expect(self)
+    }
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub(crate) struct HttpResponse {
+    body: String,
+    headers: Vec<(String, String)>,
+    status_code: u16,
 }
 
 #[derive(Clone, Default, Eq, PartialEq)]
@@ -72,17 +110,9 @@ impl RequestResponseMap {
 
     pub(crate) fn expect(&self, request: &HttpRequest) -> &HttpResponse {
         self.get(request)
-            .expect(&format!(
-                "No response for request {} {}",
-                request.method, request.url
-            ))
+            .expect(&format!("No response for request {:?}", request))
             .as_ref()
-            .unwrap_or_else(|e| {
-                panic!(
-                    "Error getting response for request {} {}: {}",
-                    request.method, request.url, e
-                )
-            })
+            .unwrap_or_else(|e| panic!("Error getting response for request {:?}: {}", request, e))
     }
 
     pub(crate) fn get(&self, request: &HttpRequest) -> Option<&Result<HttpResponse, String>> {
@@ -106,6 +136,7 @@ pub(crate) struct CliWorld {
     command: Option<String>,
     environment_variables: Vec<(String, String)>,
     http_requests: Vec<HttpRequest>,
+    http_request_shortcuts: HashMap<RequestMethodAndUrl, HttpRequest>,
     http_transactions: RequestResponseMap,
     input_sequence: Vec<InputType>,
     output: Option<Output>,
@@ -118,10 +149,11 @@ impl CliWorld {
         Self {
             args: Vec::new(),
             command: None,
-            environment_variables: Vec::new(),
-            http_requests: Vec::new(),
+            environment_variables: Default::default(),
+            http_requests: Default::default(),
+            http_request_shortcuts: Default::default(),
             http_transactions: Default::default(),
-            input_sequence: Vec::new(),
+            input_sequence: Default::default(),
             output: None,
             output_future: None,
             wait_for_process_to_terminate: false,
@@ -133,6 +165,13 @@ impl CliWorld {
         self.output
             .clone()
             .expect("Output not set - did the command finish?")
+    }
+
+    pub(crate) fn expect_response<T>(&self, request: &T) -> &HttpResponse
+    where
+        T: ResponseExpecter,
+    {
+        request.expect_response(self)
     }
 
     pub(crate) async fn finish(&mut self) {
@@ -190,22 +229,67 @@ impl CliWorld {
             }
         }
 
-        for request in self.http_requests.clone() {
-            let result = reqwest::get(&request.url).await.map_err(|e| e.to_string());
-            let result = match result {
-                Ok(response) => {
-                    let status_code = response.status().as_u16();
-                    let body = response.text().await.unwrap();
-                    Ok(HttpResponse { status_code, body })
-                }
-                Err(e) => Err(e),
-            };
-            self.http_transactions.insert(&request, &Some(result));
-        }
-
         self.output_future = Some(PinnedBoxedFutureWrapper::new(Box::pin(
             child.wait_with_output(),
         )));
+    }
+
+    pub(crate) async fn send_request(&mut self, request: &HttpRequest) {
+        self.trigger().await;
+        self.http_requests.push(request.clone());
+
+        let request_method_and_url = match request {
+            HttpRequest::GET(get) => RequestMethodAndUrl {
+                method: "GET".to_string(),
+                url: get.url.clone(),
+            },
+            HttpRequest::POST(post) => RequestMethodAndUrl {
+                method: "POST".to_string(),
+                url: post.url.clone(),
+            },
+        };
+
+        self.http_request_shortcuts
+            .insert(request_method_and_url, request.clone());
+
+        let client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .expect("Error building reqwest client");
+
+        let result = match request {
+            HttpRequest::GET(ref get_request) => client
+                .get(&get_request.url)
+                .send()
+                .await
+                .map_err(|e| e.to_string()),
+            HttpRequest::POST(ref post_request) => client
+                .post(&post_request.url)
+                .body(post_request.body.clone())
+                .send()
+                .await
+                .map_err(|e| e.to_string()),
+        };
+        let result = match result {
+            Ok(response) => {
+                let status_code = response.status().as_u16();
+                let headers = response
+                    .headers()
+                    .iter()
+                    .map(|(k, v)| (k.to_string(), v.to_str().unwrap().to_string()))
+                    .collect();
+                let body = response.text().await.unwrap();
+
+                Ok(HttpResponse {
+                    body,
+                    headers,
+                    status_code,
+                })
+            }
+            Err(e) => Err(e),
+        };
+
+        self.http_transactions.insert(&request, &Some(result));
     }
 
     pub(crate) async fn trigger(&mut self) {
@@ -295,9 +379,21 @@ pub(crate) async fn i_kill_the_process(cli_world: &mut CliWorld) {
     cli_world.input_sequence.push(InputType::Kill);
 }
 
-#[when(regex = r#"^I request "(GET)" "([a-zA-Z0-9.-/:]+)"$"#)]
-pub(crate) async fn i_request(cli_world: &mut CliWorld, method: String, url: String) {
-    cli_world.http_requests.push(HttpRequest { method, url });
+#[when(regex = r#"^I request "GET" "([a-zA-Z0-9.-/:]+)"$"#)]
+pub(crate) async fn i_request_get(cli_world: &mut CliWorld, url: String) {
+    cli_world
+        .send_request(&HttpRequest::GET(GetRequest { url }))
+        .await;
+}
+
+#[when(regex = r#"^I request "POST" "([a-zA-Z0-9.-/:]+)" with body:$"#)]
+pub(crate) async fn i_request_post_with_body(cli_world: &mut CliWorld, url: String, step: &Step) {
+    cli_world
+        .send_request(&HttpRequest::POST(PostRequest {
+            body: step.docstring.as_ref().expect("no docstring found").clone(),
+            url,
+        }))
+        .await;
 }
 
 #[then(regex = r#"^the file "([\S "]+)" should not exist$"#)]
@@ -444,6 +540,7 @@ pub(crate) async fn the_port_should_be_closed(cli_world: &mut CliWorld, port: u1
     assert!(!is_port_open(&addr).await, "Port {port} is open");
 }
 
+#[when(regex = r#"^I wait ([\d]+) seconds?$"#)]
 #[then(regex = r#"^wait ([\d]+) seconds?$"#)]
 pub(crate) async fn after_seconds(cli_world: &mut CliWorld, seconds: u64) {
     cli_world.trigger().await;
@@ -456,7 +553,7 @@ pub(crate) async fn after_the_process_ends(cli_world: &mut CliWorld) {
 }
 
 #[then(
-    regex = r#"^the request "(GET)" "([a-zA-Z0-9.-/:]+)" should return a status code of (\d+)$"#
+    regex = r#"^the request "(GET|POST)" "([a-zA-Z0-9.-/:]+)" should return a status code of (\d+)$"#
 )]
 pub(crate) async fn the_request_should_return_a_status_code_of(
     cli_world: &mut CliWorld,
@@ -465,15 +562,14 @@ pub(crate) async fn the_request_should_return_a_status_code_of(
     status_code: u16,
 ) {
     cli_world.trigger().await;
-    let response = cli_world.http_transactions.expect(&HttpRequest {
-        method: method.clone(),
-        url: url.clone(),
-    });
+    let response = cli_world.expect_response(&RequestMethodAndUrl { method, url });
 
     assert_eq!(response.status_code, status_code, "Status code mismatch");
 }
 
-#[then(regex = r#"^the request "(GET)" "([a-zA-Z0-9.-/:]+)" should return a response matching:$"#)]
+#[then(
+    regex = r#"^the request "(GET|POST)" "([a-zA-Z0-9.-/:]+)" should return a response matching:$"#
+)]
 pub(crate) async fn the_request_should_return_a_response_matching(
     cli_world: &mut CliWorld,
     method: String,
@@ -481,11 +577,28 @@ pub(crate) async fn the_request_should_return_a_response_matching(
     step: &Step,
 ) {
     cli_world.trigger().await;
-    let response = cli_world.http_transactions.expect(&HttpRequest {
-        method: method.clone(),
-        url: url.clone(),
-    });
+    let response = cli_world.expect_response(&RequestMethodAndUrl { method, url });
     assert_step_regex_matches(step, &response.body);
+}
+
+#[then(
+    regex = r#"^the request "(GET|POST)" "([a-zA-Z0-9.-/:]+)" should return a header "([a-zA-Z_0-9-]+)" with "([a-zA-Z_0-9:*/+-]+)"$"#
+)]
+pub(crate) async fn the_request_should_return_a_header_value_of(
+    cli_world: &mut CliWorld,
+    method: String,
+    url: String,
+    header: String,
+    value: String,
+) {
+    cli_world.trigger().await;
+    let response = cli_world.expect_response(&RequestMethodAndUrl { method, url });
+    let (_header, actual_value) = response
+        .headers
+        .iter()
+        .find(|(k, _)| k == &header)
+        .expect("Header not found");
+    assert_eq!(&value, actual_value, "Header value mismatch");
 }
 
 async fn is_port_open(addr: &str) -> bool {

@@ -101,3 +101,22 @@ email: email@test.scenario.domain
     And the request "GET" "http://localhost:4321/login" should return a response matching:
     """.*Admin Login.*
     """
+
+  Scenario: Login redirects to index
+    Given a file named "root_password.yaml" containing:
+    """hash: b4f27c30d7530f6f8d9edca87a86c867d9a1d537
+salt: eyF8Ak6G48ZrRBs0
+"""
+    Given a file named "config.yaml" containing:
+    """domain_config:
+  url: http://localhost:4321/
+email: email@test.scenario.domain
+"""
+    When I start "cloud_scraper serve --exit-after=2"
+    When I request "GET" "http://localhost:4321/login"
+    When I request "POST" "http://localhost:4321/login" with body:
+    """password=test"""
+    Then the request "POST" "http://localhost:4321/login" should return a status code of 302
+    And the request "POST" "http://localhost:4321/login" should return a response matching:
+    """"""
+    And the request "POST" "http://localhost:4321/login" should return a header "location" with "/"
