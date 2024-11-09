@@ -5,7 +5,6 @@ use warp::Filter;
 
 pub struct ChallengeTokenServer {
     content: String,
-    domain: String,
     domain_config: DomainConfig,
     challenge_token: String,
     stop: Mutex<Option<Receiver<bool>>>,
@@ -13,17 +12,11 @@ pub struct ChallengeTokenServer {
 }
 
 impl ChallengeTokenServer {
-    pub fn new(
-        content: String,
-        domain: &str,
-        domain_config: &DomainConfig,
-        challenge_token: String,
-    ) -> Self {
+    pub fn new(content: String, domain_config: &DomainConfig, challenge_token: String) -> Self {
         let (stopper, stop) = tokio::sync::oneshot::channel();
         Self {
             challenge_token,
             content,
-            domain: domain.to_string(),
             domain_config: domain_config.clone(),
             stop: Mutex::new(Some(stop)),
             stopper: Mutex::new(Some(stopper)),
@@ -32,7 +25,7 @@ impl ChallengeTokenServer {
 
     pub async fn serve(&self) {
         let content = self.content.clone();
-        let domain = self.domain.clone();
+        let domain = self.domain_config.domain().to_string();
         let expected_token = self.challenge_token.clone();
         let route = warp::path!(".well-known" / "acme-challenge" / String)
             .map(move |token| {

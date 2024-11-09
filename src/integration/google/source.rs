@@ -2,10 +2,12 @@ use crate::domain::module_state::NamedModule;
 use crate::domain::node::{InitReplier, Lifecycle, Manager};
 use crate::domain::oauth2::{extra_parameters, Client};
 use crate::integration::google::auth::web::get_config;
+use crate::integration::google::auth::DelegateBuilder;
+use crate::integration::google::tasks::sync;
 use crate::server::auth::get_token_path;
 use crate::server::WebEventChannelHandle;
 use derive_getters::Getters;
-use log::{debug, error, info, trace};
+use log::{error, info, trace};
 use std::any::TypeId;
 use std::sync::Arc;
 use tokio::sync::{mpsc, OwnedSemaphorePermit, Semaphore};
@@ -81,13 +83,20 @@ impl Source {
                     &token_path,
                     &web_channel_handle,
                 );
-                let token = match client.get_token(&SCOPES).await {
-                    Ok(token) => token,
-                    Err(_) => {
-                        continue;
+                loop {
+                    if !load_receiver.is_empty() || load_receiver.is_closed() {
+                        break;
                     }
-                };
-                debug!("Token: {:?}", token);
+
+                    let delegate = match DelegateBuilder::default().client(client.clone()).build() {
+                        Ok(delegate) => delegate,
+                        Err(e) => {
+                            error!("Error while creating Google authentication delegate: {}", e);
+                            break;
+                        }
+                    };
+                    sync(delegate).await;
+                }
             }
         });
 

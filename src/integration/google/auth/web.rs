@@ -452,6 +452,22 @@ mod tests {
                 assert_eq!(application_secret.client_email(), &None);
                 assert_eq!(application_secret.client_x509_cert_url(), &None);
             }
+
+            #[test]
+            fn preserves_the_url_port() {
+                let config = test_config();
+                let core_config = Config::with_all_properties(
+                    Some(DomainConfig::new("https://the.domain:8081")),
+                    None,
+                    None,
+                    None,
+                );
+                let application_secret = config.to_application_secret(&core_config);
+                assert_eq!(
+                    application_secret.redirect_uris(),
+                    &vec!["https://the.domain:8081/auth/google"]
+                );
+            }
         }
     }
 }
