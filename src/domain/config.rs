@@ -8,7 +8,7 @@ use std::time::Duration;
 use std::{fs, vec};
 use url::Url;
 
-const HTTP_PORT: u16 = 80;
+pub(crate) const HTTP_PORT: u16 = 80;
 pub const TLS_PORT: u16 = 443;
 pub const DEFAULT_SITE_FOLDER: &str = ".site";
 const LOCALHOST: &str = "http://localhost";
@@ -204,6 +204,7 @@ impl Default for DomainConfig {
         Self {
             external_url: None,
             tls_config: Some(TlsConfig {
+                acme_port: None,
                 builder_contacts: vec![],
                 cert_location: None,
                 poll_attempts: 3,
@@ -223,6 +224,14 @@ impl DomainConfig {
                 panic!("Could not parse URL: {}", url);
             }),
         }
+    }
+
+    pub(crate) fn acme_port(&self) -> u16 {
+        self.tls_config()
+            .as_ref()
+            .map(|it| it.acme_port())
+            .unwrap_or(&None)
+            .unwrap_or(HTTP_PORT)
     }
 
     pub(crate) fn builder_contacts(&self) -> Vec<String> {
@@ -261,6 +270,8 @@ impl DomainConfig {
 
 #[derive(Builder, Clone, Debug, Deserialize, Getters, PartialEq, Serialize)]
 pub struct TlsConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    acme_port: Option<u16>,
     builder_contacts: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     cert_location: Option<String>,
@@ -322,6 +333,7 @@ pub(crate) mod tests {
                     Url::parse("https://the.domain:2222").expect("Could not parse URL"),
                 ),
                 tls_config: Some(TlsConfig {
+                    acme_port: None,
                     builder_contacts: vec!["builder@contact.com".to_string()],
                     cert_location: None,
                     poll_attempts: 0,

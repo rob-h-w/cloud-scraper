@@ -1,24 +1,30 @@
+use crate::domain::DomainConfig;
 use parking_lot::Mutex;
 use tokio::sync::oneshot::{Receiver, Sender};
 use warp::Filter;
 
-const HTTP_PORT: u16 = 80;
-
 pub struct ChallengeTokenServer {
     content: String,
     domain: String,
+    domain_config: DomainConfig,
     challenge_token: String,
     stop: Mutex<Option<Receiver<bool>>>,
     stopper: Mutex<Option<Sender<bool>>>,
 }
 
 impl ChallengeTokenServer {
-    pub fn new(content: String, domain: String, challenge_token: String) -> Self {
+    pub fn new(
+        content: String,
+        domain: &str,
+        domain_config: &DomainConfig,
+        challenge_token: String,
+    ) -> Self {
         let (stopper, stop) = tokio::sync::oneshot::channel();
         Self {
             challenge_token,
             content,
-            domain,
+            domain: domain.to_string(),
+            domain_config: domain_config.clone(),
             stop: Mutex::new(Some(stop)),
             stopper: Mutex::new(Some(stopper)),
         }
@@ -51,10 +57,12 @@ impl ChallengeTokenServer {
                 .expect("No stop signal receiver found. Is this server already running?");
         }
 
-        let (addr, fut) =
-            warp::serve(route).bind_with_graceful_shutdown(([0, 0, 0, 0], HTTP_PORT), async move {
+        let (addr, fut) = warp::serve(route).bind_with_graceful_shutdown(
+            ([0, 0, 0, 0], self.domain_config.acme_port()),
+            async move {
                 stop.await.expect("Could not get stop signal");
-            });
+            },
+        );
         log::debug!("Challenge token server listening on {}", addr);
         log::debug!(
             "Challenge token server path /.well-known/acme-challenge/{}",

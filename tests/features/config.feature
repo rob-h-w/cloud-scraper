@@ -76,6 +76,7 @@ Please enter the folder where site state will be stored (leave blank for .site):
     When I enter "https://my.site"
     When I enter ""
     When I enter ""
+    When I enter ""
     When I enter "1"
     When I enter "1"
     When I enter ""
@@ -85,6 +86,7 @@ Please enter the folder where site state will be stored (leave blank for .site):
     """Please enter the email you'd like to use as the admin contact when requesting a certificate (you can leave this blank if you don't want to host a secure site using HTTPS):
 Please enter the url you'd like to use for serving web traffic (leave blank for http://localhost):
 If you would like to use a different URL visible externally, please provide it here (leave blank if the URL you entered above is visible externally):
+Please enter the port to use for ACME challenges (leave blank for 80):
 Please enter the email you'd like to use as a contact for the domain (leave blank to finish, an empty list will be replaced with the admin contact email):
 Please enter the number of poll attempts to make when retrieving a domain certificate:
 Please enter the number of seconds to wait between poll attempts:
@@ -102,6 +104,7 @@ Please enter the folder where site state will be stored (leave blank for .site):
     When I enter "email@test.scenario.domain"
     When I enter "http://test.scenario.domain"
     When I enter "https://external.uri:8080/path"
+    When I enter "123"
     When I enter "email-1@domain.owner.contact"
     When I enter "email-2@domain.owner.contact"
     When I enter ""
@@ -115,6 +118,7 @@ Please enter the folder where site state will be stored (leave blank for .site):
     """Please enter the email you'd like to use as the admin contact when requesting a certificate (you can leave this blank if you don't want to host a secure site using HTTPS):
 Please enter the url you'd like to use for serving web traffic (leave blank for http://localhost):
 If you would like to use a different URL visible externally, please provide it here (leave blank if the URL you entered above is visible externally):
+Please enter the port to use for ACME challenges (leave blank for 80):
 Please enter the email you'd like to use as a contact for the domain (leave blank to finish, an empty list will be replaced with the admin contact email):
 Please enter the email you'd like to use as a contact for the domain (leave blank to finish, an empty list will be replaced with the admin contact email):
 Please enter the email you'd like to use as a contact for the domain (leave blank to finish, an empty list will be replaced with the admin contact email):
@@ -127,6 +131,7 @@ Please enter the folder where site state will be stored (leave blank for .site):
     """domain_config:
   external_url: https://external.uri:8080/path
   tls_config:
+    acme_port: 123
     builder_contacts:
     - email-1@domain.owner.contact
     - email-2@domain.owner.contact
@@ -146,6 +151,7 @@ site_state_folder: .my_site_state_folder
     When I enter "http://test.scenario.domain"
     When I enter "https://external.uri:8080/path"
     When I enter ""
+    When I enter ""
     When I enter "1"
     When I enter "1"
     When I enter ""
@@ -156,6 +162,7 @@ site_state_folder: .my_site_state_folder
     """Please enter the email you'd like to use as the admin contact when requesting a certificate (you can leave this blank if you don't want to host a secure site using HTTPS):
 Please enter the url you'd like to use for serving web traffic (leave blank for http://localhost):
 If you would like to use a different URL visible externally, please provide it here (leave blank if the URL you entered above is visible externally):
+Please enter the port to use for ACME challenges (leave blank for 80):
 Please enter the email you'd like to use as a contact for the domain (leave blank to finish, an empty list will be replaced with the admin contact email):
 Please enter the number of poll attempts to make when retrieving a domain certificate:
 Please enter the number of seconds to wait between poll attempts:

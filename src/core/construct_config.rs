@@ -1,6 +1,6 @@
 use crate::core::cli::{ConfigArgs, ConfigFileProvider};
 use crate::domain::config::{
-    ConfigBuilder, DomainConfigBuilder, TlsConfigBuilder, DEFAULT_SITE_FOLDER,
+    ConfigBuilder, DomainConfigBuilder, TlsConfigBuilder, DEFAULT_SITE_FOLDER, HTTP_PORT,
 };
 use std::io::stdin;
 use tokio::fs;
@@ -64,6 +64,13 @@ fn read_domain_config(config_builder: &mut ConfigBuilder) -> &mut ConfigBuilder 
         if url.scheme() == "https" || external_url.as_ref().map(|url| url.scheme()) == Some("https")
         {
             let mut tls_config = &mut TlsConfigBuilder::default();
+            tls_config.acme_port(read_optional_u16(
+                format!(
+                    "Please enter the port to use for ACME challenges (leave blank for {}):",
+                    HTTP_PORT
+                )
+                .as_str(),
+            ));
             tls_config = read_builder_contacts(tls_config);
 
             let mut buf = String::new();
@@ -209,5 +216,19 @@ fn read_optional_string(message: &str) -> Option<String> {
         None
     } else {
         Some(result)
+    }
+}
+
+fn read_optional_u16(message: &str) -> Option<u16> {
+    println!("{}", message);
+
+    let mut input = String::new();
+    stdin().read_line(&mut input).expect("Error reading input");
+
+    let result = input.trim().parse::<u16>();
+
+    match result {
+        Ok(value) => Some(value),
+        Err(_) => None,
     }
 }
