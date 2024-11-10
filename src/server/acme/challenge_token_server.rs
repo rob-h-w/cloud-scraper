@@ -3,8 +3,6 @@ use parking_lot::Mutex;
 use tokio::sync::oneshot::{Receiver, Sender};
 use warp::Filter;
 
-const HTTP_PORT: u16 = 80;
-
 pub struct ChallengeTokenServer {
     content: String,
     domain: String,

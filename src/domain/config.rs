@@ -8,7 +8,7 @@ use std::time::Duration;
 use std::{fs, vec};
 use url::Url;
 
-const HTTP_PORT: u16 = 80;
+pub(crate) const HTTP_PORT: u16 = 80;
 pub const TLS_PORT: u16 = 443;
 pub const DEFAULT_SITE_FOLDER: &str = ".site";
 const LOCALHOST: &str = "http://localhost";
