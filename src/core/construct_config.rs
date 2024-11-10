@@ -64,6 +64,7 @@ fn read_domain_config(config_builder: &mut ConfigBuilder) -> &mut ConfigBuilder 
         if url.scheme() == "https" || external_url.as_ref().map(|url| url.scheme()) == Some("https")
         {
             let mut tls_config = &mut TlsConfigBuilder::default();
+            tls_config.acme_port(None);
             tls_config = read_builder_contacts(tls_config);
 
             let mut buf = String::new();

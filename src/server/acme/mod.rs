@@ -115,7 +115,8 @@ impl Acme {
 
             let challenge_token_server = challenge_token_server::ChallengeTokenServer::new(
                 key_authorization.expect("Could not get ACME key authorization."),
-                domain.to_string(),
+                &domain,
+                domain_config,
                 challenge_token.expect("Could not get ACME challenge token."),
             );
             log::debug!("Challenge token server created");
