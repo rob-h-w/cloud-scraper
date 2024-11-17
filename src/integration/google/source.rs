@@ -10,7 +10,9 @@ use derive_getters::Getters;
 use log::{error, info, trace};
 use std::any::TypeId;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::{mpsc, OwnedSemaphorePermit, Semaphore};
+use tokio::time::sleep;
 use tokio::{join, task};
 use Lifecycle::{Init, ReadConfig, Stop};
 
@@ -96,6 +98,7 @@ impl Source {
                         }
                     };
                     sync(delegate).await;
+                    sleep(Duration::from_secs(10)).await;
                 }
             }
         });
