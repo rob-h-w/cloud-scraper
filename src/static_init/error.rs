@@ -4,7 +4,9 @@ use log::{debug, error};
 use oauth2::basic::BasicErrorResponse;
 use oauth2::RequestTokenError;
 use serde_yaml::Value;
+use std::error;
 use std::error::Error as StdError;
+use std::fmt::{Display, Formatter};
 use std::io;
 use tokio::task::JoinError;
 use warp::reject::Reject;
@@ -29,6 +31,29 @@ pub enum Error {
 }
 
 impl Reject for Error {}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Builder(e) => write!(f, "Builder error: {}", e),
+            Error::Cancelled(e) => write!(f, "Cancelled: {}", e),
+            Error::Connection(e) => write!(f, "Connection error: {}", e),
+            Error::FailedAfterRetries => write!(f, "Failed after retries"),
+            Io(e) => write!(f, "IO error: {}", e),
+            Error::KeyNotFound(v) => write!(f, "Key not found: {:?}", v),
+            Error::NotAMapping(v) => write!(f, "Not a mapping: {:?}", v),
+            Error::Oauth2CodeMissing => write!(f, "Oauth2 code missing"),
+            Error::Oauth2CsrfMismatch => write!(f, "Oauth2 CSRF mismatch"),
+            Error::Oauth2TokenAbsent => write!(f, "Oauth2 token absent"),
+            Error::Oauth2TokenExpired => write!(f, "Oauth2 token expired"),
+            Error::Panicked(e) => write!(f, "Panicked: {}", e),
+            TokenRequestFailed => write!(f, "Token request failed"),
+            Error::YamlSerialization(e) => write!(f, "YAML serialization error: {}", e),
+        }
+    }
+}
+
+impl error::Error for Error {}
 
 pub(crate) trait RequestTokenErrorExt {
     fn to_error(&self) -> Error;

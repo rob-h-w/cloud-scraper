@@ -242,6 +242,13 @@ impl DomainConfig {
             .clone()
     }
 
+    pub(crate) fn domain(&self) -> String {
+        self.url_in_use()
+            .domain()
+            .unwrap_or_else(|| panic!("Could not get domain from {}", self.url_in_use()))
+            .to_string()
+    }
+
     pub(crate) fn poll_attempts(&self) -> usize {
         *self
             .tls_config()
@@ -365,6 +372,25 @@ pub(crate) mod tests {
             }
 
             #[test]
+            fn with_external_url_uses_external_url() {
+                let config = Config::with_all_properties(
+                    Some(
+                        DomainConfigBuilder::default()
+                            .tls_config(None)
+                            .url("https://test_domain:8080".parse().unwrap())
+                            .external_url(Some("https://external_domain:8081".parse().unwrap()))
+                            .build()
+                            .unwrap(),
+                    ),
+                    None,
+                    None,
+                    Some("test".to_string()),
+                );
+                let redirect_uri = config.redirect_uri();
+                assert_eq!(redirect_uri, "https://external_domain:8081/auth/google");
+            }
+
+            #[test]
             fn without_domain_config_returns_http() {
                 let config =
                     Config::with_all_properties(None, None, None, None).merge_port(Some(8080));
@@ -377,7 +403,7 @@ pub(crate) mod tests {
             use super::*;
 
             #[test]
-            fn with_domain_config_returns_https() {
+            fn with_domain_config_returns_wss() {
                 let config = Config::with_all_properties(
                     Some(DomainConfig::new("https://test_domain:8080")),
                     None,
@@ -386,6 +412,25 @@ pub(crate) mod tests {
                 );
                 let websocket_uri = config.websocket_url().to_string();
                 assert_eq!(websocket_uri, "wss://test_domain:8080/ws");
+            }
+
+            #[test]
+            fn with_external_url_uses_external_url() {
+                let config = Config::with_all_properties(
+                    Some(
+                        DomainConfigBuilder::default()
+                            .tls_config(None)
+                            .url("https://test_domain:8080".parse().unwrap())
+                            .external_url(Some("https://external_domain:8081".parse().unwrap()))
+                            .build()
+                            .unwrap(),
+                    ),
+                    None,
+                    None,
+                    Some("test".to_string()),
+                );
+                let websocket_uri = config.websocket_url().to_string();
+                assert_eq!(websocket_uri, "wss://external_domain:8081/ws");
             }
 
             #[test]

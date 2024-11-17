@@ -81,12 +81,7 @@ impl Acme {
 
         // Create a new order for a specific domain name.
         let mut builder = OrderBuilder::new(account);
-        let domain = domain_config
-            .url_in_use()
-            .domain()
-            .unwrap_or_else(|| panic!("Could not get domain from {}", domain_config.url_in_use()))
-            .to_string();
-        builder.add_dns_identifier(domain.to_string());
+        builder.add_dns_identifier(domain_config.domain());
         let order = builder.build().await?;
         log::debug!("Order builder finished");
 
@@ -115,7 +110,6 @@ impl Acme {
 
             let challenge_token_server = challenge_token_server::ChallengeTokenServer::new(
                 key_authorization.expect("Could not get ACME key authorization."),
-                &domain,
                 domain_config,
                 challenge_token.expect("Could not get ACME challenge token."),
             );

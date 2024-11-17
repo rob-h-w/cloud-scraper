@@ -26,6 +26,7 @@ use tokio::time::sleep;
 use Error::Oauth2CsrfMismatch;
 use Event::Oauth2Code;
 
+#[derive(Clone)]
 pub(crate) struct Client {
     basic_client: BasicClient,
     extra_parameters: ExtraParameters,

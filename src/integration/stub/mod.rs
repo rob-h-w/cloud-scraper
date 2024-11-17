@@ -46,6 +46,7 @@ impl Source {
                 }
 
                 sleep(Duration::from_secs(1)).await;
+                break;
             }
         });
 
