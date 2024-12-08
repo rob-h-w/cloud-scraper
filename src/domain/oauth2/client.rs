@@ -209,7 +209,8 @@ impl Client {
             .request_async(async_http_client)
             .await
             .map_err(|e| e.to_error())?
-            .to_token_status();
+            .to_token_status()
+            .with_refresh_token(refresh_token);
 
         self.write_token(&token_status).await
     }

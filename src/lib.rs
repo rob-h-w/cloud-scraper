@@ -1,3 +1,5 @@
+#![feature(assert_matches)]
+
 mod core;
 pub mod domain;
 mod integration;
