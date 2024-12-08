@@ -47,10 +47,23 @@ impl Token {
     }
 }
 
+#[derive(Debug)]
 pub(crate) enum TokenStatus {
     Ok(Token),
     Expired(RefreshToken),
     Absent,
+}
+
+impl TokenStatus {
+    pub(crate) fn with_refresh_token(self, refresh_token: &RefreshToken) -> Self {
+        match self {
+            TokenStatus::Ok(mut token) => {
+                token.refresh_token = Some(refresh_token.clone());
+                TokenStatus::Ok(token)
+            }
+            _ => self,
+        }
+    }
 }
 
 pub(crate) trait TokenExt {
@@ -82,5 +95,59 @@ impl BasicTokenResponseExt for Option<BasicTokenResponse> {
 impl BasicTokenResponseExt for BasicTokenResponse {
     fn to_token_status(&self) -> TokenStatus {
         Token::from_response(self).get_status()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use chrono::Duration;
+
+    mod with_refresh_token {
+        use super::*;
+        use lazy_static::lazy_static;
+
+        lazy_static! {
+            static ref REFRESH_TOKEN: RefreshToken = RefreshToken::new("REFRESH_TOKEN".to_string());
+        }
+
+        #[test]
+        fn test_retains_the_token() {
+            let token = Token {
+                access_token: AccessToken::new("access_token".to_string()),
+                token_type: BasicTokenType::Bearer,
+                expires_at: Some(Utc::now() + Duration::days(1)),
+                refresh_token: None,
+            };
+            let status = TokenStatus::Ok(token.clone()).with_refresh_token(&REFRESH_TOKEN);
+
+            if let TokenStatus::Ok(refreshed_token) = status {
+                assert_eq!(
+                    refreshed_token.refresh_token.unwrap().secret(),
+                    REFRESH_TOKEN.secret()
+                );
+            } else {
+                panic!("Expected Ok, got {:?}", status);
+            }
+        }
+
+        #[test]
+        fn test_does_not_modify_other_states() {
+            let token = Token {
+                access_token: AccessToken::new("access_token".to_string()),
+                token_type: BasicTokenType::Bearer,
+                expires_at: Some(Utc::now() + Duration::days(1)),
+                refresh_token: None,
+            };
+
+            assert!(matches!(
+                TokenStatus::Expired(REFRESH_TOKEN.clone()).with_refresh_token(&REFRESH_TOKEN),
+                TokenStatus::Expired(_)
+            ));
+            assert!(matches!(
+                TokenStatus::Absent.with_refresh_token(&REFRESH_TOKEN),
+                TokenStatus::Absent
+            ));
+        }
     }
 }
