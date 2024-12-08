@@ -122,4 +122,64 @@ mod test {
         assert_eq!(parameters[1].key(), "key2");
         assert_eq!(parameters[1].value(), "value2");
     }
+
+    mod with_extra_parameters {
+        use super::*;
+        use crate::domain::oauth2::extra_parameters::ExtraParameter;
+        use std::borrow::Cow;
+
+        struct Call {
+            key: String,
+            value: String,
+        }
+
+        struct TestSubject<'a> {
+            calls: Vec<Call>,
+            _phantom: std::marker::PhantomData<&'a ()>,
+        }
+
+        impl<'a> TestSubject<'a> {
+            pub fn new() -> Self {
+                Self {
+                    calls: Vec::new(),
+                    _phantom: std::marker::PhantomData,
+                }
+            }
+
+            pub fn add_extra_param<N, V>(mut self, name: N, value: V) -> Self
+            where
+                N: Into<Cow<'a, str>>,
+                V: Into<Cow<'a, str>>,
+            {
+                self.calls.push(Call {
+                    key: name.into().to_string(),
+                    value: value.into().to_string(),
+                });
+                self
+            }
+        }
+
+        impl<'a, 'b> WithExtraParametersExt<'a, 'b> for TestSubject<'a> {
+            fn with_extra_parameters(mut self, extra_parameters: &'b ExtraParameters) -> Self {
+                apply_extra_parameters!(self, extra_parameters)
+            }
+        }
+
+        #[test]
+        fn to_authorization_request() {
+            let extra_parameters = vec![
+                ExtraParameter::new("key1".to_string(), "value1".to_string()),
+                ExtraParameter::new("key2".to_string(), "value2".to_string()),
+            ];
+
+            let mut test_subject = TestSubject::new();
+            test_subject = test_subject.with_extra_parameters(&extra_parameters);
+
+            assert_eq!(test_subject.calls.len(), 2);
+            assert_eq!(test_subject.calls[0].key, "key1");
+            assert_eq!(test_subject.calls[0].value, "value1");
+            assert_eq!(test_subject.calls[1].key, "key2");
+            assert_eq!(test_subject.calls[1].value, "value2");
+        }
+    }
 }
