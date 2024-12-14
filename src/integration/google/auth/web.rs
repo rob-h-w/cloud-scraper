@@ -257,7 +257,7 @@ pub async fn get_config() -> Option<ConfigQuery> {
 mod tests {
     use super::*;
     use crate::server::auth::gen_token_for_path;
-    use crate::test::test::CleanableTestFile;
+    use crate::test::tests::CleanableTestFile;
     use lazy_static::lazy_static;
     use std::sync::Mutex;
     use warp::http::header::COOKIE;
@@ -314,7 +314,7 @@ mod tests {
 
     mod config_google {
         use super::*;
-        use crate::core::node_handles::test::get_test_node_handles;
+        use crate::core::node_handles::tests::get_test_node_handles;
         use tokio_test::{assert_ok, task};
 
         #[tokio::test]

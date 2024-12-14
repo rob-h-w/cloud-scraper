@@ -49,7 +49,7 @@ async fn save_root_password(password: &str) -> Result<(), String> {
 }
 
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use super::*;
     use lazy_static::lazy_static;
     use std::sync::{Mutex, MutexGuard};

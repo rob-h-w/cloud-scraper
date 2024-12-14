@@ -197,7 +197,7 @@ mod tests {
 
     mod post_login {
         use super::*;
-        use crate::core::root_password::test::{with_test_root_password_scope, TEST_PASSWORD};
+        use crate::core::root_password::tests::{with_test_root_password_scope, TEST_PASSWORD};
 
         #[tokio::test]
         async fn correct_password_redirects_to_root() {
@@ -217,7 +217,7 @@ mod tests {
 
     mod root_password_is_good {
         use super::*;
-        use crate::core::root_password::test::{with_test_root_password_scope, TEST_PASSWORD};
+        use crate::core::root_password::tests::{with_test_root_password_scope, TEST_PASSWORD};
 
         #[tokio::test]
         async fn success() {

@@ -21,7 +21,7 @@ impl NodeHandles {
 }
 
 #[cfg(test)]
-pub(crate) mod test {
+pub(crate) mod tests {
     use super::*;
     use crate::domain::config::tests::test_config;
     use crate::domain::node::get_test_manager;

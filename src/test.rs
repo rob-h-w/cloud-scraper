@@ -1,9 +1,9 @@
 #[cfg(test)]
-pub(crate) use crate::test::test::LogEntry;
+pub(crate) use crate::test::tests::LogEntry;
 #[cfg(test)]
-pub(crate) use crate::test::test::Logger;
+pub(crate) use crate::test::tests::Logger;
 #[cfg(test)]
-pub(crate) mod test {
+pub(crate) mod tests {
     use log::{Log, Metadata, Record};
     use parking_lot::ReentrantMutex;
     use std::cell::RefCell;
