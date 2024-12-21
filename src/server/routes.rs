@@ -29,8 +29,8 @@ mod tests {
 
         mod auth {
             use super::*;
-            use crate::core::node_handles::test::get_test_node_handles;
-            use crate::core::root_password::test::with_test_root_password_scope;
+            use crate::core::node_handles::tests::get_test_node_handles;
+            use crate::core::root_password::tests::with_test_root_password_scope;
             use crate::server::auth::gen_token_for_path;
             use crate::server::format_root_html;
             use crate::server::page::{LOGIN_FAILED, LOGIN_PATH};

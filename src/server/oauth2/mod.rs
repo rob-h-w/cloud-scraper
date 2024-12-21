@@ -56,7 +56,7 @@ mod tests {
 
     mod oauth2_callback {
         use super::*;
-        use crate::core::node_handles::test::get_test_node_handles;
+        use crate::core::node_handles::tests::get_test_node_handles;
         use warp::{Filter, Rejection};
 
         fn expected_type(_: impl Filter<Extract = impl Reply, Error = Rejection> + Clone) {}

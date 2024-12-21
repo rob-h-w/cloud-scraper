@@ -93,7 +93,7 @@ mod tests {
     use super::*;
     use crate::block_on;
     use crate::core::engine::MockEngine;
-    use crate::core::root_password::test::with_test_root_password_scope;
+    use crate::core::root_password::tests::with_test_root_password_scope;
     use crate::domain::config::tests::{test_config, test_config_with};
     use crate::domain::config::DomainConfig;
     use crate::server::MockWebServer;

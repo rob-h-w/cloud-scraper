@@ -126,7 +126,7 @@ pub(crate) async fn abort_on_stop<T>(
 }
 
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use super::*;
 
     pub fn get_test_manager(config: &Arc<Config>) -> Manager {
@@ -137,8 +137,8 @@ pub mod test {
     mod send_read_config {
         use super::*;
         use crate::domain::config::tests::test_config;
-        use crate::domain::node::manager::test::get_test_manager;
-        use crate::domain::node::test::TestNode;
+        use crate::domain::node::manager::tests::get_test_manager;
+        use crate::domain::node::tests::TestNode;
         use tokio_test::assert_ok;
 
         #[tokio::test]

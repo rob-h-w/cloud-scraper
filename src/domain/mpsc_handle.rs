@@ -92,7 +92,7 @@ impl<T> OneshotMpscReceiverHandle<T> {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     #[tokio::test]

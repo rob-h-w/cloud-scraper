@@ -125,7 +125,7 @@ impl TokenManager {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     mod token_manager {

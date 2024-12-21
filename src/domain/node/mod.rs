@@ -3,7 +3,7 @@ mod manager;
 pub use manager::{Manager, ReadonlyManager};
 
 #[cfg(test)]
-pub use manager::test::get_test_manager;
+pub use manager::tests::get_test_manager;
 
 use crate::domain::channel_handle::ChannelHandle;
 use crate::domain::mpsc_handle::OneshotMpscSenderHandle;
@@ -92,9 +92,9 @@ pub trait InitReplier<T> {
 pub type LifecycleChannelHandle = ChannelHandle<Lifecycle>;
 
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use crate::domain::config::tests::test_config;
-    use crate::domain::node::manager::test::get_test_manager;
+    use crate::domain::node::manager::tests::get_test_manager;
 
     pub struct TestNode;
 

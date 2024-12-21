@@ -1,5 +1,7 @@
 # Cloud Scraper
 
+[![codecov](https://codecov.io/github/rob-h-w/cloud-scraper/graph/badge.svg?token=FSTKHTY0LC)](https://codecov.io/github/rob-h-w/cloud-scraper)
+
 ---
 Get your cloud data on your terms.
 
@@ -76,6 +78,20 @@ Beyond that, it's a pretty normal Rust project.
 ```bash
 cargo build # build
 cargo test # run tests
+```
+
+### Coverage Measurement
+
+Coverage uses `llvm-tools-preview` and `grcov`. You can install `llvm-tools-preview` with
+`rustup component add llvm-tools-preview`, and `grcov` with `cargo install grcov`.
+
+You can measure test coverage with the following commands:
+
+```bash
+CARGO_INCREMENTAL=0 RUSTFLAGS='-Cinstrument-coverage' \
+  LLVM_PROFILE_FILE='cargo-test-%p-%m.profraw' cargo test
+grcov . --binary-path ./target/debug/deps/ -s . -t html -t lcov --branch --ignore-not-existing \
+ --ignore '../*' --ignore "/*" -o target/coverage/html
 ```
 
 ### Configuration

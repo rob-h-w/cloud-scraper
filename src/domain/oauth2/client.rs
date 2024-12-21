@@ -280,7 +280,7 @@ impl Client {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     mod make_redirect_url {
