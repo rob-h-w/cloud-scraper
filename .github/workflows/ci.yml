@@ -33,22 +33,29 @@ jobs:
           components: llvm-tools-preview
           override: true
           toolchain: stable
-      - name: build
-        run: cargo build
       - name: test with coverage
         env:
           CARGO_INCREMENTAL: '0'
           RUSTFLAGS: '-Cinstrument-coverage'
           LLVM_PROFILE_FILE: 'cargo-test-%p-%m.profraw'
-        run: cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-features --no-fail-fast
+      - name: install grcov
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: grcov
       - name: extract coverage
-        uses: actions-rs/grcov@v0.1
+        run: grcov . --binary-path ./target/debug/deps/ -s . -t lcov --branch --ignore-not-existing --ignore '../*' --ignore "/*" -o target/tests.lcov
       - name: upload coverage
         env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_ORG_TOKEN }}
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         uses: codecov/codecov-action@v5
         with:
           fail_ci_if_error: true
+          files: target/tests.lcov
           slug: rob-h-w/cloud-scraper
           verbose: true
   coding_standards:
