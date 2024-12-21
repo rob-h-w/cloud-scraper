@@ -1,5 +1,7 @@
 # Cloud Scraper
 
+[![codecov](https://codecov.io/github/rob-h-w/cloud-scraper/graph/badge.svg?token=FSTKHTY0LC)](https://codecov.io/github/rob-h-w/cloud-scraper)
+
 ---
 Get your cloud data on your terms.
 
