@@ -46,7 +46,9 @@ mod tests {
         let send_error = SendError(123);
         let expected_message = "SendError(123)";
         match Rejection::from(send_error) {
-            Rejection::SendRejection(message) => assert_eq!(message, expected_message.to_string()),
+            Rejection::SendRejection(message) => {
+                assert_eq!(message, expected_message.to_string());
+            }
         }
     }
 }

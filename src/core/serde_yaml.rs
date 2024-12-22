@@ -185,13 +185,6 @@ impl FluentMutable for Mapping {
 }
 
 pub trait FluentMutatorMappingExtension: FluentMutable + PartialEq {
-    fn with_default_at_str<ValueType>(&self, key: &str, value: &ValueType) -> MutResult
-    where
-        ValueType: ConvertableToMovableValueResult,
-    {
-        self.with_default_at(&Value::String(key.to_string()), value)
-    }
-
     fn with_default_at<KeyIdType, ValueType>(&self, key: &KeyIdType, value: &ValueType) -> MutResult
     where
         KeyIdType: KeyIdValue,
@@ -201,13 +194,6 @@ pub trait FluentMutatorMappingExtension: FluentMutable + PartialEq {
             Ok(value) => self.with_default_value_at(&key.to_key_id_value(), &value),
             Err(e) => Err(e.clone()),
         }
-    }
-
-    fn with_at_str<ValueType>(&self, key: &str, value: &ValueType) -> MutResult
-    where
-        ValueType: ConvertableToMovableValueResult,
-    {
-        self.with_at(&Value::String(key.to_string()), value)
     }
 
     fn with_at<KeyIdType, ValueType>(&self, key: &KeyIdType, value: &ValueType) -> MutResult

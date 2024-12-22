@@ -160,7 +160,7 @@ mod tests {
         }
 
         impl<'a, 'b> WithExtraParametersExt<'a, 'b> for TestSubject<'a> {
-            fn with_extra_parameters(mut self, extra_parameters: &'b ExtraParameters) -> Self {
+            fn with_extra_parameters(self, extra_parameters: &'b ExtraParameters) -> Self {
                 apply_extra_parameters!(self, extra_parameters)
             }
         }
