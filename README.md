@@ -1,6 +1,13 @@
 # Cloud Scraper
 
-[![codecov](https://codecov.io/github/rob-h-w/cloud-scraper/graph/badge.svg?token=FSTKHTY0LC)](https://codecov.io/github/rob-h-w/cloud-scraper)
+![GPLv3 licensed][LICENSE_BADGE]
+![Development status][DEVELOPMENT_STATUS_BADGE]
+[![Build Status][BUILD_STATUS_SVG]][BUILD_STATUS_LINK]
+[![Codecov][COVERAGE_CODECOV_BADGE]][COVERAGE_CODECOV_LINK]
+
+| [![Coverage Graph][COVERAGE_GRAPH_SVG]][COVERAGE_CODECOV_LINK] |
+|:--------------------------------------------------------------:|
+|                         Coverage Graph                         |
 
 ---
 Get your cloud data on your terms.
@@ -198,3 +205,17 @@ sudo setcap cap_net_bind_service=+ep ./target/debug/cloud_scraper
 
 Remember that after running the above that the permission applies to `cloud_scraper`, not
 `cargo`. Using `cargo run` will not work with the above permission.
+
+[BUILD_STATUS_LINK]: https://github.com/rob-h-w/cloud-scraper/actions/workflows/ci.yml
+
+[BUILD_STATUS_SVG]: https://github.com/rob-h-w/cloud-scraper/actions/workflows/ci.yml/badge.svg?branch=main
+
+[COVERAGE_CODECOV_BADGE]: https://codecov.io/github/rob-h-w/cloud-scraper/graph/badge.svg?token=FSTKHTY0LC
+
+[COVERAGE_CODECOV_LINK]: https://codecov.io/github/rob-h-w/cloud-scraper
+
+[COVERAGE_GRAPH_SVG]: https://codecov.io/github/rob-h-w/cloud-scraper/graphs/sunburst.svg?token=FSTKHTY0LC
+
+[DEVELOPMENT_STATUS_BADGE]: https://img.shields.io/badge/status-pre_release-yellow.svg
+
+[LICENSE_BADGE]: https://img.shields.io/badge/license-GPLv3-blue.svg
