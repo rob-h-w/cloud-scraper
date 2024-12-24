@@ -120,6 +120,7 @@ mod tests {
     macro_rules! get_called {
         ($CALLED:ident) => {
             paste::paste! {
+                #[allow(dead_code)]
                 pub fn [<is_ $CALLED:lower _called>]() -> bool {
                     let called = [<$CALLED:upper _CALLED>].lock().expect("Mutex poisoned");
                     called.load(std::sync::atomic::Ordering::SeqCst)

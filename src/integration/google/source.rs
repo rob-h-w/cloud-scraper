@@ -16,11 +16,6 @@ use tokio::time::sleep;
 use tokio::{join, task};
 use Lifecycle::{Init, ReadConfig, Stop};
 
-const SCOPES: [&str; 2] = [
-    "https://www.googleapis.com/auth/docs",
-    "https://www.googleapis.com/auth/tasks",
-];
-
 #[derive(Clone, Debug, Getters)]
 pub struct Source {
     lifecycle_manager: Manager,

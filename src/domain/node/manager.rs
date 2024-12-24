@@ -12,19 +12,10 @@ use tokio::sync::Semaphore;
 use tokio::task;
 use tokio::task::JoinHandle;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Manager {
     config: Arc<Config>,
     lifecycle_channel_handle: LifecycleChannelHandle,
-}
-
-impl Clone for Manager {
-    fn clone(&self) -> Self {
-        Self {
-            config: self.config.clone(),
-            lifecycle_channel_handle: self.lifecycle_channel_handle.clone(),
-        }
-    }
 }
 
 impl Manager {
