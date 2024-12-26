@@ -91,15 +91,6 @@ impl ConvertableToMovableValueResult for Value {
     }
 }
 
-impl ConvertableToMovableValueResult for Result<'_> {
-    fn to_movable_value_result(&self) -> MutResult {
-        match self {
-            Ok(value) => Ok((*value).clone()),
-            Err(e) => Err(e.clone()),
-        }
-    }
-}
-
 impl ConvertableToMovableValueResult for MutResult {
     fn to_movable_value_result(&self) -> MutResult {
         self.clone()
