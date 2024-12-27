@@ -6,6 +6,7 @@ pub struct SiteState {
     cert_folder: String,
     cert_path: String,
     key_path: String,
+    #[allow(dead_code)]
     site_folder: String,
 }
 

@@ -133,13 +133,6 @@ mod tests {
 
         #[test]
         fn test_does_not_modify_other_states() {
-            let token = Token {
-                access_token: AccessToken::new("access_token".to_string()),
-                token_type: BasicTokenType::Bearer,
-                expires_at: Some(Utc::now() + Duration::days(1)),
-                refresh_token: None,
-            };
-
             assert!(matches!(
                 TokenStatus::Expired(REFRESH_TOKEN.clone()).with_refresh_token(&REFRESH_TOKEN),
                 TokenStatus::Expired(_)

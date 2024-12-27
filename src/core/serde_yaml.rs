@@ -91,15 +91,6 @@ impl ConvertableToMovableValueResult for Value {
     }
 }
 
-impl ConvertableToMovableValueResult for Result<'_> {
-    fn to_movable_value_result(&self) -> MutResult {
-        match self {
-            Ok(value) => Ok((*value).clone()),
-            Err(e) => Err(e.clone()),
-        }
-    }
-}
-
 impl ConvertableToMovableValueResult for MutResult {
     fn to_movable_value_result(&self) -> MutResult {
         self.clone()
@@ -185,13 +176,6 @@ impl FluentMutable for Mapping {
 }
 
 pub trait FluentMutatorMappingExtension: FluentMutable + PartialEq {
-    fn with_default_at_str<ValueType>(&self, key: &str, value: &ValueType) -> MutResult
-    where
-        ValueType: ConvertableToMovableValueResult,
-    {
-        self.with_default_at(&Value::String(key.to_string()), value)
-    }
-
     fn with_default_at<KeyIdType, ValueType>(&self, key: &KeyIdType, value: &ValueType) -> MutResult
     where
         KeyIdType: KeyIdValue,
@@ -201,13 +185,6 @@ pub trait FluentMutatorMappingExtension: FluentMutable + PartialEq {
             Ok(value) => self.with_default_value_at(&key.to_key_id_value(), &value),
             Err(e) => Err(e.clone()),
         }
-    }
-
-    fn with_at_str<ValueType>(&self, key: &str, value: &ValueType) -> MutResult
-    where
-        ValueType: ConvertableToMovableValueResult,
-    {
-        self.with_at(&Value::String(key.to_string()), value)
     }
 
     fn with_at<KeyIdType, ValueType>(&self, key: &KeyIdType, value: &ValueType) -> MutResult
@@ -239,6 +216,25 @@ mod tests {
 
         mod value {
             use super::*;
+
+            mod as_mapping {
+                use super::*;
+
+                #[test]
+                fn on_mapping_returns_mapping() {
+                    let value = Value::Mapping(Mapping::new());
+                    assert_eq!(value.as_mapping(), Some(&Mapping::new()));
+                }
+
+                #[test]
+                fn on_non_mapping_returns_none() {
+                    let value = Value::Null;
+                    assert_eq!(value.as_mapping(), None);
+
+                    let value = Value::Sequence(vec![]);
+                    assert_eq!(value.as_mapping(), None);
+                }
+            }
 
             mod get_value {
                 use super::*;
@@ -295,6 +291,16 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    mod convertable_to_movable_value_result {
+        use super::*;
+
+        #[test]
+        fn value_to_movable_value_result() {
+            let value = Value::String("value".to_string());
+            assert_eq!(value.to_movable_value_result(), Ok(value.clone()));
         }
     }
 
