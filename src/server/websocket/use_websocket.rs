@@ -1,10 +1,9 @@
 use crate::core::node_handles::NodeHandles;
 use crate::domain::node::InitReplier;
-use crate::server::Event;
 use crate::server::Event::Redirect;
+use crate::server::{Event, WebEventChannelHandle};
 use log::{debug, error, info};
 use std::future;
-use std::future::Future;
 use std::pin::Pin;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::task;
@@ -12,7 +11,7 @@ use tokio_stream::StreamExt;
 use warp::ws::{Message, WebSocket};
 use warp::Sink;
 
-pub(crate) async fn use_websocket(mut web_socket: WebSocket, handles: NodeHandles) {
+pub(crate) async fn use_websocket(web_socket: WebSocket, handles: NodeHandles) {
     debug!("websocket created {:?}", web_socket);
     let handles = handles.clone();
 
@@ -20,16 +19,7 @@ pub(crate) async fn use_websocket(mut web_socket: WebSocket, handles: NodeHandle
     let web_event_reader = handles.web_channel_handle().clone();
 
     let task = task::spawn(async move {
-        loop {
-            if break_on_web_event_result(
-                web_event_reader.get_receiver().recv().await,
-                &mut web_socket,
-            )
-            .await
-            {
-                break;
-            }
-        }
+        task(web_event_reader, web_socket).await;
     });
 
     lifecycle_reader.abort_on_stop(&task).await;
@@ -39,13 +29,26 @@ fn create_redirect_json(url: &str) -> String {
     format!("{{\"type\":\"redirect_event\",\"url\":\"{}\"}}", url)
 }
 
+async fn task(web_event_reader: WebEventChannelHandle, mut web_socket: WebSocket) {
+    loop {
+        if break_on_web_event_result(
+            web_event_reader.get_receiver().recv().await,
+            &mut web_socket,
+        )
+        .await
+        {
+            break;
+        }
+    }
+}
+
 async fn break_on_web_event_result(
     result: Result<Event, RecvError>,
-    mut web_socket: &mut WebSocket,
+    web_socket: &mut WebSocket,
 ) -> bool {
     match result {
         Ok(event) => {
-            return break_on_web_event(event, &mut web_socket).await;
+            return break_on_web_event(event, web_socket).await;
         }
         Err(e) => match e {
             RecvError::Closed => {
@@ -60,9 +63,97 @@ async fn break_on_web_event_result(
     false
 }
 
+enum BreakInstruction {
+    None,
+    Break,
+    BreakParent,
+    Continue,
+}
+
+macro_rules! dispatch_break_instruction_from {
+    ($instruction:expr) => {
+        match $instruction {
+            BreakInstruction::None => {}
+            BreakInstruction::Break => {
+                break;
+            }
+            BreakInstruction::BreakParent => {
+                return true;
+            }
+            BreakInstruction::Continue => {
+                continue;
+            }
+        }
+    };
+}
+
+async fn poll_ready(mut pinned_socket: Pin<&mut &mut WebSocket>) -> BreakInstruction {
+    match future::poll_fn(|cx| pinned_socket.as_mut().poll_ready(cx)).await {
+        Ok(_) => {
+            debug!("Websocket ready.");
+            BreakInstruction::None
+        }
+        Err(e) => {
+            error!("Error polling websocket ready: {:?}", e);
+            BreakInstruction::BreakParent
+        }
+    }
+}
+
+async fn start_send(
+    mut pinned_socket: Pin<&mut &mut WebSocket>,
+    message: Message,
+) -> BreakInstruction {
+    match pinned_socket.as_mut().start_send(message) {
+        Ok(_) => {
+            debug!("Websocket redirect event send started.");
+            BreakInstruction::None
+        }
+        Err(e) => {
+            error!("Error starting redirect event send: {:?}", e);
+            BreakInstruction::BreakParent
+        }
+    }
+}
+
+async fn poll_flush(mut pinned_socket: Pin<&mut &mut WebSocket>) -> BreakInstruction {
+    match future::poll_fn(|cx| pinned_socket.as_mut().poll_flush(cx)).await {
+        Ok(_) => {
+            debug!("Websocket flushed.");
+            BreakInstruction::None
+        }
+        Err(e) => {
+            error!("Error flushing websocket: {:?}", e);
+            BreakInstruction::Continue
+        }
+    }
+}
+
+async fn receive_redirect_confirmation(
+    mut pinned_socket: Pin<&mut &mut WebSocket>,
+) -> BreakInstruction {
+    match pinned_socket.as_mut().next().await {
+        Some(Ok(message)) => {
+            if message.is_close() {
+                error!("Websocket closed.");
+            } else {
+                debug!("Received redirect confirmation: {:?}", message);
+            }
+            BreakInstruction::Break
+        }
+        Some(Err(e)) => {
+            error!("Error receiving redirect confirmation message: {:?}", e);
+            BreakInstruction::Continue
+        }
+        None => {
+            error!("No message received.");
+            BreakInstruction::Continue
+        }
+    }
+}
+
 async fn break_on_web_event(event: Event, mut web_socket: &mut WebSocket) -> bool {
     if let Redirect(url, sender) = event {
-        let mut exit_parent: bool = false;
         loop {
             info!("Redirecting to {:?}", url);
             let redirect_json = create_redirect_json(&url);
@@ -70,66 +161,18 @@ async fn break_on_web_event(event: Event, mut web_socket: &mut WebSocket) -> boo
             let message = Message::text(redirect_json);
 
             debug!("Polling websocket ready.");
-            let mut pinned_socket = Pin::new(&mut web_socket);
-            match future::poll_fn(|cx| pinned_socket.as_mut().poll_ready(cx)).await {
-                Ok(_) => {
-                    debug!("Websocket ready.");
-                }
-                Err(e) => {
-                    error!("Error polling websocket ready: {:?}", e);
-                    exit_parent = true;
-                    break;
-                }
-            }
+            dispatch_break_instruction_from!(poll_ready(Pin::new(&mut web_socket)).await);
 
             debug!("Sending redirect event: {:?}", message);
-            let mut pinned_socket = Pin::new(&mut web_socket);
-            match pinned_socket.as_mut().start_send(message) {
-                Ok(_) => {
-                    debug!("Websocket redirect event send started.");
-                }
-                Err(e) => {
-                    error!("Error starting redirect event send: {:?}", e);
-                    exit_parent = true;
-                    break;
-                }
-            }
+            dispatch_break_instruction_from!(start_send(Pin::new(&mut web_socket), message).await);
 
             debug!("Polling websocket flush.");
-            match future::poll_fn(|cx| pinned_socket.as_mut().poll_flush(cx)).await {
-                Ok(_) => {
-                    debug!("Websocket flushed.");
-                }
-                Err(e) => {
-                    error!("Error flushing websocket: {:?}", e);
-                    continue;
-                }
-            }
+            dispatch_break_instruction_from!(poll_flush(Pin::new(&mut web_socket)).await);
 
             debug!("receiving redirect confirmation");
-            let confirmation = match pinned_socket.as_mut().next().await {
-                Some(Ok(message)) => message,
-                Some(Err(e)) => {
-                    error!("Error receiving redirect confirmation message: {:?}", e);
-                    continue;
-                }
-                None => {
-                    error!("No message received.");
-                    continue;
-                }
-            };
-
-            if confirmation.is_close() {
-                error!("Websocket closed.");
-                break;
-            }
-
-            debug!("Received redirect confirmation: {:?}", confirmation);
-            break;
-        }
-
-        if exit_parent {
-            return true;
+            dispatch_break_instruction_from!(
+                receive_redirect_confirmation(Pin::new(&mut web_socket)).await
+            );
         }
 
         match sender.send(url).await {
