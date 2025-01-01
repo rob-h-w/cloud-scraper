@@ -1,6 +1,6 @@
 use crate::domain::module_state::NamedModule;
 use crate::domain::node::{InitReplier, Lifecycle, Manager};
-use crate::domain::oauth2::{extra_parameters, Client};
+use crate::domain::oauth2::{extra_parameters, BasicClientImpl, Client};
 use crate::integration::google::auth::web::get_config;
 use crate::integration::google::auth::DelegateBuilder;
 use crate::integration::google::tasks::sync;
@@ -50,20 +50,30 @@ impl Source {
 
         let task = task::spawn(async move {
             drop(permit);
+            let mut initialized = false;
 
             loop {
-                match load_receiver.recv().await {
-                    Some(_) => {
-                        info!("Loading google source");
+                if !initialized {
+                    match load_receiver.recv().await {
+                        Some(_) => {
+                            info!("Loading google source");
+                            initialized = true;
+                        }
+                        None => {
+                            error!("Channel closed");
+                            break;
+                        }
                     }
-                    None => {
-                        error!("Channel closed");
+                } else {
+                    if load_receiver.is_closed() {
                         break;
                     }
                 }
+
                 let application_secret = if let Some(config) = get_config().await {
                     config.to_application_secret(&core_config)
                 } else {
+                    Self::wait_in_loop().await;
                     continue;
                 };
                 let token_path = match get_token_path::<Self>().await {
@@ -73,7 +83,7 @@ impl Source {
                         continue;
                     }
                 };
-                let client = Client::new(
+                let client = BasicClientImpl::new(
                     application_secret,
                     &extra_parameters!("access_type" => "offline"),
                     &lifecycle_manager,
@@ -93,7 +103,7 @@ impl Source {
                         }
                     };
                     sync(delegate).await;
-                    sleep(Duration::from_secs(10)).await;
+                    Self::wait_in_loop().await;
                 }
             }
         });
@@ -163,5 +173,9 @@ impl Source {
         drop(google_permit);
 
         let (_task_result, _stop_result) = join!(task, lifetime_task);
+    }
+
+    async fn wait_in_loop() {
+        sleep(Duration::from_secs(10)).await;
     }
 }
