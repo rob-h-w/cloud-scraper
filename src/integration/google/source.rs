@@ -1,6 +1,6 @@
 use crate::domain::module_state::NamedModule;
 use crate::domain::node::{InitReplier, Lifecycle, Manager};
-use crate::domain::oauth2::{extra_parameters, Client};
+use crate::domain::oauth2::{extra_parameters, BasicClientImpl, Client};
 use crate::integration::google::auth::web::get_config;
 use crate::integration::google::auth::DelegateBuilder;
 use crate::integration::google::tasks::sync;
@@ -83,7 +83,7 @@ impl Source {
                         continue;
                     }
                 };
-                let client = Client::new(
+                let client = BasicClientImpl::new(
                     application_secret,
                     &extra_parameters!("access_type" => "offline"),
                     &lifecycle_manager,

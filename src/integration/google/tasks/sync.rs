@@ -1,8 +1,12 @@
+use crate::domain::oauth2::Client;
 use crate::integration::google::auth::Delegate;
 use google_tasks1::{hyper_rustls, TasksHub};
 use log::info;
 
-pub(crate) async fn sync(delegate: Delegate) {
+pub(crate) async fn sync<T>(delegate: Delegate<T>)
+where
+    T: Client,
+{
     let client = hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new())
         .build(
             hyper_rustls::HttpsConnectorBuilder::new()

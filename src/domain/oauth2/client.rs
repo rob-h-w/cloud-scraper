@@ -17,6 +17,7 @@ use oauth2::{
     AccessToken, AuthorizationRequest, CsrfToken, PkceCodeChallenge, PkceCodeVerifier,
     RefreshToken, Scope,
 };
+use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::fs;
@@ -27,8 +28,22 @@ use tokio::time::sleep;
 use Error::Oauth2CsrfMismatch;
 use Event::Oauth2Code;
 
+pub trait Client: Clone + Send + Sized + Sync + 'static {
+    fn new(
+        application_secret: ApplicationSecret,
+        extra_parameters: &ExtraParameters,
+        manager: &Manager,
+        token_path: &Path,
+        web_channel_handle: &WebEventChannelHandle,
+    ) -> Self;
+    fn get_token(
+        &self,
+        scopes: &[&str],
+    ) -> impl Future<Output = Result<AccessToken, Error>> + Send + Sync;
+}
+
 #[derive(Clone)]
-pub(crate) struct Client {
+pub(crate) struct BasicClientImpl {
     basic_client: BasicClient,
     extra_parameters: ExtraParameters,
     manager: Manager,
@@ -38,8 +53,8 @@ pub(crate) struct Client {
     web_channel_handle: WebEventChannelHandle,
 }
 
-impl Client {
-    pub(crate) fn new(
+impl Client for BasicClientImpl {
+    fn new(
         application_secret: ApplicationSecret,
         extra_parameters: &ExtraParameters,
         manager: &Manager,
@@ -58,6 +73,22 @@ impl Client {
         }
     }
 
+    async fn get_token(&self, scopes: &[&str]) -> Result<AccessToken, Error> {
+        match self.get_token_status_from_file().await {
+            TokenStatus::Ok(token) => Ok(token.access_token().clone()),
+            TokenStatus::Expired(refresh_token) => self
+                .refresh_token(&refresh_token)
+                .await
+                .map(|token| token.access_token().clone()),
+            TokenStatus::Absent => self.retrieve_token(scopes).await.map(|token| {
+                debug!("Token retrieved: {:?}", token);
+                token.access_token().clone()
+            }),
+        }
+    }
+}
+
+impl BasicClientImpl {
     async fn await_code(&self) -> Result<Code, Error> {
         let mut receiver = self.web_channel_handle.get_receiver();
         let mut attempts = self.retry_max + 1;
@@ -112,20 +143,6 @@ impl Client {
         let result = task.await.map_err(|e| e.to_error());
         stop_task.abort();
         result?
-    }
-
-    pub(crate) async fn get_token(&self, scopes: &[&str]) -> Result<AccessToken, Error> {
-        match self.get_token_status_from_file().await {
-            TokenStatus::Ok(token) => Ok(token.access_token().clone()),
-            TokenStatus::Expired(refresh_token) => self
-                .refresh_token(&refresh_token)
-                .await
-                .map(|token| token.access_token().clone()),
-            TokenStatus::Absent => self.retrieve_token(scopes).await.map(|token| {
-                debug!("Token retrieved: {:?}", token);
-                token.access_token().clone()
-            }),
-        }
     }
 
     async fn get_token_status_from_file(&self) -> TokenStatus {
@@ -303,7 +320,7 @@ mod tests {
                 .token_uri("http://localhost:41047".to_string())
                 .build()
                 .unwrap();
-            let client = Client::new(
+            let client = BasicClientImpl::new(
                 app_secret,
                 &extra_parameters!("access_type" => "offline"),
                 &get_test_manager(&test_config()),

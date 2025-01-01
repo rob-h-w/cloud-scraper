@@ -5,12 +5,18 @@ use std::future::Future;
 use std::pin::Pin;
 
 #[derive(Builder, Clone)]
-pub struct Delegate {
-    client: Client,
+pub struct Delegate<ClientImpl>
+where
+    ClientImpl: Client,
+{
+    client: ClientImpl,
 }
 
-impl Delegate {
-    async fn get_token(
+impl<ClientImpl: Client> Delegate<ClientImpl>
+where
+    ClientImpl: Client,
+{
+    async fn get_secret<'a>(
         &self,
         scopes: &[&str],
     ) -> Result<Option<String>, Box<dyn std::error::Error + Send + Sync>> {
@@ -22,7 +28,10 @@ impl Delegate {
     }
 }
 
-impl GetToken for Delegate {
+impl<ClientImpl: Client> GetToken for Delegate<ClientImpl>
+where
+    ClientImpl: Client,
+{
     fn get_token<'a>(
         &'a self,
         scopes: &'a [&str],
@@ -33,6 +42,6 @@ impl GetToken for Delegate {
                 + 'a,
         >,
     > {
-        Box::pin(self.get_token(scopes))
+        Box::pin(self.get_secret(scopes))
     }
 }
