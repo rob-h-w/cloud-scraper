@@ -272,7 +272,7 @@ mod tests {
         }
     }
 
-    mod BreakInstructionTranslator {
+    mod break_instruction_translator {
         use super::*;
         use crate::server::websocket::use_websocket::BreakInstructionTranslator;
         mod none_or_break_parent {

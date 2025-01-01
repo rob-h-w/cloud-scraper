@@ -1,6 +1,8 @@
 use crate::core::node_handles::NodeHandles;
 #[cfg(test)]
 use crate::server::websocket::result::ResultRejection;
+#[cfg(test)]
+use crate::server::websocket::socket::tests::HANDLES;
 #[cfg(not(test))]
 use crate::server::websocket::websocket_handler::handler;
 #[cfg(test)]
@@ -22,8 +24,9 @@ pub(crate) async fn handler(ws: Ws, handles: NodeHandles) -> ResultRejection<imp
     use std::future;
 
     Ok(ws.on_upgrade(move |_| {
-        unsafe {
-            tests::HANDLES = Some(handles.clone());
+        {
+            let mut lock = HANDLES.lock().unwrap();
+            *lock = Some(handles.clone());
         }
         future::ready(())
     }))
@@ -32,8 +35,12 @@ pub(crate) async fn handler(ws: Ws, handles: NodeHandles) -> ResultRejection<imp
 #[cfg(test)]
 mod tests {
     use super::*;
+    use lazy_static::lazy_static;
+    use std::sync::{Arc, Mutex};
 
-    pub(super) static mut HANDLES: Option<NodeHandles> = None;
+    lazy_static! {
+        pub(super) static ref HANDLES: Arc<Mutex<Option<NodeHandles>>> = Arc::new(Mutex::new(None));
+    }
 
     mod websocket {
         use super::*;
@@ -41,8 +48,9 @@ mod tests {
 
         #[tokio::test]
         async fn calls_handler() {
-            unsafe {
-                HANDLES = None;
+            {
+                let mut lock = HANDLES.lock().unwrap();
+                *lock = None;
             }
 
             let route = websocket(&get_test_node_handles());
@@ -53,9 +61,8 @@ mod tests {
                 .await
                 .expect("handshake");
 
-            unsafe {
-                assert!(HANDLES.is_some(), "handles not set");
-            }
+            let lock = HANDLES.lock().unwrap();
+            assert!(lock.is_some(), "handles not set");
         }
     }
 }
