@@ -51,5 +51,5 @@ panic = "abort"
 panic = "abort"
 
 [[test]]
-name = "cucumber_cli"
+name = "cucumber"
 harness = false
