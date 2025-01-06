@@ -1,6 +1,7 @@
 use derive_getters::Getters;
 use oauth2::{AuthorizationRequest, RefreshTokenRequest};
 
+#[macro_export]
 macro_rules! extra_parameters {
     ($($key: expr => $value: expr),* $(,)?) => {
         {
@@ -14,22 +15,22 @@ macro_rules! extra_parameters {
     };
 }
 
-pub(crate) use extra_parameters;
+pub use extra_parameters;
 
 #[derive(Clone, Debug, Getters)]
-pub(crate) struct ExtraParameter {
+pub struct ExtraParameter {
     key: String,
     value: String,
 }
 
 impl ExtraParameter {
-    pub(crate) fn new(key: String, value: String) -> Self {
+    pub fn new(key: String, value: String) -> Self {
         assert_allowed_key(&key);
         Self { key, value }
     }
 }
 
-pub(crate) type ExtraParameters = Vec<ExtraParameter>;
+pub type ExtraParameters = Vec<ExtraParameter>;
 
 macro_rules! apply_extra_parameters {
     ($self: expr, $extra_parameters: expr) => {{

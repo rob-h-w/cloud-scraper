@@ -5,7 +5,7 @@ use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
 use serde::{Deserialize, Serialize};
 
 #[derive(Builder, Deserialize, Getters, Serialize)]
-pub(crate) struct ApplicationSecret {
+pub struct ApplicationSecret {
     client_id: String,
     client_secret: String,
     auth_uri: String,

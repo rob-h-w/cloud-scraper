@@ -2,4 +2,4 @@ pub mod auth;
 mod source;
 mod tasks;
 
-pub(crate) use source::Source;
+pub use source::Source;

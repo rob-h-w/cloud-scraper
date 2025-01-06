@@ -1,9 +1,9 @@
 mod core;
 pub mod domain;
-mod integration;
+pub mod integration;
 mod macros;
 mod main_impl;
-mod server;
+pub mod server;
 mod static_init;
 mod test;
 

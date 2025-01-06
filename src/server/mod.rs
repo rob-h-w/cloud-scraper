@@ -11,7 +11,7 @@ mod site_state;
 mod web_server;
 mod websocket;
 
-pub(crate) use events::{Code, Event, WebEventChannelHandle};
+pub use events::{Code, Event, WebEventChannelHandle};
 
 #[cfg(test)]
 pub(crate) use root::format_root_html;

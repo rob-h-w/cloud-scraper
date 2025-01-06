@@ -1,4 +1,5 @@
-use cloud_scraper::domain::{Config, DomainConfig};
+use crate::shared::test_config;
+use cloud_scraper::domain::Config;
 use cucumber::gherkin::Step;
 use cucumber::{given, then, when, World};
 use derive_getters::Getters;
@@ -337,15 +338,6 @@ async fn a_config_file(_cli_world: &mut CliWorld) {
     )
     .await
     .expect("Error writing config file");
-}
-
-fn test_config() -> Config {
-    Config::with_all_properties(
-        Some(DomainConfig::new("http://test.domain:8080")),
-        Some("user@test.domain".to_string()),
-        None,
-        None,
-    )
 }
 
 #[given(regex = r#"an environment variable "([\S ]+)" with the value "([\S ]+)""#)]

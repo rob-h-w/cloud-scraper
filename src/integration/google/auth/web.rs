@@ -118,7 +118,7 @@ ConfigQuery,
 });
 
 impl ConfigQuery {
-    pub fn to_application_secret(&self, config: &Config) -> ApplicationSecret {
+    pub(crate) fn to_application_secret(&self, config: &Config) -> ApplicationSecret {
         ApplicationSecretBuilder::default()
             .auth_provider_x509_cert_url(Some(self.auth_provider_x509_cert_url()))
             .auth_uri(self.auth_uri())
