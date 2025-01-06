@@ -8,6 +8,13 @@ Feature: Google Source
     Then it releases the semaphore
     And it waits for initialisation
 
+  Scenario: Stop Before Initialisation
+    Given a test config
+    When I call run
+    When I send_stop
+    Then it releases the semaphore
+    And it does not wait for initialisation
+
   Scenario: After Initialisation
     Given a test config
     When I call run

@@ -19,6 +19,11 @@ fn i_send_init(world: &mut GoogleWorld) {
     world.send_init();
 }
 
+#[when("I send_stop")]
+fn i_send_stop(world: &mut GoogleWorld) {
+    world.send_stop();
+}
+
 #[then("it releases the semaphore")]
 async fn it_releases_the_semaphore(world: &mut GoogleWorld) {
     assert!(
@@ -30,6 +35,11 @@ async fn it_releases_the_semaphore(world: &mut GoogleWorld) {
 #[then(regex = r#"it waits.*"#)]
 async fn it_waits(world: &mut GoogleWorld) {
     assert!(world.run_result().await.timed_out(), "run did not wait");
+}
+
+#[then(regex = r#"it does not wait.*"#)]
+async fn it_does_not_wait(world: &mut GoogleWorld) {
+    assert!(!world.run_result().await.timed_out(), "run waited");
 }
 
 #[then("it replies to init with ()")]
