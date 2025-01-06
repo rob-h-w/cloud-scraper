@@ -5,4 +5,11 @@ Feature: Google Source
   Scenario: Before Initialisation
     Given a test config
     When I call run
-    Then it waits for initialisation
+    Then it releases the semaphore
+    And it waits for initialisation
+
+  Scenario: After Initialisation
+    Given a test config
+    When I call run
+    When I send_init
+    Then it replies to init with ()

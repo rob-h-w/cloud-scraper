@@ -8,3 +8,4 @@ pub mod node;
 pub(crate) mod oauth2;
 
 pub use config::{Config, DomainConfig};
+pub use mpsc_handle::one_shot;
