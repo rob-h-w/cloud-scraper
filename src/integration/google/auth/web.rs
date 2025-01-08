@@ -1,24 +1,16 @@
-use crate::core::module::State;
 use crate::core::node_handles::NodeHandles;
-use crate::domain::config::Config;
-use crate::domain::module_state::ModuleState;
 use crate::domain::node::Manager;
-use crate::domain::oauth2::ApplicationSecret;
-use crate::domain::oauth2::ApplicationSecretBuilder;
+use crate::domain::oauth2::BasicClientImpl;
+use crate::domain::oauth2::PersistableConfig;
+use crate::integration::google::auth::ConfigQuery;
 use crate::integration::google::Source;
 use crate::server::auth::auth_validation;
 use crate::server::errors::Rejectable;
 use crate::server::javascript::WithRedirect;
-use crate::static_init::error::{Error, IoErrorExt, SerdeErrorExt};
 use handlebars::Handlebars;
 use lazy_static::lazy_static;
 use log::{debug, error};
-use paste::paste;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::io;
-use std::path::PathBuf;
-use tokio::fs;
 use warp::{path, reply, Filter, Rejection, Reply};
 
 const CONFIG_TEMPLATE: &str = "config/google";
@@ -35,105 +27,6 @@ lazy_static! {
             .expect("Could not register Google config template");
         handlebars
     };
-}
-
-macro_rules! make_config_query {
-    ($struct:ident, { $($e:ident),* }, { $($d:ident, $v:literal),* }) => {
-        paste! {
-            #[derive(Debug, Deserialize, Serialize)]
-            pub struct $struct {
-                $(
-                    $e: String,
-                )*
-                $(
-                    $d: String,
-                )*
-            }
-
-            impl $struct {
-                fn empty_page_data() -> HashMap<&'static str, String> {
-                    let mut page_data = HashMap::new();
-                    $(
-                        page_data.insert(stringify!($e), Self::format_empty(stringify!($e)));
-                    )*
-                    $(
-                        page_data.insert(stringify!($d), Self::format(stringify!($d), $v));
-                    )*
-                    page_data
-                }
-
-                pub fn new(map: &HashMap<String, String>) -> Self {
-                    Self {
-                        $(
-                            $e: map.get(stringify!($e)).unwrap_or(&String::new())
-                            .clone(),
-                        )*
-                        $(
-                            $d: map.get(stringify!($d)).unwrap_or
-                            (&String::from($v)).clone(),
-                        )*
-                    }
-                }
-
-                fn format(name: &str, value: &str) -> String {
-                    format!("name=\"{}\" value=\"{}\"", name,  value)
-                }
-
-                fn format_empty(name: &str) -> String {
-                    format!("name=\"{}\"", name)
-                }
-
-                fn to_page_data(&self) -> HashMap<&'static str, String> {
-                    let mut page_data = HashMap::new();
-                    $(
-                        page_data.insert(stringify!($e), Self::format(stringify!($e), &self.$e));
-                    )*
-                    $(
-                        page_data.insert(stringify!($d), Self::format(stringify!($d), &self.$d));
-                    )*
-                    page_data
-                }
-
-                $(
-                    pub fn $e(&self) -> String {
-                        self.$e.clone()
-                    }
-                )*
-                $(
-                    pub fn $d(&self) -> String {
-                        self.$d.clone()
-                    }
-                )*
-            }
-        }
-    }
-}
-make_config_query!(
-ConfigQuery,
-{ project_id, client_id, client_secret },
-{
-    auth_uri, "https://accounts.google.com/o/oauth2/auth",
-    auth_provider_x509_cert_url, "https://www.googleapis.com/oauth2/v1/certs",
-    token_uri, "https://oauth2.googleapis.com/token"
-});
-
-impl ConfigQuery {
-    pub(crate) fn to_application_secret(&self, config: &Config) -> ApplicationSecret {
-        ApplicationSecretBuilder::default()
-            .auth_provider_x509_cert_url(Some(self.auth_provider_x509_cert_url()))
-            .auth_uri(self.auth_uri())
-            .client_email(None)
-            .client_id(self.client_id())
-            .client_secret(self.client_secret())
-            .client_x509_cert_url(None)
-            .project_id(Some(self.project_id()))
-            .redirect_uris(vec![config.redirect_uri()])
-            .token_uri(self.token_uri())
-            .build()
-            .unwrap_or_else(|e| {
-                panic!("Error while building ApplicationSecret: {:?}", e);
-            })
-    }
 }
 
 pub fn config_google(
@@ -165,7 +58,7 @@ pub fn config_google(
 }
 
 async fn format_response(handles: NodeHandles) -> Result<impl Reply, Rejection> {
-    let existing_config = get_config().await;
+    let existing_config = Source::<BasicClientImpl>::get_auth_config().await.ok();
     Ok(reply::html(
         format_config_google_html(handles, &existing_config).await,
     ))
@@ -189,12 +82,15 @@ async fn update_config(
     form_map: HashMap<String, String>,
     handles: NodeHandles,
 ) -> Result<impl Reply, Rejection> {
-    let config = ConfigQuery::new(&form_map);
+    let config = ConfigQuery::from(&form_map);
 
-    match put_config(&config).await {
+    let path = Source::<BasicClientImpl>::config_path()
+        .await
+        .map_err(|e| e.into_rejection())?;
+    match config.persist(&path).await {
         Ok(_) => {
             let mut sender: Manager = handles.lifecycle_manager().clone();
-            match sender.send_read_config::<Source>() {
+            match sender.send_read_config::<Source<BasicClientImpl>>() {
                 Ok(_) => {
                     debug!("Google config update sent");
                     Ok(warp::redirect::found(warp::http::Uri::from_static(
@@ -211,55 +107,15 @@ async fn update_config(
     }
 }
 
-async fn config_path() -> Result<PathBuf, io::Error> {
-    let root = State::path_for::<Source>().await?;
-    debug!("Root: {:?}", root);
-    Ok(PathBuf::from(root).join("config.yaml"))
-}
-
-async fn put_config(config_query: &ConfigQuery) -> Result<(), Error> {
-    let config_path = config_path()
-        .await
-        .map_err(|e| e.to_source_creation_builder_error())?;
-
-    debug!("Config path: {:?}", config_path);
-
-    let serialized =
-        serde_yaml::to_string(config_query).map_err(|e| e.to_yaml_serialization_error())?;
-
-    fs::write(&config_path, serialized)
-        .await
-        .map_err(|e| e.to_source_creation_builder_error())?;
-
-    Ok(())
-}
-
-pub async fn get_config() -> Option<ConfigQuery> {
-    let config_path = config_path().await;
-
-    if let Ok(config_path) = config_path {
-        debug!("Config path: {:?}", config_path);
-        let read_result = fs::read(&config_path).await;
-        debug!("Read result: {:?}", read_result);
-        if let Ok(config) = read_result {
-            let parse_result = serde_yaml::from_slice(&config);
-            debug!("Parse result: {:?}", parse_result);
-            if let Ok(config) = parse_result {
-                return Some(config);
-            }
-        }
-    }
-
-    None
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::integration::google::auth::config::ConfigQueryBuilder;
     use crate::server::auth::gen_token_for_path;
     use crate::test::tests::CleanableTestFile;
     use lazy_static::lazy_static;
     use std::sync::Mutex;
+    use tokio::fs;
     use warp::http::header::COOKIE;
     use warp::http::StatusCode;
     use warp::test::request;
@@ -271,7 +127,7 @@ mod tests {
     async fn make_config_file_and_lock<'a>() -> CleanableTestFile<'a> {
         CleanableTestFile::new(
             TEST_MUTEX.lock().expect("Could not lock mutex."),
-            config_path()
+            Source::<BasicClientImpl>::config_path()
                 .await
                 .expect("Could not get config path.")
                 .to_str()
@@ -287,19 +143,20 @@ mod tests {
     }
 
     async fn reset() {
-        let config_path = config_path().await.unwrap();
+        let config_path = Source::<BasicClientImpl>::config_path().await.unwrap();
         let _ = fs::remove_file(&config_path).await;
     }
 
     fn test_config() -> ConfigQuery {
-        ConfigQuery {
-            project_id: "test_project_id".to_string(),
-            client_id: "test_client_id".to_string(),
-            client_secret: "test_client_secret".to_string(),
-            auth_uri: "https://test.auth.uri".to_string(),
-            auth_provider_x509_cert_url: "test_auth_provider_x509_cert_url".to_string(),
-            token_uri: "https://test.token.uri".to_string(),
-        }
+        ConfigQueryBuilder::default()
+            .project_id("test_project_id".into())
+            .client_id("test_client_id".into())
+            .client_secret("test_client_secret".into())
+            .auth_uri("https://test.auth.uri".into())
+            .auth_provider_x509_cert_url("test_auth_provider_x509_cert_url".into())
+            .token_uri("https://test.token.uri".into())
+            .build()
+            .expect("Could not build test config")
     }
 
     fn test_config_form_encoded() -> String {
@@ -421,7 +278,7 @@ mod tests {
 
         mod to_application_secret {
             use super::*;
-            use crate::domain::DomainConfig;
+            use crate::domain::{Config, DomainConfig};
 
             #[test]
             fn returns_application_secret() {

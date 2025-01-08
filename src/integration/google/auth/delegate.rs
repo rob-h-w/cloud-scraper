@@ -16,7 +16,7 @@ impl<ClientImpl: Client> Delegate<ClientImpl>
 where
     ClientImpl: Client,
 {
-    async fn get_secret<'a>(
+    async fn get_secret(
         &self,
         scopes: &[&str],
     ) -> Result<Option<String>, Box<dyn std::error::Error + Send + Sync>> {

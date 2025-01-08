@@ -1,14 +1,17 @@
-use crate::domain::module_state::NamedModule;
+use crate::core::module::State;
+use crate::domain::module_state::{ModuleState, NamedModule};
 use crate::domain::node::{InitReplier, Lifecycle, Manager};
-use crate::domain::oauth2::{extra_parameters, BasicClientImpl, Client};
-use crate::integration::google::auth::web::get_config;
-use crate::integration::google::auth::DelegateBuilder;
+use crate::domain::oauth2::{extra_parameters, BasicClientImpl, Client, PersistableConfig};
+use crate::integration::google::auth::{ConfigQuery, DelegateBuilder};
 use crate::integration::google::tasks::sync;
 use crate::server::auth::get_token_path;
 use crate::server::WebEventChannelHandle;
 use derive_getters::Getters;
-use log::{error, info, trace};
+use log::{debug, error, info, trace};
 use std::any::TypeId;
+use std::io;
+use std::marker::PhantomData;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, OwnedSemaphorePermit, Semaphore};
@@ -17,20 +20,31 @@ use tokio::{join, task};
 use Lifecycle::{Init, ReadConfig, Stop};
 
 #[derive(Clone, Debug, Getters)]
-pub struct Source {
+pub struct Source<ClientType>
+where
+    ClientType: Client,
+{
+    _phantom: PhantomData<ClientType>,
     lifecycle_manager: Manager,
     web_channel_handle: WebEventChannelHandle,
 }
 
-impl NamedModule for Source {
+impl<ClientType> NamedModule for Source<ClientType>
+where
+    ClientType: Client,
+{
     fn name() -> &'static str {
         "google"
     }
 }
 
-impl Source {
+impl<ClientType> Source<ClientType>
+where
+    ClientType: Client,
+{
     pub fn new(manager: &Manager, web_channel_handle: &WebEventChannelHandle) -> Self {
         Self {
+            _phantom: Default::default(),
             lifecycle_manager: manager.clone(),
             web_channel_handle: web_channel_handle.clone(),
         }
@@ -70,7 +84,7 @@ impl Source {
                     }
                 }
 
-                let application_secret = if let Some(config) = get_config().await {
+                let application_secret = if let Ok(config) = Self::get_auth_config().await {
                     config.to_application_secret(&core_config)
                 } else {
                     Self::wait_in_loop().await;
@@ -151,7 +165,7 @@ impl Source {
                             event.reply_to_init_with((), "google_source").await
                         }
                         ReadConfig(type_id) => {
-                            if type_id == TypeId::of::<Source>() {
+                            if type_id == TypeId::of::<Source<ClientType>>() {
                                 send_load!();
                             }
                         }
@@ -173,6 +187,16 @@ impl Source {
         drop(google_permit);
 
         let (_task_result, _stop_result) = join!(task, lifetime_task);
+    }
+
+    pub(crate) async fn config_path() -> Result<PathBuf, io::Error> {
+        let root = State::path_for::<Self>().await?;
+        debug!("Root: {:?}", root);
+        Ok(PathBuf::from(root).join("config.yaml"))
+    }
+
+    pub(crate) async fn get_auth_config() -> Result<ConfigQuery, io::Error> {
+        ConfigQuery::read_config(&Self::config_path().await?).await
     }
 
     async fn wait_in_loop() {

@@ -1,6 +1,7 @@
 extern crate core;
 
 mod cli_world;
+mod google;
 mod google_bindings;
 mod google_world;
 mod shared;

@@ -297,7 +297,7 @@ impl BasicClientImpl {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
 
     mod make_redirect_url {
@@ -377,6 +377,16 @@ mod tests {
                 "expected access_type=offline in '{}'",
                 url
             );
+        }
+    }
+
+    mod access_token {
+        use oauth2::AccessToken;
+
+        #[test]
+        fn test_is_send_and_sync() {
+            fn is_send_and_sync<T: Send + Sync>() {}
+            is_send_and_sync::<AccessToken>();
         }
     }
 }

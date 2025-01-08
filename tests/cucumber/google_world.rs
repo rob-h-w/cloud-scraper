@@ -1,3 +1,4 @@
+use crate::google::client::TestClient;
 use cloud_scraper::domain::node::{LifecycleChannelHandle, Manager};
 use cloud_scraper::domain::{one_shot, Config};
 use cloud_scraper::integration::google::Source;
@@ -42,7 +43,7 @@ pub(crate) struct GoogleWorld {
     #[getter(skip)]
     manager: Option<Manager>,
     #[getter(skip)]
-    source: Option<Arc<Source>>,
+    source: Option<Arc<Source<TestClient>>>,
     source_once: Once,
     web_channel_handle: WebEventChannelHandle,
 }
@@ -74,7 +75,7 @@ impl GoogleWorld {
         async fn test<'a>(
             permit: OwnedSemaphorePermit,
             semaphore: &'a Arc<Semaphore>,
-            source: &'a Arc<Source>,
+            source: &'a Arc<Source<TestClient>>,
         ) {
             drop(permit);
             source
@@ -170,7 +171,7 @@ impl GoogleWorld {
         self.manager.as_ref().unwrap()
     }
 
-    fn source(&mut self) -> Arc<Source> {
+    fn source(&mut self) -> Arc<Source<TestClient>> {
         self.source_once.call_once(|| {
             let source = Source::new(&self.manager.as_ref().unwrap(), &self.web_channel_handle);
 

@@ -25,9 +25,8 @@ Feature: Serve subcommand
 \s*\[[\d]{4}-[\d]{2}-[\d]{2}T[\d]{2}:[\d]{2}:[\d]{2}Z DEBUG cloud_scraper::main_impl\] Starting engine
     """
     And the stderr should have matched:
-    """\s*\[[\d]{4}-[\d]{2}-[\d]{2}T[\d]{2}:[\d]{2}:[\d]{2}Z DEBUG cloud_scraper::integration::google::auth::web\] Root: "state/google".*
-\s*\[[\d]{4}-[\d]{2}-[\d]{2}T[\d]{2}:[\d]{2}:[\d]{2}Z DEBUG cloud_scraper::integration::google::auth::web\] Config path: "state/google/config\.yaml".*
-\s*\[[\d]{4}-[\d]{2}-[\d]{2}T[\d]{2}:[\d]{2}:[\d]{2}Z DEBUG cloud_scraper::integration::google::auth::web\] Read result: Err\(Os \{ code: 2, kind: NotFound, message: "No such file or directory" \}\)
+    """\s*\[[\d]{4}-[\d]{2}-[\d]{2}T[\d]{2}:[\d]{2}:[\d]{2}Z DEBUG cloud_scraper::integration::google::source\] Root: "state/google".*
+\s*\[[\d]{4}-[\d]{2}-[\d]{2}T[\d]{2}:[\d]{2}:[\d]{2}Z DEBUG cloud_scraper::integration::google::auth::config\] Config path: "state/google/config\.yaml".*
     """
     And the stderr should have matched:
     """\s*\[[\d]{4}-[\d]{2}-[\d]{2}T[\d]{2}:[\d]{2}:[\d]{2}Z INFO  cloud_scraper::integration::google::source\] Loading google source

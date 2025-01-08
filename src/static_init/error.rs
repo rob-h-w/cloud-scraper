@@ -10,11 +10,9 @@ use std::fmt::{Display, Formatter};
 use std::io;
 use tokio::task::JoinError;
 use warp::reject::Reject;
-use Error::Builder;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Error {
-    Builder(String),
     Cancelled(String),
     Connection(String),
     FailedAfterRetries,
@@ -35,7 +33,6 @@ impl Reject for Error {}
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Builder(e) => write!(f, "Builder error: {}", e),
             Error::Cancelled(e) => write!(f, "Cancelled: {}", e),
             Error::Connection(e) => write!(f, "Connection error: {}", e),
             Error::FailedAfterRetries => write!(f, "Failed after retries"),
@@ -119,16 +116,21 @@ impl SerdeErrorExt for serde_yaml::Error {
 }
 
 pub trait IoErrorExt {
-    fn to_source_creation_builder_error(&self) -> Error;
     fn to_error(&self) -> Error;
 }
 
 impl IoErrorExt for io::Error {
-    fn to_source_creation_builder_error(&self) -> Error {
-        Builder(self.to_string())
-    }
-
     fn to_error(&self) -> Error {
         Io(self.to_string())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn test_error_is_send_and_sync() {
+        fn is_send_and_sync<T: Send + Sync>(_candidate: &T) {}
+
+        is_send_and_sync(&super::Error::Io("test".to_string()));
     }
 }

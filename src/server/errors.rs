@@ -1,10 +1,11 @@
 use crate::static_init::error::Error;
-use std::fmt;
+use std::{fmt, io};
 use tokio::sync::broadcast::error::SendError;
 use warp::reject::Reject;
 
 #[derive(Debug)]
 pub enum Rejection {
+    IoRejection(String),
     SendRejection(String),
 }
 
@@ -14,6 +15,7 @@ impl fmt::Display for Rejection {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Rejection::SendRejection(e) => write!(f, "Send error: {}", e),
+            Rejection::IoRejection(e) => write!(f, "IO error: {}", e),
         }
     }
 }
@@ -24,6 +26,12 @@ where
 {
     fn from(error: SendError<T>) -> Self {
         Self::SendRejection(format!("{:?}", error))
+    }
+}
+
+impl From<io::Error> for Rejection {
+    fn from(error: io::Error) -> Self {
+        Self::IoRejection(format!("{:?}", error))
     }
 }
 
@@ -46,19 +54,35 @@ impl Rejectable for Error {
     }
 }
 
+impl Rejectable for io::Error {
+    fn into_rejection(self) -> warp::Rejection {
+        warp::reject::custom(Rejection::from(self))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::ErrorKind;
 
     #[test]
     fn rejection_is_reject() {
-        let send_error = SendError(123);
-        let expected_message = "SendError(123)";
-        match Rejection::from(send_error) {
-            Rejection::SendRejection(message) => {
-                assert_eq!(message, expected_message.to_string());
+        fn check_rejection(rejection: Rejection, expected_message: &str) {
+            match rejection {
+                Rejection::SendRejection(message) => {
+                    assert_eq!(message, expected_message.to_string());
+                }
+                Rejection::IoRejection(message) => {
+                    assert_eq!(message, expected_message.to_string());
+                }
             }
         }
+
+        check_rejection(
+            Rejection::from(io::Error::new(ErrorKind::AddrInUse, "test")),
+            "Custom { kind: AddrInUse, error: \"test\" }",
+        );
+        check_rejection(Rejection::from(SendError(123)), "SendError(123)");
     }
 
     mod display {
