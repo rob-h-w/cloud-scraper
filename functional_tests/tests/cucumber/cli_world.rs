@@ -1,4 +1,4 @@
-use crate::shared::test_config;
+use crate::shared::{bin_folder, cs_home_dir, default_config_file, test_config};
 use cloud_scraper::domain::Config;
 use cucumber::gherkin::Step;
 use cucumber::{given, then, when, World};
@@ -9,7 +9,6 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::future::Future;
 use std::io;
-use std::path::PathBuf;
 use std::pin::Pin;
 use std::process::Output;
 use std::time::Duration;
@@ -197,7 +196,7 @@ impl CliWorld {
         }
 
         let command = self.command.clone().expect("Command not set");
-        let command = PathBuf::new().join("target/debug").join(command);
+        let command = bin_folder().join(command);
 
         let cmd = command.clone();
         let mut command = Command::new(cmd);
@@ -304,40 +303,42 @@ impl CliWorld {
 
 #[given(regex = r#"no file named "([\S ]+)""#)]
 async fn no_file(_cli_world: &mut CliWorld, path: String) {
+    let path = cs_home_dir().join(path);
     if fs::try_exists(&path)
         .await
         .expect("Error checking file existence")
     {
         fs::remove_file(&path)
             .await
-            .expect(&format!("Error removing {}", path));
+            .expect(&format!("Error removing {:?}", path));
     }
 }
 
 #[given(regex = r#"a file named "([\S ]+)" containing:"#)]
 async fn a_file_containing(_cli_world: &mut CliWorld, step: &Step, path: String) {
+    let path = cs_home_dir().join(path);
     if fs::try_exists(&path)
         .await
         .expect("Error checking file existence")
     {
         fs::remove_file(&path)
             .await
-            .expect(&format!("Error removing {}", path));
+            .expect(&format!("Error removing {:?}", path));
     }
 
     fs::write(&path, step.docstring.as_ref().unwrap().as_bytes())
         .await
-        .expect(&format!("Error writing to {}", path));
+        .expect(&format!("Error writing to {:?}", path));
 }
 
 #[given("a test config")]
 async fn a_config_file(_cli_world: &mut CliWorld) {
-    fs::write(
-        "config.yaml",
-        serde_yaml::to_string(&test_config()).unwrap(),
-    )
-    .await
-    .expect("Error writing config file");
+    let path = default_config_file();
+    let failure_message = format!("Error writing config file to {:?}", path);
+
+    fs::write(path, serde_yaml::to_string(&test_config()).unwrap())
+        .await
+        .expect(&failure_message);
 }
 
 #[given(regex = r#"an environment variable "([\S ]+)" with the value "([\S ]+)""#)]
@@ -391,9 +392,10 @@ pub(crate) async fn i_request_post_with_body(cli_world: &mut CliWorld, url: Stri
 #[then(regex = r#"^the file "([\S "]+)" should not exist$"#)]
 pub(crate) async fn the_file_should_not_exist(cli_world: &mut CliWorld, path: String) {
     cli_world.trigger().await;
+    let path = cs_home_dir().join(path);
     assert!(
-        !std::fs::exists(&path).expect(&format!("Error checking {} existence", &path)),
-        "File {} exists",
+        !std::fs::exists(&path).expect(&format!("Error checking {:?} existence", &path)),
+        "File {:?} exists",
         &path
     );
 }
@@ -401,9 +403,10 @@ pub(crate) async fn the_file_should_not_exist(cli_world: &mut CliWorld, path: St
 #[then(regex = r#"^the file "([\S "]+)" should exist$"#)]
 pub(crate) async fn the_file_should_exist(cli_world: &mut CliWorld, path: String) {
     cli_world.trigger().await;
+    let path = cs_home_dir().join(path);
     assert!(
-        std::fs::exists(&path).expect(&format!("Error checking {} existence", &path)),
-        "File {} does not exist",
+        std::fs::exists(&path).expect(&format!("Error checking {:?} existence", &path)),
+        "File {:?} does not exist",
         &path
     );
 }
@@ -438,6 +441,7 @@ pub(crate) async fn the_exit_code_should_not_be(cli_world: &mut CliWorld, expect
 #[then(regex = r#"^the file "([\S "]+)" should be a valid config$"#)]
 pub(crate) async fn the_file_should_be_a_valid_config(cli_world: &mut CliWorld, path: String) {
     cli_world.trigger().await;
+    let path = cs_home_dir().join(path);
     let config = tokio::fs::read_to_string(&path)
         .await
         .expect("Error reading config file");
@@ -448,6 +452,7 @@ pub(crate) async fn the_file_should_be_a_valid_config(cli_world: &mut CliWorld, 
 #[then(regex = r#"^the file "([\S "]+)" should contain:$"#)]
 pub(crate) async fn the_file_should_contain(cli_world: &mut CliWorld, step: &Step, path: String) {
     cli_world.trigger().await;
+    let path = cs_home_dir().join(path);
     let config = tokio::fs::read_to_string(&path)
         .await
         .expect("Error reading config file");
@@ -511,7 +516,7 @@ pub(crate) async fn the_stderr_should_have_matched(cli_world: &mut CliWorld, ste
 pub(crate) async fn the_test_config_should_be_unchanged(cli_world: &mut CliWorld) {
     cli_world.trigger().await;
     let config = test_config();
-    let actual = tokio::fs::read_to_string("config.yaml")
+    let actual = tokio::fs::read_to_string(default_config_file())
         .await
         .expect("Error reading config file");
     let actual = serde_yaml::from_str::<Config>(&actual).expect("Error parsing config");

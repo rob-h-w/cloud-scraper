@@ -1,0 +1,21 @@
+[package]
+name = "functional_tests"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cloud_scraper = { version = "0.1.0", path = "../cloud_scraper" }
+cucumber = "0.21.1"
+derive-getters = "0.5.0"
+mockall = "0.13.1"
+oauth2 = "4.4.2"
+parking_lot = "0.12.3"
+regex = "1.11.1"
+reqwest = "0.12.12"
+serde_yaml = "0.9.34"
+tokio = "1.43.0"
+tokio-test = "0.4.4"
+
+[[test]]
+name = "cucumber"
+harness = false

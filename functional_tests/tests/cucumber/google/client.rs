@@ -19,15 +19,15 @@ impl Debug for TestClientImpl {
 
 impl TestClientImpl {
     fn new_proxy(
-        application_secret: ApplicationSecret,
-        extra_parameters: &ExtraParameters,
-        manager: &Manager,
-        token_path: &Path,
-        web_channel_handle: &WebEventChannelHandle,
+        _application_secret: ApplicationSecret,
+        _extra_parameters: &ExtraParameters,
+        _manager: &Manager,
+        _token_path: &Path,
+        _web_channel_handle: &WebEventChannelHandle,
     ) -> Self {
         Self {}
     }
-    fn get_token_proxy(&self, scopes: &[String]) -> Result<AccessToken, Error> {
+    fn get_token_proxy(&self, _scopes: &[String]) -> Result<AccessToken, Error> {
         Ok(AccessToken::new("token".to_string()))
     }
 }
