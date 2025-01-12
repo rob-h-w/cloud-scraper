@@ -197,6 +197,7 @@ impl CliWorld {
 
         let command = self.command.clone().expect("Command not set");
         let command = bin_folder().join(command);
+        let spawning_error_message = format!("Error spawning command {:?}", command);
 
         let cmd = command.clone();
         let mut command = Command::new(cmd);
@@ -210,7 +211,7 @@ impl CliWorld {
             command = command.env(key, value);
         }
 
-        let mut child = command.spawn().expect("Error spawning command");
+        let mut child = command.spawn().expect(&spawning_error_message);
 
         let mut stdin = child.stdin.take().expect("Error taking stdin");
 
