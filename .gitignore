@@ -99,4 +99,4 @@ lcov.info
 *.json
 config*.yaml
 state/
-*password*
+*password*.yaml
