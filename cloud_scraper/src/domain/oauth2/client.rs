@@ -1,8 +1,11 @@
+use crate::core::module::State;
+use crate::domain::module_state::ModuleState;
 use crate::domain::mpsc_handle::one_shot;
 use crate::domain::node::Manager;
 use crate::domain::oauth2::extra_parameters::{ExtraParameters, WithExtraParametersExt};
 use crate::domain::oauth2::token::{BasicTokenResponseExt, Token, TokenExt, TokenStatus};
-use crate::domain::oauth2::ApplicationSecret;
+use crate::domain::oauth2::{ApplicationSecret, Config, PersistableConfig};
+use crate::integration::google::auth::ConfigQuery;
 use crate::server::Event::Redirect;
 use crate::server::{Code, Event, WebEventChannelHandle};
 use crate::static_init::error::Error::FailedAfterRetries;
@@ -18,7 +21,9 @@ use oauth2::{
     RefreshToken, Scope,
 };
 use std::future::Future;
+use std::io;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::sync::Arc;
 use tokio::fs;
 use tokio::sync::broadcast::error::RecvError;
@@ -28,18 +33,28 @@ use tokio::time::sleep;
 use Error::Oauth2CsrfMismatch;
 use Event::Oauth2Code;
 
-pub trait Client: Clone + Send + Sized + Sync + 'static {
+pub trait Client: Send + Sync + 'static {
     fn new(
         application_secret: ApplicationSecret,
         extra_parameters: &ExtraParameters,
         manager: &Manager,
         token_path: &Path,
         web_channel_handle: &WebEventChannelHandle,
-    ) -> Self;
-    fn get_token(
-        &self,
-        scopes: &[&str],
-    ) -> impl Future<Output = Result<AccessToken, Error>> + Send + Sync;
+    ) -> Pin<Box<Self>>
+    where
+        Self: Sized + 'static;
+    fn get_auth_config<'async_trait>(
+        name: &'async_trait str,
+    ) -> Pin<Box<dyn Future<Output = Result<impl Config, io::Error>> + Send + 'async_trait>>
+    where
+        Self: Sized + Sync + 'async_trait;
+    fn duplicate(&self) -> Pin<Box<dyn Client>>;
+    fn get_token<'async_trait>(
+        &'async_trait self,
+        scopes: &'async_trait [&'async_trait str],
+    ) -> Pin<Box<dyn Future<Output = Result<AccessToken, Error>> + Send + 'async_trait>>
+    where
+        Self: Sync + 'async_trait;
 }
 
 #[derive(Clone)]
@@ -60,9 +75,9 @@ impl Client for BasicClientImpl {
         manager: &Manager,
         token_path: &Path,
         web_channel_handle: &WebEventChannelHandle,
-    ) -> Self {
+    ) -> Pin<Box<Self>> {
         let basic_client = application_secret.to_client();
-        Self {
+        Box::pin(Self {
             basic_client,
             extra_parameters: extra_parameters.clone(),
             manager: manager.clone(),
@@ -70,21 +85,52 @@ impl Client for BasicClientImpl {
             retry_period: std::time::Duration::from_secs(2),
             token_path: token_path.to_owned(),
             web_channel_handle: web_channel_handle.clone(),
-        }
+        })
     }
 
-    async fn get_token(&self, scopes: &[&str]) -> Result<AccessToken, Error> {
-        match self.get_token_status_from_file().await {
-            TokenStatus::Ok(token) => Ok(token.access_token().clone()),
-            TokenStatus::Expired(refresh_token) => self
-                .refresh_token(&refresh_token)
-                .await
-                .map(|token| token.access_token().clone()),
-            TokenStatus::Absent => self.retrieve_token(scopes).await.map(|token| {
-                debug!("Token retrieved: {:?}", token);
-                token.access_token().clone()
-            }),
-        }
+    fn get_auth_config<'async_trait>(
+        name: &'async_trait str,
+    ) -> Pin<Box<dyn Future<Output = Result<impl Config, io::Error>> + Send + 'async_trait>>
+    where
+        Self: Sized + Sync + 'async_trait,
+    {
+        Box::pin(
+            async move { Ok(ConfigQuery::read_config(&State::path_for_name(name).await?).await?) },
+        )
+    }
+
+    fn duplicate(&self) -> Pin<Box<dyn Client>> {
+        Box::pin(Self {
+            basic_client: self.basic_client.clone(),
+            extra_parameters: self.extra_parameters.clone(),
+            manager: self.manager.clone(),
+            retry_max: self.retry_max,
+            retry_period: self.retry_period,
+            token_path: self.token_path.to_owned(),
+            web_channel_handle: self.web_channel_handle.clone(),
+        })
+    }
+
+    fn get_token<'async_trait>(
+        &'async_trait self,
+        scopes: &'async_trait [&'async_trait str],
+    ) -> Pin<Box<dyn Future<Output = Result<AccessToken, Error>> + Send + 'async_trait>>
+    where
+        Self: Sync + 'async_trait,
+    {
+        Box::pin(async move {
+            match self.get_token_status_from_file().await {
+                TokenStatus::Ok(token) => Ok(token.access_token().clone()),
+                TokenStatus::Expired(refresh_token) => self
+                    .refresh_token(&refresh_token)
+                    .await
+                    .map(|token| token.access_token().clone()),
+                TokenStatus::Absent => self.retrieve_token(scopes).await.map(|token| {
+                    debug!("Token retrieved: {:?}", token);
+                    token.access_token().clone()
+                }),
+            }
+        })
     }
 }
 
@@ -300,6 +346,16 @@ impl BasicClientImpl {
 pub mod tests {
     use super::*;
 
+    mod send_and_sync {
+        use super::*;
+        use crate::assert_is_send_and_sync;
+
+        #[test]
+        fn basic_client_impl_is_send_and_sync() {
+            assert_is_send_and_sync!(BasicClientImpl);
+        }
+    }
+
     mod make_redirect_url {
         use super::*;
         use crate::domain::config::tests::test_config;
@@ -381,12 +437,61 @@ pub mod tests {
     }
 
     mod access_token {
+        use crate::assert_is_send_and_sync;
         use oauth2::AccessToken;
 
         #[test]
         fn test_is_send_and_sync() {
-            fn is_send_and_sync<T: Send + Sync>() {}
-            is_send_and_sync::<AccessToken>();
+            assert_is_send_and_sync!(AccessToken);
+        }
+    }
+
+    mod get_auth_config {
+        use super::*;
+        use crate::domain::config::Config as CoreConfig;
+        use crate::domain::module_state::NamedModule;
+        use crate::domain::oauth2::config::ConfigProperties;
+
+        pub struct NamedType;
+
+        impl NamedModule for NamedType {
+            fn name() -> &'static str {
+                "test"
+            }
+        }
+
+        impl NamedType {
+            async fn typed_test<T: Client>(&self) -> ApplicationSecret {
+                task::spawn(async move {
+                    let config = T::get_auth_config("name").await.unwrap();
+                    assert_eq!(config.auth_uri(), "auth_uri");
+                    assert_eq!(
+                        config.auth_provider_x509_cert_url(),
+                        "auth_provider_x509_cert_url"
+                    );
+                    assert_eq!(config.client_email(), Some("client_email"));
+                    assert_eq!(config.client_id(), "client_id");
+                    assert_eq!(config.client_secret(), "client_secret");
+                    assert_eq!(config.client_x509_cert_url(), Some("client_x509_cert_url"));
+                    assert_eq!(config.project_id(), "project_id");
+                    assert_eq!(config.redirect_uris(), &vec!["redirect_uris".to_string()]);
+                    assert_eq!(config.token_uri(), "token_uri");
+                    let core_config = CoreConfig::with_all_properties(None, None, None, None);
+                    let app_secret = config.to_application_secret(&core_config);
+                    app_secret
+                })
+                .await
+                .unwrap()
+            }
+        }
+
+        // Trying to reproduce
+        // lifetime bound not satisfied
+        // Note: this is a known limitation that will be removed in the future (see issue #100013 <https:// github. com/ rust-lang/ rust/ issues/ 100013> for more information)
+        #[tokio::test]
+        async fn test_get_auth_config() {
+            let named_type = NamedType {};
+            let _app_secret = named_type.typed_test::<BasicClientImpl>().await;
         }
     }
 }

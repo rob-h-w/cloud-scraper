@@ -1,6 +1,6 @@
 use crate::core::node_handles::NodeHandles;
 use crate::domain::node::Manager;
-use crate::domain::oauth2::BasicClientImpl;
+use crate::domain::oauth2::Config;
 use crate::domain::oauth2::PersistableConfig;
 use crate::integration::google::auth::ConfigQuery;
 use crate::integration::google::Source;
@@ -58,7 +58,7 @@ pub fn config_google(
 }
 
 async fn format_response(handles: NodeHandles) -> Result<impl Reply, Rejection> {
-    let existing_config = Source::<BasicClientImpl>::get_auth_config().await.ok();
+    let existing_config = Source::get_auth_config().await.ok();
     Ok(reply::html(
         format_config_google_html(handles, &existing_config).await,
     ))
@@ -84,13 +84,13 @@ async fn update_config(
 ) -> Result<impl Reply, Rejection> {
     let config = ConfigQuery::from(&form_map);
 
-    let path = Source::<BasicClientImpl>::config_path()
+    let path = Source::config_path()
         .await
         .map_err(|e| e.into_rejection())?;
     match config.persist(&path).await {
         Ok(_) => {
             let mut sender: Manager = handles.lifecycle_manager().clone();
-            match sender.send_read_config::<Source<BasicClientImpl>>() {
+            match sender.send_read_config::<Source>() {
                 Ok(_) => {
                     debug!("Google config update sent");
                     Ok(warp::redirect::found(warp::http::Uri::from_static(
@@ -104,6 +104,62 @@ async fn update_config(
             }
         }
         Err(e) => Err(e.into_rejection()),
+    }
+}
+
+impl From<&HashMap<String, String>> for ConfigQuery {
+    fn from(value: &HashMap<String, String>) -> Self {
+        ConfigQuery::new(
+            value.get("auth_provider_x509_cert_url").unwrap().into(),
+            value.get("auth_uri").unwrap().into(),
+            value.get("client_email").map(|s| s.into()),
+            value.get("client_id").unwrap().into(),
+            value.get("client_secret").unwrap().into(),
+            value.get("client_x509_cert_url").map(|s| s.into()),
+            value.get("project_id").unwrap().into(),
+            value
+                .get("redirect_uris")
+                .map(|s| s.split(',').map(|s| s.to_string()).collect())
+                .unwrap_or_default(),
+            value.get("token_uri").unwrap().into(),
+        )
+    }
+}
+
+trait PageDataMaker {
+    fn empty_page_data() -> HashMap<&'static str, String>;
+    fn to_page_data(&self) -> HashMap<&'static str, String>;
+}
+
+impl<T> PageDataMaker for T
+where
+    T: Config,
+{
+    fn empty_page_data() -> HashMap<&'static str, String> {
+        HashMap::default()
+    }
+
+    fn to_page_data(&self) -> HashMap<&'static str, String> {
+        let mut page_data = HashMap::new();
+        page_data.insert(
+            "auth_provider_x509_cert_url",
+            self.auth_provider_x509_cert_url().into(),
+        );
+        page_data.insert("auth_uri", self.auth_uri().into());
+        if let Some(client_email) = self.client_email() {
+            page_data.insert("client_email", client_email.into());
+        }
+        page_data.insert("client_id", self.client_id().into());
+        page_data.insert("client_secret", self.client_secret().into());
+        if let Some(client_x509_cert_url) = self.client_x509_cert_url() {
+            page_data.insert("client_x509_cert_url", client_x509_cert_url.into());
+        }
+        page_data.insert("project_id", self.project_id().into());
+        page_data.insert("token_uri", self.token_uri().into());
+        if !self.redirect_uris().is_empty() {
+            page_data.insert("redirect_uris", self.redirect_uris().join(","));
+        }
+        page_data
     }
 }
 
@@ -127,7 +183,7 @@ mod tests {
     async fn make_config_file_and_lock<'a>() -> CleanableTestFile<'a> {
         CleanableTestFile::new(
             TEST_MUTEX.lock().expect("Could not lock mutex."),
-            Source::<BasicClientImpl>::config_path()
+            Source::config_path()
                 .await
                 .expect("Could not get config path.")
                 .to_str()
@@ -143,7 +199,7 @@ mod tests {
     }
 
     async fn reset() {
-        let config_path = Source::<BasicClientImpl>::config_path().await.unwrap();
+        let config_path = Source::config_path().await.unwrap();
         let _ = fs::remove_file(&config_path).await;
     }
 
@@ -278,12 +334,12 @@ mod tests {
 
         mod to_application_secret {
             use super::*;
-            use crate::domain::{Config, DomainConfig};
+            use crate::domain::{Config as ConfigTrait, DomainConfig};
 
             #[test]
             fn returns_application_secret() {
                 let config = test_config();
-                let core_config = Config::with_all_properties(
+                let core_config = ConfigTrait::with_all_properties(
                     Some(DomainConfig::new("https://localhost")),
                     None,
                     None,
@@ -313,7 +369,7 @@ mod tests {
             #[test]
             fn preserves_the_url_port() {
                 let config = test_config();
-                let core_config = Config::with_all_properties(
+                let core_config = ConfigTrait::with_all_properties(
                     Some(DomainConfig::new("https://the.domain:8081")),
                     None,
                     None,

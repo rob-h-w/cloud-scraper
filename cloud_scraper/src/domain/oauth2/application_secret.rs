@@ -39,3 +39,13 @@ impl ApplicationSecret {
         .set_redirect_uri(redirect_uri)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::assert_is_send_and_sync;
+
+    fn send_and_sync() {
+        assert_is_send_and_sync!(ApplicationSecret);
+    }
+}

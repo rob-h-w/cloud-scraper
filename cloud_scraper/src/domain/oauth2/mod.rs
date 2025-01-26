@@ -10,5 +10,5 @@ pub use application_secret::{ApplicationSecret, ApplicationSecretBuilder};
 pub(crate) use client::BasicClientImpl;
 pub use client::Client;
 
-pub(crate) use config::{make_config_struct, Config, PersistableConfig};
+pub(crate) use config::{Config, ConfigProperties, PersistableConfig};
 pub use extra_parameters::{extra_parameters, ExtraParameter, ExtraParameters};

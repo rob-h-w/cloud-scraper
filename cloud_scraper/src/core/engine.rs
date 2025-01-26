@@ -9,7 +9,8 @@ use crate::core::node_handles::NodeHandles;
 use crate::domain::config::Config;
 use crate::domain::mpsc_handle::{one_shot, OneshotMpscSenderHandle};
 use crate::domain::node::{LifecycleChannelHandle, Manager};
-use crate::domain::oauth2::BasicClientImpl;
+use crate::domain::oauth2::{ApplicationSecret, ExtraParameters};
+use crate::domain::oauth2::{BasicClientImpl, Client};
 use crate::integration::google::Source as GoogleSource;
 use crate::integration::log::Sink as LogSink;
 use crate::integration::stub::Source as StubSource;
@@ -17,6 +18,7 @@ use crate::server::WebServer;
 use core::time::Duration;
 #[cfg(test)]
 use mockall::automock;
+use std::path::Path;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering::SeqCst;
 use tokio::sync::Semaphore;
@@ -67,7 +69,7 @@ where
         let wait_duration = self.manager.core_config().exit_after();
 
         let mut stub_source = StubSource::new(&self.manager);
-        let google_source: GoogleSource<BasicClientImpl> =
+        let google_source: GoogleSource =
             GoogleSource::new(&self.manager, self.server.get_web_channel_handle());
         let mut log_sink = LogSink::new(&self.manager, &stub_source.get_readonly_channel_handle());
 
@@ -98,7 +100,15 @@ where
             .expect("Could not acquire semaphore");
         abort_handles.push(join_set.spawn(async move { log_sink.run(log_permit).await }));
         abort_handles.push(join_set.spawn(async move { stub_source.run(stub_permit).await }));
-        abort_handles.push(join_set.spawn(async move { google_source.run(google_permit).await }));
+        abort_handles.push(join_set.spawn(async move {
+            google_source
+                .run(
+                    google_permit,
+                    BasicClientImpl::get_auth_config,
+                    BasicClientImpl::new,
+                )
+                .await
+        }));
 
         let server = self.server.clone();
         abort_handles.push(join_set.spawn(async move {

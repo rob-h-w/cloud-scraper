@@ -43,7 +43,7 @@ pub(crate) struct GoogleWorld {
     #[getter(skip)]
     manager: Option<Manager>,
     #[getter(skip)]
-    source: Option<Arc<Source<TestClient>>>,
+    source: Option<Arc<Source>>,
     source_once: Once,
     web_channel_handle: WebEventChannelHandle,
 }
@@ -75,7 +75,7 @@ impl GoogleWorld {
         async fn test<'a>(
             permit: OwnedSemaphorePermit,
             semaphore: &'a Arc<Semaphore>,
-            source: &'a Arc<Source<TestClient>>,
+            source: &'a Arc<Source>,
         ) {
             drop(permit);
             source

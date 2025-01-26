@@ -12,6 +12,14 @@ pub(crate) mod tests {
     use std::ops::Deref;
     use std::sync::{Arc, MutexGuard, Once};
 
+    #[macro_export]
+    macro_rules! assert_is_send_and_sync {
+        ($type:ty) => {{
+            fn is_send_and_sync<T: Send + Sync>() {}
+            is_send_and_sync::<$type>();
+        }};
+    }
+
     #[derive(Clone, Debug, PartialEq)]
     pub(crate) struct LogEntry {
         args: String,

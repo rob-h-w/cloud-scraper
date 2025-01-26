@@ -1,17 +1,20 @@
 use crate::core::module::State;
 use crate::domain::module_state::{ModuleState, NamedModule};
 use crate::domain::node::{InitReplier, Lifecycle, Manager};
-use crate::domain::oauth2::{extra_parameters, BasicClientImpl, Client, PersistableConfig};
-use crate::integration::google::auth::{ConfigQuery, DelegateBuilder};
+use crate::domain::oauth2::{extra_parameters, Client, Config, PersistableConfig};
+use crate::domain::oauth2::{ApplicationSecret, ExtraParameters};
+use crate::integration::google::auth::{ConfigQuery, Delegate};
 use crate::integration::google::tasks::sync;
 use crate::server::auth::get_token_path;
 use crate::server::WebEventChannelHandle;
 use derive_getters::Getters;
 use log::{debug, error, info, trace};
 use std::any::TypeId;
+use std::future::Future;
 use std::io;
-use std::marker::PhantomData;
+use std::path::Path;
 use std::path::PathBuf;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, OwnedSemaphorePermit, Semaphore};
@@ -20,37 +23,42 @@ use tokio::{join, task};
 use Lifecycle::{Init, ReadConfig, Stop};
 
 #[derive(Clone, Debug, Getters)]
-pub struct Source<ClientType>
-where
-    ClientType: Client,
-{
-    _phantom: PhantomData<ClientType>,
+pub struct Source {
     lifecycle_manager: Manager,
     web_channel_handle: WebEventChannelHandle,
 }
 
-impl<ClientType> NamedModule for Source<ClientType>
-where
-    ClientType: Client,
-{
+impl NamedModule for Source {
     fn name() -> &'static str {
         "google"
     }
 }
 
-impl<ClientType> Source<ClientType>
-where
-    ClientType: Client,
-{
+impl Source {
     pub fn new(manager: &Manager, web_channel_handle: &WebEventChannelHandle) -> Self {
         Self {
-            _phantom: Default::default(),
             lifecycle_manager: manager.clone(),
             web_channel_handle: web_channel_handle.clone(),
         }
     }
 
-    pub async fn run(&self, google_permit: OwnedSemaphorePermit) {
+    pub async fn run<'a, T, U, V, W>(
+        &'a self,
+        google_permit: OwnedSemaphorePermit,
+        get_auth_config: U,
+        client_constructor: fn(
+            ApplicationSecret,
+            &ExtraParameters,
+            &Manager,
+            &Path,
+            &WebEventChannelHandle,
+        ) -> Pin<Box<W>>,
+    ) where
+        T: Future<Output = Result<V, io::Error>> + Send + Sized,
+        U: Fn(&'a str) -> T + Send + 'static,
+        V: Config,
+        W: Client,
+    {
         let (load_sender, mut load_receiver) = mpsc::channel(1);
         let core_config = self.lifecycle_manager.core_config().clone();
         let semaphore = Arc::new(Semaphore::new(1));
@@ -84,7 +92,9 @@ where
                     }
                 }
 
-                let application_secret = if let Ok(config) = Self::get_auth_config().await {
+                // get_auth_config taking generics seems to be unsupported by the compiler right now.
+                // Buttmuppets. I'll just use the concrete type for now.
+                let application_secret = if let Ok(config) = get_auth_config(Self::name()).await {
                     config.to_application_secret(&core_config)
                 } else {
                     Self::wait_in_loop().await;
@@ -97,7 +107,8 @@ where
                         continue;
                     }
                 };
-                let client = BasicClientImpl::new(
+                // This also suffers from the same class of buttmuppetism.
+                let client = client_constructor(
                     application_secret,
                     &extra_parameters!("access_type" => "offline"),
                     &lifecycle_manager,
@@ -109,13 +120,7 @@ where
                         break;
                     }
 
-                    let delegate = match DelegateBuilder::default().client(client.clone()).build() {
-                        Ok(delegate) => delegate,
-                        Err(e) => {
-                            error!("Error while creating Google authentication delegate: {}", e);
-                            break;
-                        }
-                    };
+                    let delegate = Delegate::new(client.duplicate());
                     sync(delegate).await;
                     Self::wait_in_loop().await;
                 }
@@ -165,7 +170,7 @@ where
                             event.reply_to_init_with((), "google_source").await
                         }
                         ReadConfig(type_id) => {
-                            if type_id == TypeId::of::<Source<ClientType>>() {
+                            if type_id == TypeId::of::<Self>() {
                                 send_load!();
                             }
                         }

@@ -1,21 +1,17 @@
 use crate::domain::oauth2::Client;
-use derive_builder::Builder;
 use google_tasks1::common::GetToken;
 use std::future::Future;
 use std::pin::Pin;
 
-#[derive(Builder, Clone)]
-pub struct Delegate<ClientImpl>
-where
-    ClientImpl: Client,
-{
-    client: ClientImpl,
+pub struct Delegate {
+    client: Pin<Box<dyn Client>>,
 }
 
-impl<ClientImpl: Client> Delegate<ClientImpl>
-where
-    ClientImpl: Client,
-{
+impl Delegate {
+    pub fn new(client: Pin<Box<dyn Client>>) -> Self {
+        Self { client }
+    }
+
     async fn get_secret(
         &self,
         scopes: &[&str],
@@ -28,10 +24,15 @@ where
     }
 }
 
-impl<ClientImpl: Client> GetToken for Delegate<ClientImpl>
-where
-    ClientImpl: Client,
-{
+impl Clone for Delegate {
+    fn clone(&self) -> Self {
+        Self {
+            client: self.client.duplicate(),
+        }
+    }
+}
+
+impl GetToken for Delegate {
     fn get_token<'a>(
         &'a self,
         scopes: &'a [&str],
